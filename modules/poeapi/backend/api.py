@@ -43,6 +43,7 @@ __all__ = [
     "CharacterList",
     "Grid",
     "ItemSet",
+    "LeagueUnknownError",
     "Location",
     "Meta",
     "Mods",
@@ -89,6 +90,18 @@ class AccountUnknownError(PoeApiError):
     """
 
 
+class LeagueUnknownError(PoeApiError):
+    """Which league to act on could not be established, and guessing is not allowed.
+
+    Defined here, in the core module that owns the concept, and re-exported by
+    ``prices`` so both raise **one** type. A league is the axis every price is
+    denominated on: the same Divine Orb was 897.7c in Standard and 209.0c in
+    Allflame on the day this project measured them, so a default league is not a
+    convenience, it is a four-fold error with a confident face on it. Refusing is
+    the only honest answer when nothing knows the league.
+    """
+
+
 class RateLimitedError(PoeApiError):
     """A live fetch was refused and there was no cached copy to fall back on."""
 
@@ -120,13 +133,24 @@ class PoeApi(Protocol):
         character endpoint marks as current. Items are tagged
         :attr:`Source.BAG` or :attr:`Source.EQUIPMENT`; the bag is what appraisal
         cares about.
+
+        The returned :attr:`ItemSet.league` is **the league that character is in**,
+        read off the cached character list rather than off a setting. It is the
+        only place that fact is knowable, so dropping it here is what made every
+        downstream consumer fall back to a default and price the wrong economy.
+        ``None`` means it could not be established — never "Standard".
         """
         ...
 
     async def get_stash_tabs(
         self, league: str | None = None, *, refresh: bool = False
     ) -> StashTabList:
-        """The tab list for a league. Shares a rate-limit bucket with ``get_items``."""
+        """The tab list for a league. Shares a rate-limit bucket with ``get_items``.
+
+        ``league`` defaults to the ``poeapi.league`` setting and then to the current
+        character's league; when neither is available this raises
+        :class:`LeagueUnknownError` rather than reading somebody else's stash.
+        """
         ...
 
     async def get_stash_items(

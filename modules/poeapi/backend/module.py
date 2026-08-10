@@ -14,6 +14,14 @@ Three behaviours here exist to protect the account rather than to serve a caller
   four minutes ago, refresh available in 12 s", which is true.
 * **A 401/403 tells `credentials` before it reaches the caller**, so the stored
   state and the error the surface sees can never disagree.
+
+And one that exists to protect the *numbers*: **every :class:`ItemSet` carries the
+league it came from**, read off the character list rather than off a setting. This
+module is the only place in the tool where "which league is this?" has a truthful
+answer, and it used to throw it away — leaving `prices` to fall back to a default
+and denominate an Allflame bag in Standard chaos, a factor of four on the divine
+rate. Resolving it costs no extra request: ``get-characters`` is cached for an hour
+and the default-character lookup has usually just made the call.
 """
 
 from __future__ import annotations
@@ -33,6 +41,7 @@ from modules.poeapi.backend.api import (
     Character,
     CharacterList,
     ItemSet,
+    LeagueUnknownError,
     Meta,
     PoeApi,
     PoeApiError,
@@ -69,7 +78,16 @@ DEFAULT_CHARACTERS_TTL = 3600
 DEFAULT_ITEMS_TTL = 0
 DEFAULT_STASH_TABS_TTL = 900
 DEFAULT_STASH_ITEMS_TTL = 20
-DEFAULT_LEAGUE = "Standard"
+
+NO_LEAGUE = ""
+"""The ``league`` setting's default, and it is deliberately empty.
+
+It used to be ``"Standard"``. That is the single most expensive default this
+project has had: it is *plausible* — most accounts have a Standard character — so
+nothing ever looks broken, and it silently answers a question ("which economy?")
+that only the character list can answer. Empty means "ask the account", and the
+code paths below either find the answer or raise :class:`LeagueUnknownError`.
+"""
 
 # How stale the credential's "last confirmed" timestamp may get before a successful
 # fetch refreshes it. Every refresh is a disk write plus a `credential_changed`
@@ -99,7 +117,11 @@ class PoeApiModule:
         self._credentials = ctx.require(CredentialsApi)
         if self._cache is None:
             self._cache = ResponseCache(ctx.storage)
-        ctx.logger.info("poeapi ready: league=%s", self._league(None))
+        configured = str(self._setting("league", NO_LEAGUE)).strip()
+        ctx.logger.info(
+            "poeapi ready: league=%s",
+            configured or "unset (read from the character being synced)",
+        )
 
     async def stop(self) -> None:
         self._ctx = None
@@ -119,9 +141,14 @@ class PoeApiModule:
         return {
             "league": {
                 "type": "str",
-                "default": DEFAULT_LEAGUE,
+                "default": NO_LEAGUE,
                 "label": "League",
-                "description": "Which league's stash to read.",
+                "description": (
+                    "Which league's stash to read. Leave empty to follow the "
+                    "character you are playing; set it only to read a different "
+                    "league's stash. A bag never uses this — it carries the league "
+                    "of the character it came from."
+                ),
             },
             "account": {
                 "type": "str",
@@ -195,7 +222,8 @@ class PoeApiModule:
         account: str | None = None,
         refresh: bool = False,
     ) -> ItemSet:
-        name = character or await self._default_character()
+        name, roster = await self._character(character)
+        league_name = await self._character_league(name, roster)
         account_name = await self._account(account)
         payload, meta = await self._fetch(
             path=ITEMS_PATH,
@@ -207,14 +235,20 @@ class PoeApiModule:
         )
         raw_items = payload.get("items") if isinstance(payload, Mapping) else None
         items = normalize_items(raw_items or [], source=Source.BAG, split_equipment=True)
-        result = ItemSet(items=items, source=Source.BAG, character=name, meta=meta)
+        result = ItemSet(
+            items=items,
+            source=Source.BAG,
+            character=name,
+            league=league_name,
+            meta=meta,
+        )
         await self._announce(f"items:{name}", result)
         return result
 
     async def get_stash_tabs(
         self, league: str | None = None, *, refresh: bool = False
     ) -> StashTabList:
-        league_name = self._league(league)
+        league_name = await self._league(league)
         account_name = await self._account(None)
         payload, meta = await self._fetch(
             path=STASH_PATH,
@@ -239,7 +273,7 @@ class PoeApiModule:
         *,
         refresh: bool = False,
     ) -> ItemSet:
-        league_name = self._league(league)
+        league_name = await self._league(league)
         account_name = await self._account(None)
         payload, meta = await self._fetch(
             path=STASH_PATH,
@@ -375,12 +409,64 @@ class PoeApiModule:
 
     # -- internals -------------------------------------------------------------
 
-    async def _default_character(self) -> str:
-        characters = await self.get_characters()
-        current = characters.current()
+    async def _character(self, explicit: str | None) -> tuple[str, CharacterList | None]:
+        """Which character to read, and the roster it was read from if we fetched one.
+
+        The roster is handed back rather than re-fetched by the caller so that
+        resolving *both* the default character and its league costs the one
+        ``get-characters`` call — the tightest endpoint on the account.
+        """
+        if explicit and explicit.strip():
+            return explicit.strip(), None
+        roster = await self.get_characters()
+        current = roster.current()
         if current is None:
             raise PoeApiError("the account has no characters in any league")
-        return current.name
+        return current.name, roster
+
+    async def _character_league(
+        self, name: str, roster: CharacterList | None
+    ) -> str | None:
+        """The league ``name`` is playing in, or ``None`` if it cannot be had.
+
+        Not an error: a bag is still a bag without its league, and the honest
+        failure belongs to whoever needs the league (``prices`` raises
+        :class:`LeagueUnknownError`). What this must never do is *substitute* one —
+        that is the bug this whole path exists to close.
+
+        Costs no request in the normal case. ``get-characters`` is cached for an
+        hour and the default-character path above has usually just fetched it, so
+        this is a dictionary lookup wearing an ``await``.
+        """
+        if roster is None:
+            roster = await self._roster()
+        if roster is None:
+            return None
+        entry = roster.named(name)
+        if entry is None:
+            self._log().warning(
+                "no character named %r on this account; its league is unknown and "
+                "nothing downstream will guess one",
+                name,
+            )
+            return None
+        if not entry.league:
+            self._log().warning("the API returned no league for %r", name)
+            return None
+        return entry.league
+
+    async def _roster(self) -> CharacterList | None:
+        """The character list, or ``None`` when it is momentarily unavailable.
+
+        Swallowed on purpose. A rate-limited or failed ``get-characters`` must not
+        turn a working ``get-items`` into an error; it turns the *league* into
+        ``None``, and the module that needs a league says so loudly.
+        """
+        try:
+            return await self.get_characters()
+        except PoeApiError as exc:
+            self._log().info("character list unavailable (%s); league unresolved", exc)
+            return None
 
     async def _account(self, explicit: str | None) -> str:
         """The account name ``get-items`` needs, in order of authority.
@@ -404,10 +490,26 @@ class PoeApiModule:
             "the poeapi.account setting."
         )
 
-    def _league(self, explicit: str | None) -> str:
+    async def _league(self, explicit: str | None) -> str:
+        """Which league's stash to read: argument, then setting, then the character.
+
+        The stash endpoint *requires* a league in the query string, so unlike a bag
+        there is no "carry on without one" — but the answer is still never invented.
+        """
         if explicit and explicit.strip():
             return explicit.strip()
-        return str(self._setting("league", DEFAULT_LEAGUE)) or DEFAULT_LEAGUE
+        configured = str(self._setting("league", NO_LEAGUE)).strip()
+        if configured:
+            return configured
+        roster = await self._roster()
+        current = roster.current() if roster is not None else None
+        if current is not None and current.league:
+            return current.league
+        raise LeagueUnknownError(
+            "no league to read the stash from: pass one, or set the poeapi.league "
+            "setting. Reading Standard by default is how a tool shows you somebody "
+            "else's stash and calls it yours."
+        )
 
     def _setting(self, key: str, default: Any) -> Any:
         if self._ctx is None:

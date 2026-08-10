@@ -29,16 +29,20 @@ a divine figure without doing arithmetic on prices it did not compute.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from modules.poeapi.backend.api import NormalizedItem
+from modules.poeapi.backend.api import LeagueUnknownError, NormalizedItem
 from runtime.errors import PoedexError
 
 __all__ = [
     "PRICES_UPDATED",
     "BagValuation",
+    "LeagueChoice",
+    "LeagueSource",
+    "LeagueUnknownError",
     "Price",
     "PriceSource",
     "PricesApi",
@@ -65,6 +69,57 @@ class TradeUnavailable(PricesError):
     index": it means the *query* failed — refused by the limiter, no online sellers,
     or an item shape the query builder cannot express.
     """
+
+
+class LeagueSource(StrEnum):
+    """Where the league a bag was priced against came from.
+
+    Carried all the way to the surface because "Standard" on its own is not an
+    answer a player can check. "Standard, because that is the league your character
+    is in" and "Standard, because you told me to ignore the character" are different
+    claims, and only one of them is a bug when the character is in Allflame.
+    """
+
+    ARGUMENT = "argument"
+    """A per-run ``--league``. The most explicit thing a caller can say."""
+
+    SETTING = "setting"
+    """``prices.league``. A standing instruction to ignore the character."""
+
+    CHARACTER = "character"
+    """The bag's own league, from the character it was fetched for. The normal path
+    and, since this is the only source that cannot be stale, the right default."""
+
+
+@dataclass(frozen=True, slots=True)
+class LeagueChoice:
+    """A resolved league and the reason it won."""
+
+    league: str
+    source: LeagueSource
+
+    @property
+    def overridden(self) -> bool:
+        """``True`` when something other than the character decided.
+
+        A surface should say so. Pricing an Allflame bag against Standard is a
+        legitimate thing to ask for and an illegitimate thing to do by accident, and
+        the only difference visible from the outside is whether it was announced.
+        """
+        return self.source is not LeagueSource.CHARACTER
+
+    def describe(self) -> str:
+        if self.source is LeagueSource.CHARACTER:
+            return f"{self.league} (from the character)"
+        origin = "--league" if self.source is LeagueSource.ARGUMENT else "prices.league setting"
+        return f"{self.league} (OVERRIDE via {origin} — not the character's league)"
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "league": self.league,
+            "source": self.source.value,
+            "overridden": self.overridden,
+        }
 
 
 class PriceSource(StrEnum):
@@ -227,13 +282,22 @@ class Valuation:
 class BagValuation:
     """Every item, plus the totals a surface shows without recomputing anything."""
 
-    __slots__ = ("divine_rate", "items", "league", "lookups", "table", "trade_requests")
+    __slots__ = (
+        "divine_rate",
+        "items",
+        "league",
+        "league_source",
+        "lookups",
+        "table",
+        "trade_requests",
+    )
 
     def __init__(
         self,
         items: Sequence[Valuation],
         *,
         league: str,
+        league_source: LeagueSource | None = None,
         divine_rate: float | None = None,
         table: TableStatus | None = None,
         lookups: int = 0,
@@ -241,6 +305,11 @@ class BagValuation:
     ) -> None:
         self.items = list(items)
         self.league = league
+        self.league_source = league_source
+        """Why :attr:`league` is what it is. ``None`` only for a valuation built
+        straight from a :class:`~modules.prices.backend.valuation.PriceIndex` in a
+        test; everything the module produces says where the league came from."""
+
         self.divine_rate = divine_rate
         """Chaos per Divine Orb, from the currency table. ``None`` if it is missing."""
 
@@ -279,6 +348,12 @@ class BagValuation:
     def to_json(self) -> dict[str, Any]:
         return {
             "league": self.league,
+            "league_source": self.league_source.value if self.league_source else None,
+            "league_overridden": (
+                self.league_source.value != LeagueSource.CHARACTER.value
+                if self.league_source
+                else None
+            ),
             "items": [v.to_json() for v in self.items],
             "total_chaos": round(self.total_chaos, 4),
             "total_divine": (
@@ -295,14 +370,20 @@ class BagValuation:
 
 
 class TableStatus:
-    """Freshness of the bulk tables, carried with every valuation."""
+    """Freshness of the bulk tables, carried with every valuation.
+
+    :attr:`league` is **which league the loaded tables are for**, not which league
+    was asked about. Those can differ — the tables are prefetched before any
+    character is known — and a status that reported only "16 loaded" while the bag
+    was Allflame is a status that hides the one fact that matters.
+    """
 
     __slots__ = ("league", "loaded", "newest", "note", "oldest", "requested", "stale")
 
     def __init__(
         self,
         *,
-        league: str,
+        league: str | None,
         loaded: int,
         requested: int,
         oldest: datetime | None = None,
@@ -385,29 +466,88 @@ class PricesApi(Protocol):
     tables that were prefetched at module start. That guarantee is what lets an
     appraisal screen price a bag on a zone transition without spending a request, and
     it is why tier 3 is a separate method with a name that sounds expensive.
+
+    ## The league is an argument, not a setting
+
+    Every pricing call takes the league the *items* are in. Resolution is
+    :meth:`league_choice`: a per-call argument, then the ``prices.league`` setting
+    when it is set, then the bag's own league, then :class:`LeagueUnknownError`.
+    There is no final fallback, deliberately — the previous one was ``"Standard"``,
+    and it priced an Allflame bag against an economy whose Divine Orb costs four
+    times as much while printing a total that looked entirely reasonable.
+
+    Because the tables are prefetched before any character is known, they may belong
+    to a different league than the bag. They are then **not used**: the valuation
+    comes back with everything unpriceable and a :class:`TableStatus` that says which
+    league the tables are actually for. Call :meth:`ensure_tables` first — it is the
+    one pricing-side method that may spend a poe.ninja request, and it costs no GGG
+    budget at all.
     """
 
-    async def value(self, item: NormalizedItem) -> Valuation:
+    def league_choice(
+        self, bag_league: str | None = None, *, explicit: str | None = None
+    ) -> LeagueChoice:
+        """Resolve which league to price against, and say why. Never guesses."""
+        ...
+
+    @property
+    def tables_league(self) -> str | None:
+        """Which league the currently loaded tables belong to, if any."""
+        ...
+
+    async def ensure_tables(self, league: str) -> TableStatus:
+        """Make the loaded tables be ``league``'s, fetching them if they are not.
+
+        May block on poe.ninja — a surface should say what it is doing rather than
+        appear to hang. Costs zero GGG rate-limit budget.
+        """
+        ...
+
+    async def value(
+        self,
+        item: NormalizedItem,
+        *,
+        league: str | None = None,
+        override: str | None = None,
+    ) -> Valuation:
         """Price one item: tier 0 note, then tier 1 bulk, then ``unpriceable``."""
         ...
 
-    async def value_all(self, items: Sequence[NormalizedItem]) -> BagValuation:
-        """Price a whole bag, deduplicated, with stack-aware totals."""
+    async def value_all(
+        self,
+        items: Sequence[NormalizedItem],
+        *,
+        league: str | None = None,
+        override: str | None = None,
+    ) -> BagValuation:
+        """Price a whole bag, deduplicated, with stack-aware totals.
+
+        ``league`` is the league the items are **in** — normally ``ItemSet.league``.
+        ``override`` is a per-call instruction to price against a different economy
+        anyway; it outranks both ``league`` and the ``prices.league`` setting, and
+        the resulting :attr:`BagValuation.league_source` records that it did.
+        """
         ...
 
     async def bulk(self, category: str) -> Mapping[str, Price]:
         """One bulk table as ``name -> Price``. Fetches it if it is not loaded."""
         ...
 
-    async def refresh(self, *, force: bool = False) -> TableStatus:
+    async def refresh(self, *, force: bool = False, league: str | None = None) -> TableStatus:
         """Refresh the bulk tables with conditional requests. Costs no GGG budget."""
         ...
 
-    def status(self) -> TableStatus:
-        """Table freshness, without fetching anything."""
+    def status(self, league: str | None = None) -> TableStatus:
+        """Table freshness, without fetching anything.
+
+        Pass ``league`` to ask "are the loaded tables usable for *this* league?" —
+        a mismatch answers ``loaded=0`` with a note, never a plausible-looking count.
+        """
         ...
 
-    async def quote(self, item: NormalizedItem, *, sample: int = 0) -> TradeQuote:
+    async def quote(
+        self, item: NormalizedItem, *, sample: int = 0, league: str | None = None
+    ) -> TradeQuote:
         """Tier 3. **On demand only** — never call this from a valuation pass.
 
         ``sample`` is how many of the cheapest online listings to take the median of;

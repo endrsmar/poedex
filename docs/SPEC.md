@@ -516,7 +516,7 @@ hedge, and it can move earlier.
 |---|---|---|---|
 | 1 | Keep threshold default (~20c vs divine-tier) | Verdict tuning | User decision. Phase 4 shipped 20c as `appraisal.keep_threshold_chaos`; `poedex appraise --threshold N` on a **real** bag settles it, and no real bag has been appraised yet |
 | 1b | Should `check` be one state or two? §5.4 gives it two jobs — "cheap but non-trivial" and "unknown value, tier-3 pending" — and on a real bag the first will swamp the second | The Phase 5 bag screen | Decide before the panel is drawn, not after |
-| 2 | Which league is primary? | Price table selection | User decision |
+| 2 | ~~Which league is primary?~~ **Resolved: none is.** A bag is priced against the league of the character it came from (`ItemSet.league`, read off `get-characters`). `prices.league` became an override, empty by default; `--league` overrides it for one run; an unknown league raises `LeagueUnknownError` instead of defaulting. The old `"Standard"` default priced an Allflame bag against a 897.7c divine instead of 209.0c | — | Done |
 | 3 | Does pathofexile.com login + Cloudflare work in Steam's CEF browser? | All of M7 | Hardware test |
 | 4 | Do map stash tabs need substash traversal? Nine returned zero items across two leagues. | Stash value accuracy | M5, inspect raw JSON |
 | 5 | Does GGG issue refresh tokens to public clients at all? Docs contradict themselves (7d vs 90d) and offer to disable them. | M7 UX | Ask in the application email |

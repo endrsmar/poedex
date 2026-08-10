@@ -196,11 +196,13 @@ class AppraisalModule:
         *,
         strictness: Strictness | None = None,
         threshold_chaos: float | None = None,
+        league: str | None = None,
+        override: str | None = None,
     ) -> BagAppraisal:
         rows = list(items)
         level = strictness or self.strictness()
         keep = self.threshold() if threshold_chaos is None else float(threshold_chaos)
-        valued = await self._require_prices().value_all(rows)
+        valued = await self._require_prices().value_all(rows, league=league, override=override)
         gates = [self.gate(item, strictness=level) for item in rows]
         return appraise_bag(
             rows,
@@ -212,11 +214,16 @@ class AppraisalModule:
         )
 
     async def appraise_item(
-        self, item: NormalizedItem, *, strictness: Strictness | None = None
+        self,
+        item: NormalizedItem,
+        *,
+        strictness: Strictness | None = None,
+        league: str | None = None,
+        override: str | None = None,
     ) -> ItemVerdict:
         level = strictness or self.strictness()
         keep = self.threshold()
-        valuation = await self._require_prices().value(item)
+        valuation = await self._require_prices().value(item, league=league, override=override)
         return appraise_one(
             item,
             valuation,
@@ -233,11 +240,17 @@ class AppraisalModule:
         strictness: str | None = None,
         threshold_chaos: float | None = None,
     ) -> dict[str, Any]:
+        prices = self._require_prices()
         bag = await self._require_poeapi().get_items(character)
+        # Resolving first means a bag with no league fails here, with a message about
+        # leagues, rather than four screens later as "everything is unpriceable".
+        choice = prices.league_choice(bag.league)
+        await prices.ensure_tables(choice.league)
         result = await self.appraise(
             bag.by_source(Source.BAG),
             strictness=_parse_strictness(strictness),
             threshold_chaos=threshold_chaos,
+            league=bag.league,
         )
         await self._announce(result, character=bag.character)
         payload = result.to_json()
@@ -274,6 +287,9 @@ class AppraisalModule:
             {
                 "character": character,
                 "league": result.league,
+                "league_source": (
+                    result.league_source.value if result.league_source else None
+                ),
                 "counts": result.counts,
                 "total_chaos": round(result.total_chaos, 4),
                 "unpriceable_stack": result.unpriceable_stack,
