@@ -413,16 +413,32 @@ honest burst, which is now one discovery pass plus a forced refresh.
 
 **Done:** ducats price at tier 1; a bag's rares come back with numbers; 821 tests, all offline.
 
-### Phase 5 — UI kit, web surface, appraisal UI
-Primitive **contracts** designed against both profiles up front — informed by the existing
-mockups, which already show what each surface needs. `full` profile implemented; `compact`
-deferred to Phase 7. HTTP transport (FastAPI on `127.0.0.1:7331`, SSE, static). Web shell.
-`modules/appraisal/ui/` with the bag screen. Honest sync states: fresh / stale / syncing /
-unchanged / error / restricted.
+### Phase 5 — UI kit, web surface, appraisal UI — **done**
 
-*Risk, stated:* designing primitives while implementing only one profile can produce contracts
-that don't fit `compact`. Mitigated by writing both profile signatures before either
-implementation, and by Phase 7 being allowed to revise contracts rather than pile on overrides.
+`ui-kit/` (`@poedex/ui`), `frontend/core/` (`@poedex/core`), `transports/http/`, `surfaces/web/`
+and `modules/appraisal/ui/`. `poedex serve` starts it; `localhost:7331` is the priced bag.
+
+**The stated risk was answered rather than deferred.** The mitigation in the original text —
+"write both profile signatures before either implementation" — turned out to be too weak to
+check anything, because a signature nobody runs is a signature nobody has tested. So `compact`
+was written as a *working* implementation (inline styles, no `@decky/ui` yet; Phase 7 swaps the
+elements) and `vitest.compact.config.ts` runs **the same 123 tests** through it by flipping the
+`#profile` export condition. No test names a profile.
+
+That harness earned its keep on its first run: 15 failures, every one a place where `compact`
+had quietly dropped content rather than a place where a contract did not fit. The sync wording
+had already forked between the two profiles before anything shipped (`cached` vs
+`cached — nothing was fetched`; `Resync` vs `Refresh`), which is why `ui-kit/src/sync.ts` now
+owns the sentences and a profile only decides how much of one fits.
+
+Two deviations from §2.3, both stated where they live:
+
+- **`limit` is a prop on `Section`, not a separate `ItemList` primitive.** §2.3's example puts
+  `limit={{compact: 5, full: null}}` on `ItemList`; the primitive *table* lists `ItemRow`. Making
+  the container own truncation means the same hint works for rows, bars and anything else, and
+  the "N more not shown" footer is written once.
+- **`ItemVerdict` gained a `slot`.** The bag grid is a *map* (§6.3) and the appraisal payload
+  carried no coordinates, so the screen could not draw one. Four ints, optional, defaulted.
 
 **Done:** open `localhost:7331`, see the priced bag. **First usable surface.**
 
@@ -467,6 +483,10 @@ navigation.
 | Tier 3 is eager for a bag and never for a stash | "Never eager" was a stash rule applied to a bag. `Strictness` already encodes exactly that distinction, so it is reused rather than duplicated |
 | Tier 1b is numbered 1b, not 2 | Tiers 2 and 3 are referenced by number across four documents and every module docstring. The new source is a bulk answer that runs where tier 1 missed, so it belongs beside tier 1 |
 | Mod "tiers" are one regex and one threshold per group | A real mod database is tens of thousands of rows that go stale every league. Stated as an approximation in `gate.py`, used only by the generous gate, and off entirely at strict |
+| The wire schema is pydantic in `transports/wire.py` | `prices` and `appraisal` use plain classes with `to_json()` on purpose. §3 still wants pydantic as the single source of TS types, so the *wire* shape is declared in the transport, generated from, and validated against the real `to_json()` output. Both halves are tested; a schema nothing validates against is a wish |
+| `check` is split in the UI, not in `Verdict` | Phase 4 asked for the split before the panel was drawn. Both lanes still mean *look before you vendor*, so the difference is layout: a fifth verdict would need a fifth colour and a change to the CLI, the event payload and every test |
+| The compact profile is implemented, not stubbed | The phase's stated risk cannot be checked against signatures. Running the real test suite through the other profile found five content drops and one forked vocabulary; a stub would have found none of them |
+| The HTTP transport refuses non-loopback `Host`/`Origin` | Binding to 127.0.0.1 stops another machine, not another tab. Any page can POST to localhost, and DNS rebinding gives it an origin. No CORS headers, ever |
 
 ---
 

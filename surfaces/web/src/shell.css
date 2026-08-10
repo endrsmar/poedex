@@ -1,0 +1,87 @@
+/*
+ * The shell's own chrome. Everything inside a screen is the kit's.
+ *
+ * The reset is minimal on purpose: the kit's `.pk-root` establishes the palette and
+ * the type, and a shell that restyled primitives would be a shell the `compact`
+ * surface cannot reproduce.
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg, #0a0d11);
+}
+
+.shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.shell__brand {
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-right: 0.5rem;
+}
+
+.shell__tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.1rem;
+  cursor: pointer;
+}
+
+.shell__tab[aria-current='page'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.shell__status {
+  margin-left: auto;
+  font-family: var(--f-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.shell__status[data-state='error'],
+.shell__status[data-state='closed'] {
+  color: var(--v-check);
+}
+
+.shell__screen {
+  flex: 1;
+  min-height: 0;
+}
+
+.shell__problems {
+  padding: 0.5rem 1.5rem;
+  background: var(--accent-dim);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+}

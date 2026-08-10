@@ -1,0 +1,23 @@
+{
+  "name": "@poedex/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Primitives with two profile implementations, selected at build time.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./testing": "./src/testing.tsx"
+  },
+  "imports": {
+    "#profile": {
+      "poedex-compact": "./src/profiles/compact/index.tsx",
+      "default": "./src/profiles/full/index.tsx"
+    }
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

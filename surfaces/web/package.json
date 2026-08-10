@@ -1,0 +1,19 @@
+{
+  "name": "@poedex/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The `full` surface: a React + Vite shell that discovers registered module UIs and mounts them.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@poedex/appraisal-ui": "workspace:*",
+    "@poedex/core": "workspace:*",
+    "@poedex/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

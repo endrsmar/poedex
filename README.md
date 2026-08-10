@@ -7,12 +7,24 @@ Finish a map, portal to your hideout, press the `…` button. Every inventory sl
 **keep / check / trash** with a value estimate and a bag total. No keyboard, no alt-tab, no
 leaving gaming mode.
 
-> **Status: backend working, no UI yet.** The module runtime, the rate-limited API client, the
-> log tailer, the pricing engine and the verdict engine are in place — `poedex appraise` prints
-> a sorted keep / check / trash / unpriceable bag with a total at the command line. Nothing has
-> run on a Deck, or against the live API. See [`docs/SPEC.md`](docs/SPEC.md) for the design,
+> **Status: backend working, web surface working, no Deck panel yet.** The module runtime, the
+> rate-limited API client, the log tailer, the pricing engine and the verdict engine are in
+> place, and `poedex serve` puts the priced bag on `http://127.0.0.1:7331` with verdicts, price
+> provenance, an honest total and a working refresh. The Decky panel is next: the UI kit already
+> has two surface profiles, and the same `BagScreen.tsx` is what will render at 300 px. Nothing
+> has run on a Deck, or against the live API. See [`docs/SPEC.md`](docs/SPEC.md) for the design,
 > [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) for the phases, and
 > [`docs/research-notes.md`](docs/research-notes.md) for the evidence behind them.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev,web]'   # 3.11+
+pnpm install && pnpm build                                       # the web surface
+poedex auth set                                                  # a POESESSID, from a hidden prompt
+poedex serve                                                     # http://127.0.0.1:7331
+```
+
+`serve` binds to the loopback interface and refuses anything else — it reads your account's
+inventory, and `0.0.0.0` would put that on whatever network you are attached to.
 
 ## How it works
 
@@ -54,12 +66,30 @@ Three measured facts shape everything:
 | [`docs/ui-mockups.html`](docs/ui-mockups.html) | Visual mockups |
 | [`CLAUDE.md`](CLAUDE.md) | Orientation for contributors and coding agents |
 
+## Repository layout
+
+```
+runtime/            registry, context, events, storage, settings, methods
+modules/<id>/       one directory per module: backend/ (Python) + ui/ (TypeScript) + tests/
+ui-kit/             @poedex/ui — primitives, one implementation per surface profile
+frontend/core/      @poedex/core — transports and stores. Framework-agnostic, no React
+transports/http/    FastAPI on 127.0.0.1, SSE, and the built SPA
+surfaces/web/       the browser shell; discovers module UIs and mounts them
+```
+
+A module is a vertical slice: its backend logic **and its own screens** live in one directory.
+Module UI is written once against `@poedex/ui` and reshaped by surface profiles — `compact`
+(300 px, gamepad) and `full` (browser) — so one `BagScreen.tsx` renders on both. Both boundaries
+are enforced by tests rather than by discipline: `tests/test_boundaries.py` walks the Python AST,
+and `eslint-plugin-poedex` checks what a module's UI may import.
+
 ## Roadmap
 
 | | Milestone | Deck needed |
 |---|---|---|
 | M1 | Data layer: log tailer, HTTPS client, rate limiter, item model | no |
 | M2 | Bulk pricing and the keep/check/trash/unpriceable verdict engine | no |
+| M2b | Web surface on localhost: the bag screen, the UI kit, the HTTP transport | no |
 | M3 | Decky plugin shell: bag grid, D-pad navigation, push updates | yes |
 | M4 | LAN pairing — credential entry with zero characters typed on the Deck | yes |
 | M5 | Stash digest: what's it worth, what should I sell | yes |

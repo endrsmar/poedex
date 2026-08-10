@@ -22,10 +22,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Phase 5. The web transport only. The Decky backend does not use these — its
+# transport is Decky's own RPC — so they stay out of the base dependency set that
+# has to be vendorable into `py_modules/`.
+web = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
   "ruff>=0.5",
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
 ]
 
 [project.scripts]
@@ -36,18 +45,21 @@ poedex = "cli.main:main"
 # is Python. `modules/*/ui` is TypeScript built by a separate toolchain, and
 # `modules/*/tests` are not shipped.
 [tool.hatch.build.targets.wheel]
-packages = ["runtime", "cli", "modules"]
+packages = ["runtime", "cli", "modules", "transports"]
 exclude = [
   "modules/*/ui",
   "modules/*/tests",
 ]
 
 [tool.hatch.build.targets.sdist]
-include = ["runtime", "cli", "modules", "tests", "docs", "README.md", "LICENSE"]
+include = ["runtime", "cli", "modules", "transports", "scripts", "tests", "docs", "README.md", "LICENSE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "modules"]
 pythonpath = ["."]
+# `modules/*/ui` is TypeScript with its own node_modules; nothing there is a Python
+# test and walking it costs seconds on every run.
+norecursedirs = ["node_modules", "dist", ".venv", "ui"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["error"]

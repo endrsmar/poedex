@@ -14,14 +14,20 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b and 6 done.** `runtime/` (registry, context, events, storage, settings,
-methods, redacting log); core modules `credentials`, `net` (header-driven limiter + httpx),
-`poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); feature
-modules `prices` (poe.ninja bulk tables with per-league type discovery, tier-0 notes, a bulk
-exchange fallback, a trade client) and `appraisal` (the strictness-parameterized tier-2 gate,
-four-state verdicts, eager tier 3 for a bag); a `poedex` CLI; and the boundary tests, which now
-have both a core→feature rejection and a real feature→feature edge to enforce against. Next
-action is **Phase 5** (UI kit, web surface, appraisal UI).
+**Phases 1, 2, 3, 4, 4b, 5 and 6 done.** `runtime/` (registry, context, events, storage,
+settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
+httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail);
+feature modules `prices` (poe.ninja bulk tables with per-league type discovery, tier-0 notes, a
+bulk exchange fallback, a trade client) and `appraisal` (the strictness-parameterized tier-2
+gate, four-state verdicts, eager tier 3 for a bag); a `poedex` CLI; and **the first usable
+surface** — `ui-kit/` (`@poedex/ui`, two profiles behind a build-time alias), `frontend/core/`
+(transports, stores, TS types generated from the pydantic models), `transports/http/` (FastAPI
+on 127.0.0.1 + SSE + the built SPA), `surfaces/web/` and `modules/appraisal/ui/`. Boundaries are
+enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`. Next
+action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel).
+
+    poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
+    pnpm install && pnpm build && pnpm run check
 
 **Read Phase 4's validation finding before building UI on the bag screen**
 (IMPLEMENTATION-PLAN §5, Phase 4). The four-state verdict works and the totals are honest, but
@@ -118,6 +124,16 @@ sustained rate-limit violations.
   item level. It says so at the top of the file. Real tiers need a mod database this project
   does not have; if one ever lands, delete those constants rather than tuning them.
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
+- **A module's UI writes no CSS and imports no Decky API.** It composes `@poedex/ui` primitives
+  and declares density with per-profile hints (`limit={{compact: 5, full: null}}`). The rule is
+  enforced by `eslint-plugin-poedex`, whose own test proves it fails on each violation.
+- **The same component tests run against both profiles.** `pnpm run test` resolves `#profile` to
+  `full`, `pnpm run test:compact` to `compact`. That harness is what turns "designed for both"
+  into a fact; the first run of it found five places where `compact` had quietly dropped content.
+- **`check` is drawn as two blocks, not one.** SPEC §5.4's "below threshold **or** the gate
+  flagged it" is two questions; the bag screen splits them on whether a number exists. The split
+  is in `modules/appraisal/ui/model.ts`, not in `Verdict` — it is a layout decision, and a fifth
+  verdict would change the CLI, the event payload and every test to express it.
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.
 - **PoE 2 has no data path.** GGG removed inventory from its character endpoint in 3.27.0.
