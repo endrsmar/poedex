@@ -1,0 +1,107 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "sanctified-fossil",
+   "primaryValue": 224.4,
+   "volumePrimaryValue": 598.4,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 4,
+   "sparkline": {
+    "totalChange": -63.76,
+    "data": [
+     0,
+     -9.9,
+     -22.29,
+     -24.22,
+     -12.2,
+     -18.39,
+     -63.76
+    ]
+   }
+  },
+  {
+   "id": "pristine-fossil",
+   "primaryValue": 6.51,
+   "volumePrimaryValue": 87.83,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 0.1537,
+   "sparkline": {
+    "totalChange": -25.69,
+    "data": [
+     0,
+     -3.59,
+     -8.63,
+     -18.18,
+     -20.05,
+     -20.05,
+     -25.69
+    ]
+   }
+  },
+  {
+   "id": "aberrant-fossil",
+   "primaryValue": 34.68,
+   "volumePrimaryValue": 2543,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 25.88,
+   "sparkline": {
+    "totalChange": 92.29,
+    "data": [
+     0,
+     38.25,
+     -3.98,
+     -6.34,
+     17.27,
+     -31.58,
+     92.29
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "sanctified-fossil",
+   "name": "Sanctified Fossil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRGVsdmUvR2lsZGVkRm9zc2lsIiwic2NhbGUiOjF9XQ/fc2d3fdf51/GildedFossil.png",
+   "category": "Delve",
+   "detailsId": "sanctified-fossil"
+  },
+  {
+   "id": "pristine-fossil",
+   "name": "Pristine Fossil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRGVsdmUvUHJpc3RpbmVGb3NzaWwiLCJzY2FsZSI6MX1d/bc91a1b44b/PristineFossil.png",
+   "category": "Delve",
+   "detailsId": "pristine-fossil"
+  },
+  {
+   "id": "aberrant-fossil",
+   "name": "Aberrant Fossil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRGVsdmUvQWJiZXJhbnRGb3NzaWwiLCJzY2FsZSI6MX1d/0ebc664beb/AbberantFossil.png",
+   "category": "Delve",
+   "detailsId": "aberrant-fossil"
+  }
+ ]
+}

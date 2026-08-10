@@ -1,0 +1,107 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "deafening-essence-of-woe",
+   "primaryValue": 6,
+   "volumePrimaryValue": 229.0,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 0.1667,
+   "sparkline": {
+    "totalChange": -70,
+    "data": [
+     -39.71,
+     -63.8,
+     -63.6,
+     -35,
+     -50.63,
+     -70,
+     -70
+    ]
+   }
+  },
+  {
+   "id": "deafening-essence-of-doubt",
+   "primaryValue": 23.02,
+   "volumePrimaryValue": 299.2,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 39,
+   "sparkline": {
+    "totalChange": -17.69,
+    "data": [
+     2.9,
+     -9.31,
+     -17.69,
+     -13.51,
+     -7.26,
+     -9.23,
+     -17.69
+    ]
+   }
+  },
+  {
+   "id": "deafening-essence-of-greed",
+   "primaryValue": 27.08,
+   "volumePrimaryValue": 4189,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 33.14,
+   "sparkline": {
+    "totalChange": -19.93,
+    "data": [
+     -15.93,
+     -3.4,
+     -31.0,
+     -23.01,
+     -15.52,
+     -32.41,
+     -19.93
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "deafening-essence-of-woe",
+   "name": "Deafening Essence of Woe",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRXNzZW5jZS9Xb2U3Iiwic2NhbGUiOjF9XQ/6bb5af5409/Woe7.png",
+   "category": "Essences",
+   "detailsId": "deafening-essence-of-woe"
+  },
+  {
+   "id": "deafening-essence-of-doubt",
+   "name": "Deafening Essence of Doubt",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRXNzZW5jZS9Eb3VidDciLCJzY2FsZSI6MX1d/663b299868/Doubt7.png",
+   "category": "Essences",
+   "detailsId": "deafening-essence-of-doubt"
+  },
+  {
+   "id": "deafening-essence-of-greed",
+   "name": "Deafening Essence of Greed",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRXNzZW5jZS9HcmVlZDciLCJzY2FsZSI6MX1d/9d7e9a3b11/Greed7.png",
+   "category": "Essences",
+   "detailsId": "deafening-essence-of-greed"
+  }
+ ]
+}

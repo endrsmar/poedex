@@ -48,6 +48,7 @@ from modules.poeapi.backend.models import (
 __all__ = [
     "category_of",
     "icon_art_path",
+    "map_tier_of",
     "normalize_item",
     "normalize_items",
     "rarity_of",
@@ -366,6 +367,15 @@ def stack_size_of(
     return (size if size and size > 0 else 1), maximum
 
 
+def map_tier_of(properties: Mapping[str, list[str]]) -> int | None:
+    """The ``Map Tier`` property as an int, or ``None`` when the item is not a map."""
+    values = properties.get(MAP_TIER_PROPERTY)
+    if not values:
+        return None
+    text = values[0].strip()
+    return int(text) if text.isdigit() else None
+
+
 def _uid(raw: Mapping[str, Any], location: Location) -> str:
     """GGG's item id, or a deterministic stand-in built from where it sits.
 
@@ -416,6 +426,7 @@ def normalize_item(raw: Mapping[str, Any], location: Location) -> NormalizedItem
         ilvl=_int(raw.get("ilvl")),
         stack_size=stack,
         max_stack_size=max_stack,
+        map_tier=map_tier_of(props),
         grid=Grid(
             x=_int(raw.get("x")),
             y=_int(raw.get("y")),

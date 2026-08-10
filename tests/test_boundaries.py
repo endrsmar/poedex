@@ -17,6 +17,7 @@ ever run against clean code is indistinguishable from one that always returns []
 from __future__ import annotations
 
 import ast
+import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -305,7 +306,13 @@ def test_checker_actually_sees_the_source_tree():
     # Equality, not containment: this is the inventory. A module that silently
     # stops being discovered must be loud. The cost is one conflicting line per
     # phase, which is a feature — the module set should not change unnoticed.
-    assert set(manifests(REPO_ROOT)) == {"credentials", "gamelog", "net", "poeapi"}
+    assert set(manifests(REPO_ROOT)) == {
+        "credentials",
+        "gamelog",
+        "net",
+        "poeapi",
+        "prices",
+    }
     creds = REPO_ROOT / MODULES_DIR / "credentials" / "backend" / "module.py"
     assert any(dotted.startswith("runtime.") for _, dotted in imports_of(creds, REPO_ROOT))
     # A real cross-module edge has to be visible to the checker, or the api.py rule
@@ -497,14 +504,18 @@ def test_assembled_real_registry_has_no_boundary_problems():
     real = Registry()
     real.load(REPO_ROOT / MODULES_DIR)
     assert real.check_boundaries() == []
-    assert real.resolve() == ["credentials", "gamelog", "net", "poeapi"]
+    assert real.resolve() == ["credentials", "gamelog", "net", "poeapi", "prices"]
 
 
-def test_every_shipped_module_is_core_for_now():
-    """Phases 1 and 2 ship only core modules; the first feature module lands in Phase 3.
+def test_shipped_module_kinds():
+    """The kinds, spelled out. Phase 3 makes the core/feature split real.
 
-    Stated as a test because "core may not depend on a feature" is unfalsifiable
-    while no feature module exists, and it should be obvious when that changes.
+    Until `prices` existed, "core may not depend on a feature" was unfalsifiable
+    against the real tree — there was no feature to depend on, and the rule was only
+    ever proved against synthetic source. The two tests below close that: one runs
+    the static checker over a *copy of this repository* with a core module edited to
+    depend on `prices`, and one assembles the real registry with a core module added
+    that does the same.
     """
     kinds = {mid: m.kind for mid, m in manifests(REPO_ROOT).items()}
     assert kinds == {
@@ -512,4 +523,56 @@ def test_every_shipped_module_is_core_for_now():
         "gamelog": "core",
         "net": "core",
         "poeapi": "core",
+        "prices": "feature",
     }
+    assert [mid for mid, kind in kinds.items() if kind == "feature"] == ["prices"]
+
+
+# -- the core -> feature rule, against the real tree ---------------------------
+
+
+def _copy_real_tree(destination: Path) -> Path:
+    """A working copy of ``runtime/`` and ``modules/``, minus caches and venvs."""
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".venv", "node_modules")
+    for name in (RUNTIME_DIR, MODULES_DIR):
+        shutil.copytree(REPO_ROOT / name, destination / name, ignore=ignore)
+    return destination
+
+
+def test_checker_catches_a_real_core_module_depending_on_prices(tmp_path: Path):
+    """`poeapi` is core and `prices` is a real feature module. Wiring one to the
+    other must be rejected — on the real manifests, not on a fixture's."""
+    root = _copy_real_tree(tmp_path)
+    assert check_all(root) == [], "the copied tree should start clean"
+
+    source = root / MODULES_DIR / "poeapi" / "backend" / "module.py"
+    text = source.read_text("utf-8")
+    patched = text.replace(
+        'requires: ClassVar[list[str]] = ["credentials", "net"]',
+        'requires: ClassVar[list[str]] = ["credentials", "net", "prices"]',
+    ).replace(
+        "from modules.poeapi.backend.cache import CacheEntry, ResponseCache",
+        "from modules.prices.backend.api import PricesApi\n"
+        "from modules.poeapi.backend.cache import CacheEntry, ResponseCache",
+    )
+    assert patched != text, "the patch did not apply; poeapi's declaration moved"
+    source.write_text(patched, encoding="utf-8")
+
+    messages = [v.message for v in check_all(root)]
+    assert any("core module poeapi imports feature module prices" in m for m in messages)
+    assert any("core module poeapi requires feature module prices" in m for m in messages)
+
+
+def test_assembled_real_registry_rejects_a_core_module_needing_prices(fake_module):
+    """The declaration half, on the registry the product actually builds."""
+    real = Registry()
+    real.load(REPO_ROOT / MODULES_DIR)
+    assert real.get("prices").kind == "feature"
+
+    real.register(fake_module("plumbing", kind="core", requires=["prices"]))
+    assert any(
+        "core module plumbing requires feature module prices" in problem
+        for problem in real.check_boundaries()
+    )
+    with pytest.raises(KindViolationError):
+        real.resolve()

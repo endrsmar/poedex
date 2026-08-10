@@ -9,6 +9,7 @@ Commands:
     poedex gamelog status              where Client.txt was found, or why not
     poedex gamelog watch               tail it and print classified zone events
     poedex sync                        fetch the bag and print the normalized model
+    poedex value                       price the bag: per-item values and a total
     poedex limits                      print what the rate limiter currently knows
     poedex selftest freshness          the in-game freshness experiment (SPEC §4.3)
 
@@ -30,6 +31,7 @@ from pathlib import Path
 
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
 from cli.sync import cmd_sync, render_limits
+from cli.value import cmd_value
 from modules.credentials.backend.api import CredentialError, CredentialsApi, CredentialState
 from modules.gamelog.backend.api import (
     FROM_START_ENV,
@@ -41,6 +43,7 @@ from modules.gamelog.backend.api import (
     GameLogStatus,
 )
 from modules.poeapi.backend.api import PoeApi
+from modules.prices.backend.api import PricesApi
 from runtime.errors import PoedexError
 from runtime.events import Event
 from runtime.log import install_redaction, silence_noisy_loggers
@@ -131,6 +134,28 @@ def build_parser() -> argparse.ArgumentParser:
             "ignore the cache TTL. Without it, sync honours poeapi.items_ttl_seconds "
             "(0 by default, so every run fetches; raise it while developing to stop "
             "spending budget on repeat runs)."
+        ),
+    )
+
+    value = sub.add_parser(
+        "value",
+        help="price the bag and print per-item values and a total",
+        description=(
+            "Prices the backpack from poe.ninja's bulk tables and the player's own "
+            "~price notes. No verdicts and no thresholds — those are Phase 4. "
+            "Pricing costs zero GGG rate-limit budget; only the inventory fetch does."
+        ),
+    )
+    value.add_argument("--character", help="character name (default: most recently played)")
+    value.add_argument(
+        "--force", action="store_true", help="ignore the inventory cache TTL"
+    )
+    value.add_argument(
+        "--refresh-prices",
+        action="store_true",
+        help=(
+            "re-fetch every price table, ignoring both the 30-minute TTL and the "
+            "stored ETag. Normally unnecessary: the tables are prefetched at start."
         ),
     )
 
@@ -338,6 +363,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 character=args.character,
                 refresh=args.force,
                 equipment=args.equipment,
+            )
+
+    elif args.command == "value":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_value(
+                registry.api(PricesApi),
+                registry.api(PoeApi),
+                character=args.character,
+                refresh=args.force,
+                refresh_prices=args.refresh_prices,
             )
 
     elif args.command == "limits":

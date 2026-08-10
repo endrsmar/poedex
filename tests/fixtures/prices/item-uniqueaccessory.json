@@ -1,0 +1,112 @@
+{
+ "lines": [
+  {
+   "id": 607,
+   "name": "Headhunter",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQmVsdHMvSGVhZGh1bnRlciIsInciOjIsImgiOjEsInNjYWxlIjoxfV0/e9542ec6ee/Headhunter.png",
+   "levelRequired": 40,
+   "baseType": "Leather Belt",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -27.19,
+    "data": [
+     0,
+     -5.56,
+     -11.37,
+     -16.49,
+     -32.89,
+     -34.01,
+     -27.19
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(25-48) to maximum Life",
+     "optional": false
+    },
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "+(40-66) to Strength",
+     "optional": false
+    },
+    {
+     "text": "+(40-66) to Dexterity",
+     "optional": false
+    },
+    {
+     "text": "+(50-72) to maximum Life",
+     "optional": false
+    },
+    {
+     "text": "(20-30)% increased Damage with Hits against Rare monsters",
+     "optional": false
+    },
+    {
+     "text": "When you Kill a Rare monster, you gain its Modifiers for (20-60) seconds",
+     "optional": false
+    }
+   ],
+   "flavourText": "\"A man's soul rules from a cavern of bone, learns and\njudges through flesh-born windows. The heart is meat.\nThe head is where the Man is.\"\n- Lavianga, Advisor to Kaom",
+   "itemType": "Belt",
+   "chaosValue": 8977,
+   "exaltedValue": 630.8,
+   "divineValue": 10.0,
+   "count": 168,
+   "detailsId": "headhunter-leather-belt",
+   "listingCount": 971
+  },
+  {
+   "id": 113,
+   "name": "Astramentis",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQW11bGV0cy9BbXVsZXQzNiIsInciOjEsImgiOjEsInNjYWxlIjoxfV0/95da0d04a4/Amulet36.png",
+   "levelRequired": 20,
+   "baseType": "Onyx Amulet",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -25,
+    "data": [
+     0,
+     0,
+     -12.5,
+     -25,
+     -13.75,
+     -6.5,
+     -25
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(10-24) to all Attributes",
+     "optional": false
+    },
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "+(80-120) to all Attributes",
+     "optional": false
+    },
+    {
+     "text": "-4 Physical Damage taken from Attack Hits",
+     "optional": false
+    }
+   ],
+   "flavourText": "Mindless rage will shake the world,\nCunning lies will bend it.\nReckless haste will break the world,\nAnd into darkness send it.",
+   "itemType": "Amulet",
+   "chaosValue": 30.0,
+   "exaltedValue": 2.11,
+   "divineValue": 0.03,
+   "count": 199,
+   "detailsId": "astramentis-onyx-amulet",
+   "listingCount": 1111
+  }
+ ]
+}

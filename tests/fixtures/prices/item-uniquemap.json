@@ -1,0 +1,66 @@
+{
+ "lines": [
+  {
+   "id": 136742,
+   "name": "The Tower of Ordeals",
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9UcmlhbG1hc3Rlck1hcCIsInciOjEsImgiOjEsInNjYWxlIjoxLCJtbiI6MjMsIm10IjowLCJyZWxpYyI6OH1d/cecf7945cf/TrialmasterMap.png",
+   "baseType": "Map (Tier 16)",
+   "itemClass": 10,
+   "sparkLine": {
+    "totalChange": 0,
+    "data": []
+   },
+   "flavourText": "On the outskirts of Utzaal, at the Temple of Chaos,\nthe Trialmaster awaits your challenge.",
+   "chaosValue": 323172,
+   "exaltedValue": 22711,
+   "divineValue": 360.0,
+   "count": 4,
+   "detailsId": "the-tower-of-ordeals-t0",
+   "listingCount": 12
+  },
+  {
+   "id": 135065,
+   "name": "Doryani's Machinarium",
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9Eb3J5YW5pcyIsInciOjEsImgiOjEsInNjYWxlIjoxLCJtbiI6MjQsIm10IjowfV0/ba4df2e497/Doryanis.png",
+   "baseType": "Map (Tier 16)",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 0.12,
+    "data": [
+     0,
+     38.74,
+     23.53,
+     -8.27,
+     -7.72,
+     -7.96,
+     0.12
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "(20-50)% increased Experience gain",
+     "optional": false
+    },
+    {
+     "text": "Monster Level: 80",
+     "optional": true
+    },
+    {
+     "text": "Unique Boss is augmented by Player choices",
+     "optional": false
+    },
+    {
+     "text": "Found Items have 10% chance to drop Corrupted in Area",
+     "optional": false
+    }
+   ],
+   "flavourText": "We are ever the makers of our own undoing.",
+   "chaosValue": 1795,
+   "exaltedValue": 126.2,
+   "divineValue": 2.0,
+   "count": 31,
+   "detailsId": "doryanis-machinarium-t0",
+   "listingCount": 176
+  }
+ ]
+}

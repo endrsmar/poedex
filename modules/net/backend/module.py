@@ -22,7 +22,12 @@ from modules.net.backend.client import (
     build_user_agent,
     prepare_logging,
 )
-from modules.net.backend.ratelimit import DEFAULT_PERIOD_PAD, RateLimiter
+from modules.net.backend.ratelimit import (
+    DEFAULT_COURTESY_MAX_HITS,
+    DEFAULT_COURTESY_PERIOD,
+    DEFAULT_PERIOD_PAD,
+    RateLimiter,
+)
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
 
@@ -61,6 +66,8 @@ class NetModule:
                 credentials=credentials,
                 base_url=str(ctx.settings.get("base_url")),
                 timeout=float(ctx.settings.get("timeout_seconds")),
+                foreign_max_hits=int(ctx.settings.get("third_party_max_hits")),
+                foreign_period=int(ctx.settings.get("third_party_period_seconds")),
             )
             self._owns_client = True
             if not str(ctx.settings.get("contact")).strip():
@@ -125,6 +132,26 @@ class NetModule:
                 "label": "Period padding",
                 "description": "Clock-skew allowance added to every learned period.",
             },
+            "third_party_max_hits": {
+                "type": "int",
+                "default": DEFAULT_COURTESY_MAX_HITS,
+                "min": 1,
+                "max": 240,
+                "label": "Third-party host budget",
+                "description": (
+                    "Requests allowed per period to a host other than the PoE API. "
+                    "Those hosts publish no rate-limit headers, so there is nothing "
+                    "to learn and this fixed budget applies instead. Each host gets "
+                    "its own; none of them touch GGG's."
+                ),
+            },
+            "third_party_period_seconds": {
+                "type": "int",
+                "default": DEFAULT_COURTESY_PERIOD,
+                "min": 1,
+                "max": 3600,
+                "label": "Third-party host period",
+            },
         }
 
     # -- NetApi ----------------------------------------------------------------
@@ -133,17 +160,61 @@ class NetModule:
     def user_agent(self) -> str:
         return self._require_client().user_agent
 
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        json: Any = None,
+        headers: Mapping[str, str] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Response:
+        return await self._require_client().request(
+            method,
+            path,
+            params=params,
+            json=json,
+            headers=headers,
+            authenticated=authenticated,
+            route=route,
+            timeout=timeout,
+        )
+
     async def get(
         self,
         path: str,
         *,
         params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
         authenticated: bool = True,
         route: str | None = None,
         timeout: float | None = None,
     ) -> Response:
         return await self._require_client().get(
             path,
+            params=params,
+            headers=headers,
+            authenticated=authenticated,
+            route=route,
+            timeout=timeout,
+        )
+
+    async def post_json(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: Mapping[str, Any] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        return await self._require_client().post_json(
+            path,
+            json=json,
             params=params,
             authenticated=authenticated,
             route=route,

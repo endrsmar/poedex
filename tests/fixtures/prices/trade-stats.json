@@ -1,0 +1,126 @@
+{
+ "result": [
+  {
+   "id": "pseudo",
+   "label": "Pseudo",
+   "entries": [
+    {
+     "id": "pseudo.pseudo_total_cold_resistance",
+     "text": "+#% total to Cold Resistance",
+     "type": "pseudo"
+    },
+    {
+     "id": "pseudo.pseudo_increased_movement_speed",
+     "text": "#% increased Movement Speed",
+     "type": "pseudo"
+    },
+    {
+     "id": "pseudo.pseudo_adds_physical_damage",
+     "text": "Adds # to # Physical Damage",
+     "type": "pseudo"
+    }
+   ]
+  },
+  {
+   "id": "explicit",
+   "label": "Explicit",
+   "entries": [
+    {
+     "id": "explicit.stat_3299347043",
+     "text": "+# to maximum Life",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_960081730",
+     "text": "Adds # to # Physical Damage",
+     "type": "explicit"
+    }
+   ]
+  },
+  {
+   "id": "implicit",
+   "label": "Implicit",
+   "entries": [
+    {
+     "id": "implicit.stat_3299347043",
+     "text": "+# to maximum Life",
+     "type": "implicit"
+    },
+    {
+     "id": "implicit.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "implicit"
+    }
+   ]
+  },
+  {
+   "id": "fractured",
+   "label": "Fractured",
+   "entries": [
+    {
+     "id": "fractured.stat_3299347043",
+     "text": "+# to maximum Life",
+     "type": "fractured"
+    },
+    {
+     "id": "fractured.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "fractured"
+    },
+    {
+     "id": "fractured.stat_960081730",
+     "text": "Adds # to # Physical Damage",
+     "type": "fractured"
+    }
+   ]
+  },
+  {
+   "id": "enchant",
+   "label": "Enchant",
+   "entries": [
+    {
+     "id": "enchant.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "enchant"
+    }
+   ]
+  },
+  {
+   "id": "scourge",
+   "label": "Scourge",
+   "entries": [
+    {
+     "id": "scourge.stat_3299347043",
+     "text": "+# to maximum Life",
+     "type": "scourge"
+    },
+    {
+     "id": "scourge.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "scourge"
+    }
+   ]
+  },
+  {
+   "id": "crafted",
+   "label": "Crafted",
+   "entries": [
+    {
+     "id": "crafted.stat_3299347043",
+     "text": "+# to maximum Life",
+     "type": "crafted"
+    },
+    {
+     "id": "crafted.stat_2250533757",
+     "text": "#% increased Movement Speed",
+     "type": "crafted"
+    }
+   ]
+  }
+ ]
+}

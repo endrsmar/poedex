@@ -154,6 +154,11 @@ class NormalizedItem(Base):
     ilvl: int = 0
     stack_size: int = 1
     max_stack_size: int | None = None
+    map_tier: int | None = None
+    """The ``Map Tier`` property, for maps only. Pricing needs it: poe.ninja indexes
+    ordinary maps as ``Map (Tier 16)`` rather than by their area name (SPEC §5.1), so
+    without the tier a map cannot be looked up at all."""
+
     grid: Grid = Grid()
     sockets: Sockets = Sockets()
     corrupted: bool = False

@@ -1,0 +1,107 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "divination-scarab-of-pilfering",
+   "primaryValue": 133.0,
+   "volumePrimaryValue": 7181,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 6.75,
+   "sparkline": {
+    "totalChange": -20.69,
+    "data": [
+     -14.13,
+     -29.23,
+     -24.15,
+     -28.17,
+     -11.54,
+     -10.74,
+     -20.69
+    ]
+   }
+  },
+  {
+   "id": "cartography-scarab-of-the-multitude",
+   "primaryValue": 5.18,
+   "volumePrimaryValue": 443.7,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 0.1931,
+   "sparkline": {
+    "totalChange": -61.52,
+    "data": [
+     -27.73,
+     -25.7,
+     3.84,
+     -12.41,
+     -7.18,
+     2.22,
+     -61.52
+    ]
+   }
+  },
+  {
+   "id": "horned-scarab-of-nemeses",
+   "primaryValue": 44.19,
+   "volumePrimaryValue": 40994,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 20.31,
+   "sparkline": {
+    "totalChange": 19.7,
+    "data": [
+     9.5,
+     24.57,
+     28.56,
+     30.02,
+     8.15,
+     16.92,
+     19.7
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "divination-scarab-of-pilfering",
+   "name": "Divination Scarab of Pilfering",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvU2NhcmFicy9HcmVhdGVyU2NhcmFiRGl2aW5hdGlvbiIsInNjYWxlIjoxfV0/73ab11f6bd/GreaterScarabDivination.png",
+   "category": "Fragments",
+   "detailsId": "divination-scarab-of-pilfering"
+  },
+  {
+   "id": "cartography-scarab-of-the-multitude",
+   "name": "Cartography Scarab of the Multitude",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvU2NhcmFicy9BbHROb3JtYWxTY2FyYWJNYXBzIiwic2NhbGUiOjF9XQ/41c689bbef/AltNormalScarabMaps.png",
+   "category": "Fragments",
+   "detailsId": "cartography-scarab-of-the-multitude"
+  },
+  {
+   "id": "horned-scarab-of-nemeses",
+   "name": "Horned Scarab of Nemeses",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvU2NhcmFicy9TdXBlclNjYXJhYjIiLCJzY2FsZSI6MX1d/c4f92c444d/SuperScarab2.png",
+   "category": "Fragments",
+   "detailsId": "horned-scarab-of-nemeses"
+  }
+ ]
+}

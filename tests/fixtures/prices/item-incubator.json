@@ -1,0 +1,70 @@
+{
+ "lines": [
+  {
+   "id": 135655,
+   "name": "Honoured Incubator",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvSW5jdWJhdGlvbi9JbmN1YmF0b3JNaXJhZ2VDb21tb24iLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/52be4cc35c/IncubatorMirageCommon.png",
+   "stackSize": 10,
+   "itemClass": 5,
+   "sparkLine": {
+    "totalChange": -5.6,
+    "data": [
+     0,
+     -8.84,
+     -10.84,
+     -8.54,
+     -17.68,
+     -13.29,
+     -5.6
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "Adds an incubated Coin item to an equippable item\nItem drops after killing 10530 monsters",
+     "optional": true
+    },
+    {
+     "text": "Adds an incubated Coin item or Gold to an equippable item\nItem drops after killing (9090-10530) monsters",
+     "optional": false
+    }
+   ],
+   "chaosValue": 83666,
+   "exaltedValue": 5880,
+   "divineValue": 93.2,
+   "count": 56,
+   "detailsId": "honoured-incubator",
+   "listingCount": 58
+  },
+  {
+   "id": 21684,
+   "name": "Diviner's Incubator",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvSW5jdWJhdGlvbi9JbmN1YmF0aW9uRGl2aW5hdGlvbkNhcmRzIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/c5f63e4263/IncubationDivinationCards.png",
+   "stackSize": 10,
+   "itemClass": 5,
+   "sparkLine": {
+    "totalChange": 10848,
+    "data": [
+     0,
+     114.6,
+     100,
+     3404,
+     2309,
+     21.95,
+     10848
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "Adds incubated Stacked Decks to an equippable item\nItem drops after killing (2053-4530) monsters",
+     "optional": false
+    }
+   ],
+   "chaosValue": 897.7,
+   "exaltedValue": 63.09,
+   "divineValue": 1.0,
+   "count": 5,
+   "detailsId": "diviners-incubator",
+   "listingCount": 116
+  }
+ ]
+}
