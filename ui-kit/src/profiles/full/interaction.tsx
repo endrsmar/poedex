@@ -1,7 +1,7 @@
 import type { ActionComponent, DetailComponent, DetailField } from '../../contracts'
 import { resolveHint } from '../../profile'
 import { useCountdown } from '../../countdown'
-import { formatCountdown, formatQuantity } from '../../format'
+import { formatCountdown, formatPriceCell, formatQuantity } from '../../format'
 import { PROVENANCE_LABEL, VERDICT_GLYPH, VERDICT_HEADLINE } from '../../verdict'
 import { ValueBar, VerdictPill } from './data'
 
@@ -69,11 +69,7 @@ export const Detail: DetailComponent = ({ item, fields, empty = 'nothing selecte
         <div className="pk-detail__block">
           <span className="pk-label">value</span>
           <span className="pk-stat__value" style={{ fontSize: '1.35rem' }}>
-            {price?.pricing
-              ? '⋯'
-              : price && price.chaos !== null && price.chaos !== undefined
-                ? `${price.chaos.toLocaleString('en-US', { maximumFractionDigits: 2 })}c`
-                : '—'}
+            {formatPriceCell(price, 2)}
           </span>
           {shown.includes('provenance') && price ? (
             <span className="pk-muted" style={{ fontSize: '0.76rem' }}>

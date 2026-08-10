@@ -836,6 +836,24 @@
    "x": 0,
    "y": 0,
    "inventoryId": "Belt"
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "720fb0e5052ab22ee3916c7cc819f4b636d6369f5d76e83994c6d61858467f50",
+   "identified": true,
+   "ilvl": 0,
+   "x": 7,
+   "y": 1,
+   "inventoryId": "MainInventory",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Quest/BookOfSkill.png",
+   "name": "",
+   "typeLine": "Book of Skill",
+   "baseType": "Book of Skill",
+   "descrText": "Right click to gain a passive skill point.",
+   "frameType": 7
   }
  ],
  "character": {

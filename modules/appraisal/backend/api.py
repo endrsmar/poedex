@@ -37,19 +37,26 @@ Four decisions are encoded in these types rather than left to a caller.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
 from modules.poeapi.backend.api import NormalizedItem, Rarity
-from modules.prices.backend.api import LeagueSource, TableStatus, Valuation
+from modules.prices.backend.api import (
+    LeagueSource,
+    ModFocus,
+    TableStatus,
+    Valuation,
+)
 from runtime.errors import PoedexError
 
 __all__ = [
     "APPRAISAL_COMPLETE",
     "DEFAULT_CHECK_CHAOS",
     "DEFAULT_KEEP_CHAOS",
+    "NOT_LOOT_CATEGORIES",
     "AppraisalApi",
     "AppraisalError",
     "BagAppraisal",
@@ -60,6 +67,7 @@ __all__ = [
     "Strictness",
     "Verdict",
     "indexable",
+    "not_loot",
 ]
 
 APPRAISAL_COMPLETE = "appraisal_complete"
@@ -100,7 +108,12 @@ class Strictness(StrEnum):
 
 
 class Verdict(StrEnum):
-    """SPEC §5.4. Four states, and the fourth is not a worse third."""
+    """SPEC §5.4's four states, plus one the first live appraisal proved was missing.
+
+    The first four are all answers to *what should I do with this loot?* The fifth
+    exists because some rows in a real backpack are not loot, and every one of the
+    four would be a lie about them.
+    """
 
     KEEP = "keep"
     """At or above the keep threshold."""
@@ -115,6 +128,24 @@ class Verdict(StrEnum):
 
     UNPRICEABLE = "unpriceable"
     """The bulk index should carry this and does not. **Not** zero, and not trash."""
+
+    NOT_LOOT = "not_loot"
+    """Not a loot decision at all: a quest item, an MTX effect, a hideout decoration.
+
+    The first live appraisal put ``The Mortinomicon Exitio Immortalis`` — a quest
+    item — under ``TRASH``, whose headline is *vendor*. A quest item cannot be
+    traded and cannot be vendored, so that is not an unhelpful suggestion, it is an
+    impossible instruction, and a player who tries to follow it learns the tool does
+    not know what it is looking at.
+
+    This is a **fifth verdict** rather than a lane inside an existing one, which
+    CLAUDE.md is right to be suspicious of. The bar it clears is that the difference
+    is not about layout: `check`'s two lanes ask the player for the same action and
+    differ only in what the screen has room to show, while this row is asking for no
+    action at all. It also has to survive the bag *grid*, where every cell needs a
+    verdict — an item excluded from the verdict list would silently vanish from a map
+    whose whole job is to be complete.
+    """
 
 
 # Categories the poe.ninja overviews are supposed to cover (SPEC §5.1). An item in
@@ -149,25 +180,99 @@ def indexable(item: NormalizedItem) -> bool:
     return item.category in _INDEXED_CATEGORIES
 
 
+NOT_LOOT_CATEGORIES: frozenset[str] = frozenset({"quest", "cosmetic", "hideout"})
+"""Categories where "what should I do with this?" has no answer worth printing.
+
+* ``quest`` — quest items. Cannot be traded (the trade API has no such name, which is
+  why tier 3 finds nothing), cannot be vendored, cannot even be dropped in most
+  cases. ``The Mortinomicon Exitio Immortalis`` is the live example.
+* ``cosmetic`` — microtransaction effects, from ``2DItems/MicrotransactionItemEffects``.
+  Account-bound by construction.
+* ``hideout`` — hideout decorations. Some are tradeable, most arrive from MTX and are
+  not, and none of them is a stash-trip decision.
+
+Deliberately **not** here: ``prophecy``. Prophecies were genuinely tradeable items
+when the mechanic existed, so calling one "not loot" would be a different wrong
+answer; it cannot appear in a live bag anyway.
+
+Kept as an explicit set rather than derived from "nothing could price it", because
+that description also fits a rare — and a rare is the one thing this tool exists to
+have an opinion about."""
+
+
+def not_loot(item: NormalizedItem) -> bool:
+    """Is this row outside the loot decision entirely?
+
+    Checked before every pricing question, because it makes all of them moot: an item
+    that cannot be sold has no market price to be missing, so ``unpriceable`` would
+    be as wrong as ``trash``.
+
+    Rarity is checked as well as category because GGG's own data says it twice —
+    ``frameType 7`` sets both — and either one arriving alone should still be caught.
+    """
+    return item.rarity is Rarity.QUEST or item.category in NOT_LOOT_CATEGORIES
+
+
+def _widen(value: float, widen: float) -> float:
+    """A measured roll, dropped ``widen`` below itself. ``103 → 82``.
+
+    Mirrors :func:`modules.prices.backend.trade.widened` rather than importing it:
+    `appraisal` may import `prices`' **api** and nothing else, and a four-line
+    arithmetic helper is not worth widening that surface for.
+    """
+    floor = value * (1.0 - widen)
+    return float(math.floor(floor)) if floor >= 1 else round(floor, 2)
+
+
 class GateSignal:
     """One reason the tier-2 gate had an opinion about an item.
 
     Kept as an object rather than a string so a surface can show *why* an item is
     worth checking without re-deriving it, and so the strict and generous gates can
     be compared signal by signal in a test.
+
+    It also carries the **mod lines** behind the opinion, which is what lets tier 3
+    ask a question shaped like the reason we escalated. Before that, the trade query
+    ANDed every mod on the item and a six-mod rare matched nothing at all.
     """
 
-    __slots__ = ("detail", "hard", "name")
+    __slots__ = ("detail", "hard", "label", "mods", "name", "value")
 
-    def __init__(self, name: str, detail: str, *, hard: bool = False) -> None:
+    def __init__(
+        self,
+        name: str,
+        detail: str,
+        *,
+        hard: bool = False,
+        mods: Sequence[str] = (),
+        value: float | None = None,
+        label: str = "",
+    ) -> None:
         self.name = name
         self.detail = detail
         self.hard = hard
         """A SPEC §5.2 hard requirement — the ones the strict gate accepts. Soft
         signals are the generous gate's additions."""
 
+        self.mods = tuple(mods)
+        """The item's own mod lines that produced this signal. Empty for signals that
+        are not about mods at all — influence, six-link, the base allowlist."""
+
+        self.value = value
+        """The roll the gate measured, when it measured one. ``None`` means the gate
+        observed the mod group was *present* and made no claim about how well it
+        rolled — so nothing downstream may invent a roll floor from it."""
+
+        self.label = label or name.replace("_", " ")
+
     def to_json(self) -> dict[str, Any]:
-        return {"name": self.name, "detail": self.detail, "hard": self.hard}
+        return {
+            "name": self.name,
+            "detail": self.detail,
+            "hard": self.hard,
+            "mods": list(self.mods),
+            "value": self.value,
+        }
 
     def __repr__(self) -> str:
         return f"GateSignal({self.name!r}, hard={self.hard})"
@@ -198,6 +303,52 @@ class GateResult:
     @property
     def summary(self) -> str:
         return ", ".join(signal.detail for signal in self.signals)
+
+    def focus(self, *, limit: int = 2, widen: float = 0.2) -> list[ModFocus]:
+        """The mods a tier-3 query should filter on, in the gate's own priority.
+
+        This is the join between tier 2 and tier 3, and it is the fix for the first
+        live appraisal's central failure: the trade query used to AND *every*
+        resolvable mod on the item, so a six-mod rare became a near-exact-match search
+        that two of three flagged items matched zero listings with.
+
+        The gate has already decided which mods make this item interesting. Asking the
+        market about *those* keeps the query aligned with the reason we escalated, and
+        keeps it a superset rather than a fingerprint.
+
+        Two rules, both of them about not claiming more than the gate did:
+
+        * A signal with a measured roll becomes a ``min`` filter **widened by
+          ``widen``** — never the exact roll, which matches almost nothing. The
+          trade site's own filters are ranges for this reason.
+        * A signal that only observed the group was *present* becomes a presence
+          filter with no floor, because that is all the gate actually claimed.
+
+        Hard signals that are not about mods (influence, six-link, ilvl 86, the base
+        allowlist) contribute nothing here. They are real reasons to look at an item
+        and they are *not* stat filters; folding them in would narrow the query on
+        axes the median is not being taken over. The cost is that a fractured or
+        influenced item is priced against its plain equivalents, which errs low — and
+        low with a number still lands in ``check``, where the player looks.
+        """
+        picked: list[ModFocus] = []
+        seen: set[str] = set()
+        for signal in self.signals:
+            for text in signal.mods:
+                if text in seen:
+                    continue
+                seen.add(text)
+                # A summed group (resistances across four lines) has a roll but no
+                # single line that carries it, so no line gets a floor from it.
+                minimum = (
+                    _widen(signal.value, widen)
+                    if signal.value is not None and len(signal.mods) == 1
+                    else None
+                )
+                picked.append(ModFocus(text=text, minimum=minimum, label=signal.label))
+                if len(picked) >= limit:
+                    return picked
+        return picked
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -306,6 +457,16 @@ class ItemVerdict:
         return self.valuation.pricing
 
     @property
+    def no_listings(self) -> bool:
+        """Tier 3 ran, broadened, and still matched nothing. A terminal answer."""
+        return self.valuation.no_listings
+
+    @property
+    def tier3_failed(self) -> bool:
+        """Tier 3 could not run at all. Also terminal, for a different reason."""
+        return self.valuation.tier3_failed
+
+    @property
     def hard_signals(self) -> int:
         """How many of SPEC §5.2's hard requirements this item hit. Used to rank a
         ``check`` block, where every row has the same value — namely none."""
@@ -324,6 +485,8 @@ class ItemVerdict:
             "total_chaos": round(self.total_chaos, 4),
             "unpriceable": self.unpriceable,
             "pricing": self.pricing,
+            "no_listings": self.no_listings,
+            "tier3": self.valuation.tier3.value,
             "escalate": self.escalate,
             "reason": self.reason,
             "gate": self.gate.to_json(),
@@ -384,7 +547,7 @@ class BagAppraisal:
 
     @property
     def counts(self) -> dict[str, int]:
-        """All four states, always present, zeroes included. A missing key is how a
+        """Every state, always present, zeroes included. A missing key is how a
         tally silently loses a state."""
         return {v.value: len(self.of(v)) for v in Verdict}
 
@@ -422,14 +585,30 @@ class BagAppraisal:
         return [item for item in self.items if item.pricing]
 
     @property
+    def no_listings(self) -> list[ItemVerdict]:
+        """Rows whose tier-3 search finished and matched nothing.
+
+        Kept apart from :attr:`pricing` because the footnote under the bag total used
+        to describe these as "still pricing", which is the same lie the row-level
+        ``pricing…`` told: it says a number is coming when the search already came
+        back empty. Their value is unknown and excluded from the total, exactly like
+        an unescalated gate hit — which is why they do not make the total a *floor*
+        in the ``≥`` sense, since nothing about them is going to resolve.
+        """
+        return [item for item in self.items if item.no_listings]
+
+    @property
     def total_is_floor(self) -> bool:
+        """``≥`` means "a number is outstanding and will move this figure". Only
+        :attr:`pricing` qualifies; a finished-and-empty search moves nothing."""
         return bool(self.pricing)
 
     def ranked(self) -> list[ItemVerdict]:
-        """Interesting first: keep, check, unpriceable, trash.
+        """Interesting first: keep, check, unpriceable, trash, not-loot.
 
         Unpriceable sits above trash rather than below it because an unknown is a
-        thing to look at and a trash verdict is a thing to stop looking at.
+        thing to look at and a trash verdict is a thing to stop looking at. Not-loot
+        sits below trash because it is the only block that asks for nothing at all.
 
         Within a block: gate hits first, then the count of *hard* signals, then value
         descending, then stack size, then name. The hard-signal tie-break exists
@@ -443,6 +622,7 @@ class BagAppraisal:
             Verdict.CHECK: 1,
             Verdict.UNPRICEABLE: 2,
             Verdict.TRASH: 3,
+            Verdict.NOT_LOOT: 4,
         }
         return sorted(
             self.items,
@@ -478,6 +658,7 @@ class BagAppraisal:
             "unpriceable_stack": self.unpriceable_stack,
             "escalation_candidates": len(self.escalation_candidates),
             "pricing_count": len(self.pricing),
+            "no_listings_count": len(self.no_listings),
             "total_is_floor": self.total_is_floor,
             "lookups": self.lookups,
             "trade_requests": self.trade_requests,

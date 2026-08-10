@@ -281,23 +281,33 @@ def test_resistances_are_summed_and_everything_else_takes_the_best_roll():
             "+37% to Lightning Resistance",
         ]
     )
-    hits = dict(mod_hits(resists, require_threshold=False))
-    by_name = {group.name: value for group, value in hits.items()}
-    assert by_name["resistances"] == pytest.approx(115.0)
+    hits = {
+        group.name: (value, sources)
+        for group, value, sources in mod_hits(resists, require_threshold=False)
+    }
+    assert hits["resistances"][0] == pytest.approx(115.0)
+    # ...and every line that contributed is carried, because a summed roll has no
+    # single mod behind it and tier 3 must not put a floor on one of them.
+    assert len(hits["resistances"][1]) == 3
 
     # Life is not summed: two mediocre life rolls are not one good one.
     lives = item(explicit=["+45 to maximum Life", "+44 to maximum Life"])
-    by_name = {group.name: value for group, value in mod_hits(lives, require_threshold=False)}
-    assert by_name["life"] == pytest.approx(45.0)
+    hits = {
+        group.name: (value, sources)
+        for group, value, sources in mod_hits(lives, require_threshold=False)
+    }
+    assert hits["life"][0] == pytest.approx(45.0)
+    # The line that actually rolled it — not both, and not the wrong one.
+    assert hits["life"][1] == ["+45 to maximum Life"]
 
 
 def test_a_flat_damage_range_is_read_as_its_midpoint():
-    hit = dict(
-        (group.name, value)
-        for group, value in mod_hits(
+    hit = {
+        group.name: value
+        for group, value, _sources in mod_hits(
             item(explicit=["Adds 12 to 30 Physical Damage"]), require_threshold=False
         )
-    )
+    }
     assert hit["added_physical"] == pytest.approx(21.0)
 
 

@@ -51,6 +51,18 @@ export function checkLane(item: ItemVerdictPayload): CheckLane {
   return item.pricing || item.valuation.unpriceable ? 'unknown' : 'priced'
 }
 
+/**
+ * Did a tier-3 query finish and match nothing?
+ *
+ * The distinction the first live appraisal did not have. `pricing` promises a
+ * number; this says the search ran, broadened, and the league had nothing
+ * comparable. Both leave the row without a price, and they are opposite kinds of
+ * without: one resolves, the other already has.
+ */
+export function isTerminalNoPrice(item: ItemVerdictPayload): boolean {
+  return item.no_listings || item.valuation.tier3 === 'failed'
+}
+
 export function rarityOf(item: { rarity: string }): Rarity {
   return item.rarity as Rarity
 }
@@ -65,11 +77,25 @@ export function priceOf(item: ItemVerdictPayload, divineRate: number | null | un
     detail: describePrice(item.valuation.price, item),
     divine: chaos !== null && divineRate ? chaos / divineRate : null,
     pricing: item.pricing,
+    noListings: isTerminalNoPrice(item),
   }
 }
 
 function describePrice(price: PricePayload | null | undefined, item: ItemVerdictPayload) {
   if (item.pricing) return 'a trade query is still outstanding'
+  if (item.no_listings) {
+    // Terminal, and phrased so nobody waits for it. `item.valuation.reason` carries
+    // the query that found nothing, which is what makes the claim checkable.
+    const query = item.valuation.reason
+    return query
+      ? `the trade search found no matching listings — ${query}`
+      : 'the trade search found no matching listings'
+  }
+  if (item.valuation.tier3 === 'failed') {
+    return item.valuation.reason
+      ? `the trade search could not run — ${item.valuation.reason}`
+      : 'the trade search could not run'
+  }
   if (!price) return item.valuation.reason ?? null
   const parts = [PROVENANCE_LABEL[price.source] ?? price.source]
   if (item.stack_size > 1) parts.push(`${formatChaos(price.chaos)}c each`)
@@ -116,8 +142,33 @@ export function subtitleOf(item: ItemVerdictPayload): string {
 
 export function marksOf(item: ItemVerdictPayload): RowMark[] {
   const marks: RowMark[] = []
+  if (item.verdict === 'not_loot') {
+    // A mark rather than only a reason, because `compact` has no reason column: at
+    // 300 px the row would otherwise read `The Mortinomicon Exitio Immortalis · quest
+    // · —`, and a dash in a money column is an invitation to ask what the money was.
+    marks.push({ id: 'not-loot', label: 'not loot', tone: 'quiet', detail: item.reason })
+  }
   if (item.pricing) {
     marks.push({ id: 'pricing', label: 'pricing…', tone: 'accent', detail: 'tier 3 outstanding' })
+  } else if (item.no_listings) {
+    // A mark, not an absence of one: "we looked and there was nothing" is a fact the
+    // player wants, and it is the difference between an item nobody wants and an
+    // item nobody has listed.
+    marks.push({
+      id: 'no-listings',
+      label: 'no listings',
+      tone: 'quiet',
+      detail: item.valuation.reason
+        ? `the trade search found nothing comparable — ${item.valuation.reason}`
+        : 'the trade search found nothing comparable',
+    })
+  } else if (item.valuation.tier3 === 'failed') {
+    marks.push({
+      id: 'tier3-failed',
+      label: 'search failed',
+      tone: 'warn',
+      detail: item.valuation.reason ?? 'the trade search could not run',
+    })
   }
   for (const signal of item.gate.signals) {
     marks.push({
@@ -206,6 +257,7 @@ export function tallyOf(bag: BagAppraisalPayload): TallyEntry[] {
     // happens to have none teaches the player that the state does not exist.
     { id: 'unpriceable', label: 'unpriced', count: counts.unpriceable, verdict: 'unpriceable' },
     { id: 'trash', label: 'trash', count: counts.trash, verdict: 'trash' },
+    { id: 'not_loot', label: 'not loot', count: counts.not_loot, verdict: 'not_loot' },
   ]
 }
 
@@ -254,6 +306,7 @@ export function blocksOf(bag: BagAppraisalPayload): Block[] {
     ),
     build('unpriceable', pick((item) => item.verdict === 'unpriceable')),
     build('trash', pick((item) => item.verdict === 'trash')),
+    build('not_loot', pick((item) => item.verdict === 'not_loot')),
   ]
 }
 
@@ -275,6 +328,9 @@ export function copyFor(block: Block): BlockCopy {
       headline: 'below the keep threshold, above trivial. A number, just a small one',
     }
   }
+  if (block.verdict === 'not_loot') {
+    return { title: 'not loot', headline: VERDICT_HEADLINE.not_loot }
+  }
   return { title: block.verdict, headline: VERDICT_HEADLINE[block.verdict] }
 }
 
@@ -292,22 +348,36 @@ export function totalsOf(bag: BagAppraisalPayload) {
 /**
  * What the total leaves out, in one sentence — or `null` when it leaves out nothing.
  *
- * Two different holes, and they must not be merged. An `unpriceable` row is money
- * the tool cannot see at all; a `pricing…` row is money it is in the middle of
- * looking up. Both make the total a floor; only the second one will resolve.
+ * Three different holes, and none of them may be merged into another:
+ *
+ * * an `unpriceable` row is money the tool cannot see at all;
+ * * a `pricing…` row is money it is in the middle of looking up — this one resolves;
+ * * a `no listings` row is money it **finished** looking up and could not find a
+ *   comparable for. It does not resolve, and it is the one this sentence used to get
+ *   wrong: the first live appraisal said "2 items still pricing" about two searches
+ *   that had already come back empty.
+ *
+ * Only the middle one makes the figure a floor in the `≥` sense, because only it is
+ * going to move. The others make it incomplete, which the last clause says.
  */
 export function floorNote(bag: BagAppraisalPayload): string | null {
   const parts: string[] = []
+  const plural = (n: number) => (n === 1 ? '' : 's')
   if (bag.unpriceable_count > 0) {
     parts.push(
-      `excludes ${bag.unpriceable_count} unpriceable row${
-        bag.unpriceable_count === 1 ? '' : 's'
-      } (${bag.unpriceable_stack.toLocaleString('en-US')} units) — not in the price index`,
+      `excludes ${bag.unpriceable_count} unpriceable row${plural(bag.unpriceable_count)}` +
+        ` (${bag.unpriceable_stack.toLocaleString('en-US')} units) — not in the price index`,
     )
   }
   if (bag.pricing_count > 0) {
     parts.push(
-      `${bag.pricing_count} item${bag.pricing_count === 1 ? '' : 's'} still pricing; their value is not in this figure`,
+      `${bag.pricing_count} item${plural(bag.pricing_count)} still pricing; their value is not in this figure`,
+    )
+  }
+  if (bag.no_listings_count > 0) {
+    parts.push(
+      `${bag.no_listings_count} item${plural(bag.no_listings_count)} searched with no matching listings —` +
+        ' unknown, not zero, and not still running',
     )
   }
   if (parts.length === 0) return null

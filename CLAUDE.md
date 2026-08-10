@@ -133,7 +133,20 @@ sustained rate-limit violations.
 - **`check` is drawn as two blocks, not one.** SPEC §5.4's "below threshold **or** the gate
   flagged it" is two questions; the bag screen splits them on whether a number exists. The split
   is in `modules/appraisal/ui/model.ts`, not in `Verdict` — it is a layout decision, and a fifth
-  verdict would change the CLI, the event payload and every test to express it.
+  verdict would change the CLI, the event payload and every test to express it. `not_loot` **is**
+  a fifth verdict, and clears that bar for the opposite reason: a quest item is not asking the
+  player for an action at all, so no existing block's headline is true of it. Anything proposing a
+  sixth should have to answer the same question — is this about layout, or about the decision?
+
+- **Tier 3 has three ways of not producing a number, and they are three words.** Outstanding
+  (`pricing…`, `⋯`), searched-and-empty (`∅`), and could-not-ask. Collapsing them into one
+  boolean is what made the first live appraisal render `pricing…` forever beside two finished
+  searches. `Valuation.tier3` is the state; `pricing` is now a derived property of it.
+
+- **A tier-3 query asks about the mods the gate flagged, not every mod on the item.** ANDing all
+  of them turns a six-mod rare into a near-exact-match search: measured, that returned 0, 0 and 1
+  listings for the three rares in a real bag. `GateResult.focus()` is the join, and it exists
+  because `prices` cannot import `appraisal` without making a cycle.
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.
 - **PoE 2 has no data path.** GGG removed inventory from its character endpoint in 3.27.0.

@@ -179,7 +179,12 @@ export function BagScreen(): ReactElement {
           if (block.items.length === 0) return null
           const copy = copyFor(block)
           const isTrash = block.verdict === 'trash'
-          const unpriced = block.verdict === 'unpriceable' || block.lane === 'unknown'
+          // A money subtotal on the not-loot block would restate the very question
+          // the block exists to retire, so it counts rows like the unpriced ones do.
+          const unpriced =
+            block.verdict === 'unpriceable' ||
+            block.verdict === 'not_loot' ||
+            block.lane === 'unknown'
           return (
             <Section
               key={`${block.verdict}-${block.lane ?? 'all'}`}

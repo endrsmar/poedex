@@ -43,11 +43,13 @@ __all__ = [
     "LeagueChoice",
     "LeagueSource",
     "LeagueUnknownError",
+    "ModFocus",
     "Price",
     "PriceSource",
     "PricesApi",
     "PricesError",
     "TableStatus",
+    "Tier3",
     "TradeQuote",
     "TradeUnavailable",
     "Valuation",
@@ -148,6 +150,71 @@ class PriceSource(StrEnum):
     """No tier resolved. **Not** the same as zero."""
 
 
+class Tier3(StrEnum):
+    """What happened to this item's tier-3 query. Five states, and the middle three
+    are the ones a boolean could not tell apart.
+
+    The first live appraisal rendered ``pricing…`` next to two rares whose searches
+    had already come back with **zero results**. A single ``pricing`` flag cannot say
+    the difference between *"the answer is coming"* and *"the answer arrived and it
+    was nothing"*, so it said the first about both — which promises a number that is
+    never going to appear. "No matching listings" is a real, terminal answer and it
+    has to be able to say so.
+    """
+
+    NONE = "none"
+    """No tier-3 query was made for this item. The default, and the state of every
+    row in a ``value`` pass — which never escalates."""
+
+    PENDING = "pending"
+    """Started and still outstanding when the pass returned. The only state that
+    justifies ``pricing…``, and the only one that makes the bag total a floor which
+    will later move."""
+
+    NO_LISTINGS = "no_listings"
+    """The search ran and matched nothing — after the broadening retry. Terminal:
+    re-running it today will return the same nothing. The item is not worthless, it
+    is *uncompared*, and the surface must say that rather than keep spinning."""
+
+    FAILED = "failed"
+    """The query could not be made at all — rate limited, network error, no stat
+    index. Also terminal for this pass, but for a reason about us rather than about
+    the market, so it gets its own word."""
+
+    PRICED = "priced"
+    """Answered with a number, which is now on :attr:`Valuation.price`."""
+
+    @property
+    def answered(self) -> bool:
+        """Did tier 3 come back? ``NONE`` is not an answer; neither is ``PENDING``."""
+        return self in (Tier3.NO_LISTINGS, Tier3.FAILED, Tier3.PRICED)
+
+
+@dataclass(frozen=True, slots=True)
+class ModFocus:
+    """One mod a tier-3 query should actually filter on, and how tightly.
+
+    The caller that knows *why* an item is interesting is the one that decided to
+    escalate it — `appraisal`'s tier-2 gate. `prices` cannot ask the gate (that would
+    be a dependency cycle), so the gate hands its reasoning down in this shape and the
+    query is built from it. See :func:`modules.prices.backend.trade.build_plan`.
+
+    ``minimum`` is ``None`` when the gate only observed that the mod group was
+    *present*: it made no claim about the roll, so neither does the filter.
+    """
+
+    text: str
+    """The mod line as it appears on the item — ``+103 to maximum Life``. Resolved to
+    an opaque stat id by the stat index; a mod that does not resolve is dropped."""
+
+    minimum: float | None = None
+    """A widened floor, already computed by the caller. Never the exact roll: an
+    equality filter on a random roll matches almost nothing."""
+
+    label: str = ""
+    """Human words for the query description, so a wrong query is legible."""
+
+
 class Price:
     """One resolved unit price, in chaos.
 
@@ -215,9 +282,9 @@ class Valuation:
         "name",
         "note_price",
         "price",
-        "pricing",
         "reason",
         "stack_size",
+        "tier3",
         "uid",
     )
 
@@ -233,7 +300,7 @@ class Valuation:
         note_price: Price | None = None,
         market: Price | None = None,
         reason: str | None = None,
-        pricing: bool = False,
+        tier3: Tier3 = Tier3.NONE,
     ) -> None:
         self.uid = uid
         self.name = name
@@ -248,18 +315,37 @@ class Valuation:
         """Tier 1, kept even when the note won, for the same reason."""
 
         self.reason = reason
-        self.pricing = pricing
-        """A tier-3 query for this item is **outstanding**: it was started and had not
-        answered when the pass returned. SPEC §5.3 asks for a per-item ``pricing…``
-        state that never gates the grid, and this is it.
+        self.tier3 = tier3
+        """What tier 3 did about this item — see :class:`Tier3`.
 
-        Deliberately not a third state of :attr:`price`. "We are still looking" and
-        "we looked and found nothing" want different words on screen, and a caller
-        that only reads :attr:`unpriceable` still gets the safe answer."""
+        Deliberately not a third state of :attr:`price`. "We are still looking",
+        "we looked and found nothing" and "we could not look" want different words on
+        screen, and a caller that only reads :attr:`unpriceable` still gets the safe
+        answer in all three."""
 
     @property
     def unpriceable(self) -> bool:
         return self.price is None
+
+    @property
+    def pricing(self) -> bool:
+        """A tier-3 query for this item is **outstanding**: started, not answered.
+
+        SPEC §5.3 asks for a per-item ``pricing…`` state that never gates the grid,
+        and this is it — narrowed, since the first live appraisal, to mean only what
+        it says. A search that came back empty is :attr:`no_listings`, not this."""
+        return self.tier3 is Tier3.PENDING
+
+    @property
+    def no_listings(self) -> bool:
+        """Tier 3 answered, and the answer was *nothing matched*. Terminal."""
+        return self.tier3 is Tier3.NO_LISTINGS
+
+    @property
+    def tier3_failed(self) -> bool:
+        """Tier 3 could not run — rate limited, offline, no stat index. Terminal for
+        this pass, and about us rather than about the market."""
+        return self.tier3 is Tier3.FAILED
 
     def replace_price(self, price: Price, *, reason: str | None = None) -> Valuation:
         """A copy carrying ``price``. Used when tier 3 lands after tier 1 missed.
@@ -278,6 +364,7 @@ class Valuation:
             note_price=self.note_price,
             market=self.market,
             reason=reason,
+            tier3=Tier3.PRICED if price.source is PriceSource.TRADE else self.tier3,
         )
 
     @property
@@ -305,6 +392,8 @@ class Valuation:
             "stack_size": self.stack_size,
             "unpriceable": self.unpriceable,
             "pricing": self.pricing,
+            "no_listings": self.no_listings,
+            "tier3": self.tier3.value,
             "source": self.source.value,
             "total_chaos": round(self.total_chaos, 4),
             "price": self.price.to_json() if self.price else None,
@@ -384,6 +473,13 @@ class BagValuation:
         return [v for v in self.items if v.pricing]
 
     @property
+    def no_listings(self) -> list[Valuation]:
+        """Rows whose tier-3 search ran and matched nothing. **Not** in
+        :attr:`pricing`: these are finished, and a surface that keeps them spinning
+        is promising a number that is not coming."""
+        return [v for v in self.items if v.no_listings]
+
+    @property
     def total_chaos(self) -> float:
         return sum(v.total_chaos for v in self.items)
 
@@ -417,6 +513,7 @@ class BagValuation:
             "unpriceable_count": len(self.unpriceable),
             "unpriceable_stack": self.unpriceable_stack,
             "pricing_count": len(self.pricing),
+            "no_listings_count": len(self.no_listings),
             "total_is_floor": bool(self.pricing),
             "lookups": self.lookups,
             "trade_requests": self.trade_requests,
@@ -497,7 +594,17 @@ class TradeQuote:
     realise.
     """
 
-    __slots__ = ("chaos", "considered", "listings", "online", "query_url", "total")
+    __slots__ = (
+        "attempts",
+        "chaos",
+        "considered",
+        "listings",
+        "online",
+        "query",
+        "query_url",
+        "total",
+        "unavailable",
+    )
 
     def __init__(
         self,
@@ -508,6 +615,9 @@ class TradeQuote:
         total: int,
         listings: Sequence[float] = (),
         query_url: str | None = None,
+        query: str = "",
+        attempts: int = 1,
+        unavailable: str | None = None,
     ) -> None:
         self.chaos = chaos
         self.considered = considered
@@ -515,10 +625,32 @@ class TradeQuote:
 
         self.online = online
         self.total = total
-        """What the search said the whole result set was, before any fetch."""
+        """What the search said the whole result set was, before any fetch.
+
+        Read this before believing :attr:`chaos`. A ``total`` of 1 makes the "median
+        of the cheapest N" a single stranger's asking price wearing a median's
+        clothes — which is exactly what the first live appraisal reported as ``10.0c``
+        for a jewel that had precisely one comparable in the league."""
 
         self.listings = list(listings)
         self.query_url = query_url
+        self.query = query
+        """The filters that produced this, in words: ``Amethyst Ring · rare ·
+        max life ≥ 82``. A price nobody can trace back to a query is a price nobody
+        can argue with, and tier 3 is the tier most likely to be wrong."""
+
+        self.attempts = attempts
+        """Searches spent. ``2`` means the first query matched nothing and the
+        broadening retry ran."""
+
+        self.unavailable = unavailable
+        """Why no search happened at all, when none did. Distinct from a search that
+        ran and matched nothing — see :class:`Tier3`."""
+
+    @property
+    def searched(self) -> bool:
+        """Did a query actually reach the trade API?"""
+        return self.unavailable is None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -528,6 +660,9 @@ class TradeQuote:
             "total": self.total,
             "listings": [round(v, 4) for v in self.listings],
             "query_url": self.query_url,
+            "query": self.query,
+            "attempts": self.attempts,
+            "unavailable": self.unavailable,
         }
 
 
@@ -637,13 +772,24 @@ class PricesApi(Protocol):
         league: str | None = None,
         sample: int = 0,
         timeout: float | None = None,
+        focus: Mapping[str, Sequence[ModFocus]] | None = None,
     ) -> Mapping[str, TradeQuote]:
         """Tier 3 for several items at once, keyed by ``uid``.
 
         Bounded and interruptible: whatever has answered by ``timeout`` is returned
         and the rest are abandoned, so a slow query can delay a number but never the
-        output. Items whose query fails or finds nothing are simply absent from the
-        mapping — an absent quote is ``unpriceable``, never zero.
+        output.
+
+        **Absence means "still running"**, and only that. A query that ran and matched
+        nothing is *present* with ``chaos is None``; one that could not run is present
+        with :attr:`TradeQuote.unavailable` set. The caller needs those three cases
+        apart to choose between ``pricing…``, "no matching listings" and "could not
+        ask" — collapsing them into absence is what made the first live appraisal
+        render ``pricing…`` forever next to two finished searches.
+
+        ``focus`` is the caller's per-uid answer to *which mods matter*, and is what
+        keeps a six-mod rare from becoming a near-exact-match query. See
+        :class:`ModFocus`.
 
         The caller decides whether running this eagerly is appropriate. It is, for a
         bag of three to five rares; it is not, for a stash (SPEC §5.3).
@@ -667,11 +813,20 @@ class PricesApi(Protocol):
         ...
 
     async def quote(
-        self, item: NormalizedItem, *, sample: int = 0, league: str | None = None
+        self,
+        item: NormalizedItem,
+        *,
+        sample: int = 0,
+        league: str | None = None,
+        focus: Sequence[ModFocus] | None = None,
     ) -> TradeQuote:
         """Tier 3. **On demand only** — never call this from a valuation pass.
 
         ``sample`` is how many of the cheapest online listings to take the median of;
         ``0`` uses the configured default. Capped at 10 by the fetch endpoint.
+
+        ``focus`` names the mods worth filtering on. Without it the query falls back
+        to the item's most significant few mods, which is a guess — a caller that
+        knows why the item is interesting should say so.
         """
         ...

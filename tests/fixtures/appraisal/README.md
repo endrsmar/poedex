@@ -30,6 +30,7 @@ because they have to match the price tables.
 | `Goldrim`, `Quill Rain` | 2 | Uniques: indexable, cheap, and therefore genuine `trash`/`check` rather than `unpriceable`. |
 | Rares | 8 | The only rows the gate can speak to. Deliberately one per branch — see below. |
 | Worn `Headhunter` | 1 | In the `Belt` slot, worth 8,977c. If it ever appears in a bag total, the `Source.BAG` filter has broken, and at that value it is impossible to miss. |
+| `Book of Skill` | 1 | A quest item (`frameType: 7`). Cannot be traded and cannot be vendored, so it is `not_loot`. The first live appraisal filed a quest item under `TRASH`, whose headline is *vendor* — an instruction the game will not let the player follow. |
 
 ### The rares, and which gate each one is for
 

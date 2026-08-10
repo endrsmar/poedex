@@ -22,8 +22,10 @@
       "total_chaos": 192.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": true,
-      "reason": "trade search",
+      "reason": "trade search (8 listings)",
       "gate": {
         "passed": true,
         "considered": true,
@@ -32,17 +34,23 @@
           {
             "name": "influence",
             "detail": "shaper-influenced",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           },
           {
             "name": "base",
             "detail": "Convoking Wand is on the allowlist",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           },
           {
             "name": "ilvl",
             "detail": "ilvl 86 base",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           }
         ]
       },
@@ -54,6 +62,8 @@
         "stack_size": 1,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "trade",
         "total_chaos": 192.0,
         "price": {
@@ -78,7 +88,7 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 0,
+        "x": 3,
         "y": 1,
         "w": 1,
         "h": 1
@@ -88,6 +98,8 @@
       "total_chaos": 3223.68,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "40296 x 0.08c \u00b7 poe.ninja",
       "gate": {
@@ -104,6 +116,8 @@
         "stack_size": 40296,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 3223.68,
         "price": {
@@ -138,6 +152,8 @@
       "total_chaos": 642.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "3 x 214c \u00b7 poe.ninja",
       "gate": {
@@ -154,6 +170,8 @@
         "stack_size": 3,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 642.0,
         "price": {
@@ -188,6 +206,8 @@
       "total_chaos": 428.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "your own note",
       "gate": {
@@ -204,6 +224,8 @@
         "stack_size": 1,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "note",
         "total_chaos": 428.0,
         "price": {
@@ -244,7 +266,7 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 3,
+        "x": 6,
         "y": 1,
         "w": 1,
         "h": 1
@@ -254,6 +276,8 @@
       "total_chaos": 313.8,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "2615 x 0.12c \u00b7 poe.ninja",
       "gate": {
@@ -270,6 +294,8 @@
         "stack_size": 2615,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 313.8,
         "price": {
@@ -304,6 +330,8 @@
       "total_chaos": 264.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "88 x 3c \u00b7 bulk exchange",
       "gate": {
@@ -320,6 +348,8 @@
         "stack_size": 88,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "exchange",
         "total_chaos": 264.0,
         "price": {
@@ -354,6 +384,8 @@
       "total_chaos": 44.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "11 x 4c \u00b7 poe.ninja",
       "gate": {
@@ -370,6 +402,8 @@
         "stack_size": 11,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 44.0,
         "price": {
@@ -404,6 +438,8 @@
       "total_chaos": 0.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": true,
       "reason": "hunter-influenced, ilvl 86 base, life roll in the top group",
       "gate": {
@@ -414,17 +450,23 @@
           {
             "name": "influence",
             "detail": "hunter-influenced",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           },
           {
             "name": "ilvl",
             "detail": "ilvl 86 base",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           },
           {
             "name": "mods",
             "detail": "life roll in the top group",
-            "hard": false
+            "hard": false,
+            "mods": [],
+            "value": null
           }
         ]
       },
@@ -436,6 +478,8 @@
         "stack_size": 1,
         "unpriceable": true,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "unpriceable",
         "total_chaos": 0.0,
         "price": null,
@@ -443,6 +487,69 @@
         "market": null,
         "overpriced_by": null,
         "reason": "no bulk table prices rares"
+      }
+    },
+    {
+      "uid": "u-gauntlets",
+      "name": "Dire Grasp",
+      "base_type": "Dragonscale Gauntlets",
+      "category": "armour",
+      "rarity": "rare",
+      "slot": {
+        "x": 10,
+        "y": 0,
+        "w": 2,
+        "h": 2
+      },
+      "verdict": "check",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": false,
+      "pricing": false,
+      "no_listings": true,
+      "tier3": "no_listings",
+      "escalate": true,
+      "reason": "no matching listings \u00b7 fractured, max life 109>=80",
+      "gate": {
+        "passed": true,
+        "considered": true,
+        "strictness": "generous",
+        "signals": [
+          {
+            "name": "fractured",
+            "detail": "fractured",
+            "hard": true,
+            "mods": [],
+            "value": null
+          },
+          {
+            "name": "roll:life",
+            "detail": "max life 109>=80",
+            "hard": false,
+            "mods": [
+              "+109 to maximum Life"
+            ],
+            "value": 109.0
+          }
+        ]
+      },
+      "valuation": {
+        "uid": "u-gauntlets",
+        "name": "Dire Grasp",
+        "base_type": "Dragonscale Gauntlets",
+        "category": "armour",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": false,
+        "no_listings": true,
+        "tier3": "no_listings",
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "Dragonscale Gauntlets \u00b7 rare \u00b7 max life \u2265 87"
       }
     },
     {
@@ -462,6 +569,8 @@
       "total_chaos": 0.0,
       "unpriceable": false,
       "pricing": true,
+      "no_listings": false,
+      "tier3": "pending",
       "escalate": true,
       "reason": "pricing\u2026 \u00b7 6-linked",
       "gate": {
@@ -472,7 +581,9 @@
           {
             "name": "links",
             "detail": "6-linked",
-            "hard": true
+            "hard": true,
+            "mods": [],
+            "value": null
           }
         ]
       },
@@ -484,6 +595,8 @@
         "stack_size": 1,
         "unpriceable": true,
         "pricing": true,
+        "no_listings": false,
+        "tier3": "pending",
         "source": "unpriceable",
         "total_chaos": 0.0,
         "price": null,
@@ -510,6 +623,8 @@
       "total_chaos": 18.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "poe.ninja",
       "gate": {
@@ -526,6 +641,8 @@
         "stack_size": 1,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 18.0,
         "price": {
@@ -560,6 +677,8 @@
       "total_chaos": 13.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "2 x 6.5c \u00b7 poe.ninja",
       "gate": {
@@ -576,6 +695,8 @@
         "stack_size": 2,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 13.0,
         "price": {
@@ -600,7 +721,7 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 2,
+        "x": 5,
         "y": 1,
         "w": 1,
         "h": 1
@@ -610,6 +731,8 @@
       "total_chaos": 12.4,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "31 x 0.4c \u00b7 poe.ninja",
       "gate": {
@@ -626,6 +749,8 @@
         "stack_size": 31,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 12.4,
         "price": {
@@ -650,8 +775,8 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 5,
-        "y": 1,
+        "x": 0,
+        "y": 2,
         "w": 1,
         "h": 1
       },
@@ -660,6 +785,8 @@
       "total_chaos": 6.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "6 x 1c \u00b7 poe.ninja",
       "gate": {
@@ -676,6 +803,8 @@
         "stack_size": 6,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 6.0,
         "price": {
@@ -700,7 +829,7 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 4,
+        "x": 7,
         "y": 1,
         "w": 1,
         "h": 1
@@ -710,6 +839,8 @@
       "total_chaos": 4.5,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "9 x 0.5c \u00b7 poe.ninja",
       "gate": {
@@ -726,6 +857,8 @@
         "stack_size": 9,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 4.5,
         "price": {
@@ -750,8 +883,8 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 10,
-        "y": 1,
+        "x": 3,
+        "y": 2,
         "w": 1,
         "h": 1
       },
@@ -760,6 +893,8 @@
       "total_chaos": 2.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "40 x 0.05c \u00b7 poe.ninja",
       "gate": {
@@ -776,6 +911,8 @@
         "stack_size": 40,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 2.0,
         "price": {
@@ -800,8 +937,8 @@
       "category": "fragment",
       "rarity": "currency",
       "slot": {
-        "x": 10,
-        "y": 0,
+        "x": 1,
+        "y": 1,
         "w": 1,
         "h": 1
       },
@@ -810,6 +947,8 @@
       "total_chaos": 0.0,
       "unpriceable": true,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "not in Allflame's poe.ninja index",
       "gate": {
@@ -826,6 +965,8 @@
         "stack_size": 174,
         "unpriceable": true,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "unpriceable",
         "total_chaos": 0.0,
         "price": null,
@@ -842,8 +983,8 @@
       "category": "flask",
       "rarity": "relic",
       "slot": {
-        "x": 11,
-        "y": 0,
+        "x": 2,
+        "y": 1,
         "w": 1,
         "h": 1
       },
@@ -852,6 +993,8 @@
       "total_chaos": 0.0,
       "unpriceable": true,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "relic variants are not indexed",
       "gate": {
@@ -868,6 +1011,8 @@
         "stack_size": 1,
         "unpriceable": true,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "unpriceable",
         "total_chaos": 0.0,
         "price": null,
@@ -884,7 +1029,7 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 1,
+        "x": 4,
         "y": 1,
         "w": 1,
         "h": 1
@@ -894,6 +1039,8 @@
       "total_chaos": 0.56,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "7 x 0.08c \u00b7 poe.ninja",
       "gate": {
@@ -910,6 +1057,8 @@
         "stack_size": 7,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 0.56,
         "price": {
@@ -934,8 +1083,8 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 6,
-        "y": 1,
+        "x": 1,
+        "y": 2,
         "w": 1,
         "h": 1
       },
@@ -944,6 +1093,8 @@
       "total_chaos": 0.48,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "24 x 0.02c \u00b7 poe.ninja",
       "gate": {
@@ -960,6 +1111,8 @@
         "stack_size": 24,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 0.48,
         "price": {
@@ -984,8 +1137,8 @@
       "category": "currency",
       "rarity": "currency",
       "slot": {
-        "x": 7,
-        "y": 1,
+        "x": 2,
+        "y": 2,
         "w": 1,
         "h": 1
       },
@@ -994,6 +1147,8 @@
       "total_chaos": 0.13,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "13 x 0.01c \u00b7 poe.ninja",
       "gate": {
@@ -1010,6 +1165,8 @@
         "stack_size": 13,
         "unpriceable": false,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "bulk",
         "total_chaos": 0.13,
         "price": {
@@ -1034,8 +1191,8 @@
       "category": "accessory",
       "rarity": "rare",
       "slot": {
-        "x": 11,
-        "y": 1,
+        "x": 4,
+        "y": 2,
         "w": 1,
         "h": 1
       },
@@ -1044,6 +1201,8 @@
       "total_chaos": 0.0,
       "unpriceable": false,
       "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
       "escalate": false,
       "reason": "no bulk price; the gate found nothing",
       "gate": {
@@ -1060,6 +1219,8 @@
         "stack_size": 1,
         "unpriceable": true,
         "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
         "source": "unpriceable",
         "total_chaos": 0.0,
         "price": null,
@@ -1068,21 +1229,69 @@
         "overpriced_by": null,
         "reason": "no bulk table prices rares"
       }
+    },
+    {
+      "uid": "u-quest",
+      "name": "The Mortinomicon Exitio Immortalis",
+      "base_type": "The Mortinomicon Exitio Immortalis",
+      "category": "quest",
+      "rarity": "quest",
+      "slot": {
+        "x": 0,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "not_loot",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": false,
+      "pricing": false,
+      "no_listings": false,
+      "tier3": "none",
+      "escalate": false,
+      "reason": "quest item \u2014 cannot be traded or vendored",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-quest",
+        "name": "",
+        "base_type": "The Mortinomicon Exitio Immortalis",
+        "category": "quest",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": false,
+        "no_listings": false,
+        "tier3": "none",
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
     }
   ],
   "counts": {
     "keep": 7,
-    "check": 8,
+    "check": 9,
     "trash": 4,
-    "unpriceable": 2
+    "unpriceable": 2,
+    "not_loot": 1
   },
   "total_chaos": 5164.55,
   "total_divine": 24.1334,
   "divine_rate": 214.0,
   "unpriceable_count": 2,
   "unpriceable_stack": 175,
-  "escalation_candidates": 3,
+  "escalation_candidates": 4,
   "pricing_count": 1,
+  "no_listings_count": 1,
   "total_is_floor": true,
   "lookups": 17,
   "trade_requests": 2,

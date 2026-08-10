@@ -55,7 +55,7 @@ import type {
 } from '../../contracts'
 import { COMPACT_PROFILE, resolveHint } from '../../profile'
 import { useCountdown } from '../../countdown'
-import { formatCountdown, formatQuantity } from '../../format'
+import { formatCountdown, formatPriceCell, formatQuantity, hasPrice } from '../../format'
 import { REFRESH_LABEL, hiddenLabel, syncMessage } from '../../sync'
 import { PROVENANCE_LABEL, PROVENANCE_SHORT, VERDICT_GLYPH, VERDICT_LABEL } from '../../verdict'
 
@@ -85,6 +85,9 @@ const VERDICT_COLOUR = {
   check: C.check,
   trash: C.trash,
   unpriceable: C.unpriceable,
+  // Dimmer than trash: this block is not a decision, and colour is how the panel
+  // says "you are not being asked anything here".
+  not_loot: '#5b6570',
 } as const
 
 const RARITY_COLOUR: Record<string, string> = {
@@ -405,11 +408,7 @@ const COMPACT_ROW_FIELDS: ItemRowField[] = ['subtitle', 'quantity', 'price']
 export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fields }) => {
   const shown = new Set(resolveHint(fields, P, COMPACT_ROW_FIELDS))
   const price = item.price
-  const priceText = price?.pricing
-    ? '⋯'
-    : price && price.chaos !== null && price.chaos !== undefined
-      ? `${price.chaos.toLocaleString('en-US', { maximumFractionDigits: 1 })}c`
-      : '—'
+  const priceText = formatPriceCell(price, 1)
   const subLine = [
     shown.has('subtitle') ? item.subtitle : null,
     shown.has('quantity') && item.quantity && item.quantity > 1
@@ -503,11 +502,11 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
             flex: 'none',
             fontSize: 11,
             fontWeight: 700,
-            color: priceText === '—' || priceText === '⋯' ? C.ink3 : '#e8eff5',
+            color: hasPrice(price) ? '#e8eff5' : C.ink3,
           }}
         >
           {priceText}
-          {shown.has('provenance') && price && !price.pricing ? (
+          {shown.has('provenance') && hasPrice(price) ? (
             <span style={{ fontSize: 7.5, color: C.ink3 }}> {PROVENANCE_SHORT[price.provenance]}</span>
           ) : null}
         </span>
@@ -625,14 +624,10 @@ export const Detail: DetailComponent = ({ item, fields, empty = 'nothing selecte
       ) : null}
       {shown.includes('value') ? (
         <span style={{ ...tnum, fontSize: 14, fontWeight: 700 }}>
-          {price?.pricing
-            ? '⋯'
-            : price && price.chaos !== null && price.chaos !== undefined
-              ? `${price.chaos.toLocaleString('en-US', { maximumFractionDigits: 1 })}c`
-              : '—'}
+          {formatPriceCell(price, 1)}
         </span>
       ) : null}
-      {shown.includes('provenance') && price && !price.pricing ? (
+      {shown.includes('provenance') && hasPrice(price) ? (
         <span style={{ ...label, fontSize: 8 }}>{PROVENANCE_LABEL[price.provenance]}</span>
       ) : null}
       {shown.includes('stack') && item.quantity && item.quantity > 1 ? (

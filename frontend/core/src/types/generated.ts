@@ -85,6 +85,8 @@ export interface ValuationPayload {
   stack_size: number
   unpriceable: boolean
   pricing: boolean
+  no_listings: boolean
+  tier3: "none" | "pending" | "no_listings" | "failed" | "priced"
   source: "note" | "bulk" | "exchange" | "trade" | "unpriceable"
   total_chaos: number
   price: PricePayload | null
@@ -101,6 +103,8 @@ export interface GateSignalPayload {
   name: string
   detail: string
   hard: boolean
+  mods: string[]
+  value: number | null
 }
 
 export interface GatePayload {
@@ -130,11 +134,13 @@ export interface ItemVerdictPayload {
   category: string
   rarity: string
   slot: SlotPayload | null
-  verdict: "keep" | "check" | "trash" | "unpriceable"
+  verdict: "keep" | "check" | "trash" | "unpriceable" | "not_loot"
   stack_size: number
   total_chaos: number
   unpriceable: boolean
   pricing: boolean
+  no_listings: boolean
+  tier3: "none" | "pending" | "no_listings" | "failed" | "priced"
   escalate: boolean
   reason: string
   gate: GatePayload
@@ -142,13 +148,14 @@ export interface ItemVerdictPayload {
 }
 
 /**
- * All four states, always present, zeroes included.
+ * Every state, always present, zeroes included.
  */
 export interface VerdictCounts {
   keep: number
   check: number
   trash: number
   unpriceable: number
+  not_loot: number
 }
 
 export interface TableStatusPayload {
@@ -187,6 +194,7 @@ export interface BagAppraisalPayload {
   unpriceable_stack: number
   escalation_candidates: number
   pricing_count: number
+  no_listings_count: number
   total_is_floor: boolean
   lookups: number
   trade_requests: number
