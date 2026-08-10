@@ -8,8 +8,9 @@ Finish a map, portal to your hideout, press the `…` button. Every inventory sl
 leaving gaming mode.
 
 > **Status: backend working, no UI yet.** The module runtime, the rate-limited API client, the
-> log tailer and the pricing engine are in place — `poedex value` prints a priced bag at the
-> command line. Nothing has run on a Deck. See [`docs/SPEC.md`](docs/SPEC.md) for the design,
+> log tailer, the pricing engine and the verdict engine are in place — `poedex appraise` prints
+> a sorted keep / check / trash / unpriceable bag with a total at the command line. Nothing has
+> run on a Deck, or against the live API. See [`docs/SPEC.md`](docs/SPEC.md) for the design,
 > [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) for the phases, and
 > [`docs/research-notes.md`](docs/research-notes.md) for the evidence behind them.
 

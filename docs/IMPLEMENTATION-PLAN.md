@@ -322,15 +322,60 @@ never leaves the PoE API host.
 
 **Done:** `poedex value` prints per-item values and a total.
 
-### Phase 4 — `appraisal` backend
-`requires: ["prices"]`. Tier-2 gate with the strictness parameter. Four-state verdicts including
-`unpriceable`.
+### Phase 4 — `appraisal` backend — **done**
+Tier-2 gate with the strictness parameter (`gate.py`), four-state verdicts (`verdict.py`),
+`AppraisalApi`, `appraisal.*` methods, and `poedex appraise`.
+
+`requires` is `["poeapi", "prices"]`, not the `["prices"]` of §1.4's sketch — the same kind of
+stated deviation Phase 3 made with `net`. The API is defined over `NormalizedItem`, which is
+`poeapi`'s type and reaching it through `prices`' import list is not a public surface; and
+`PricesApi` has no bag accessor, so without the edge `appraisal.appraise_bag` cannot exist and
+the Phase 5 bag screen would have to post the whole normalized bag back to the backend to have
+it judged. `poeapi` is core, so a feature module depending on it is the ordinary direction.
+
+Two decisions beyond the brief, both stated in `api.py`:
+
+- **"Not in the index" and "bulk was never going to price this" are separated.** `prices` returns
+  one `unpriceable` state for both. `appraisal.indexable()` splits them: a missing `Veiled
+  Scarab` is a hole in the total; a rare ring with no bulk price is a tier-2 question, and
+  flooding the panel with question marks for every rare would bury the real gaps.
+- **The mod thresholds are an approximation and the file says so.** One regex and one number per
+  mod group, with no knowledge of base type, item class or item level. Defensible only because
+  they feed a *generous* gate whose false positives cost one optional query, and because they
+  are switched off entirely at strict.
 
 **Done:** `poedex appraise` prints keep/check/trash/unpriceable with a total.
 
-**Validation checkpoint.** If the output doesn't tell you something you didn't know, rethink
-before building UI on it. It also gives the real value distribution of your own loot, which
-settles the keep-threshold question with data.
+**Validation checkpoint — answered weakly, and the weakness is the finding.**
+
+The output is legible, correctly sorted and honest about what it does not know. But it was run
+against a **synthetic bag**: `poedex appraise` has never seen a real backpack, so the checkpoint's
+actual question — *does this tell the player something they did not already know?* — has not been
+answered by evidence. A fixture cannot surprise the person who wrote it.
+
+What can be said from the code and from the real account data that *was* read:
+
+1. **On bulk items the answer is mostly obvious.** Currency, cards, fragments and scarabs are
+   ~98% of a real bag (research-notes §7), every one of them resolves at tier 1, and a player
+   already knows a Divine Orb is worth keeping. For those rows the tool adds a *total* and a
+   sort, not a discovery.
+2. **The non-obvious answers all live in two places** — the tier-2 gate on rares, and the
+   `unpriceable` row. Both are real value the player cannot get at a glance. Both are also the
+   parts with the least evidence behind them.
+3. **The measured account has almost no rares.** Every active Standard and Allflame tab read
+   during this phase (six tabs, ~300 items) was currency, essences, fossils, fragments and
+   splinters — not one rare. If that is representative of how this player plays, the gate is
+   machinery for a case that rarely arises, and the honest headline feature is the *total* plus
+   the `unpriceable` callout rather than rare triage.
+4. **`check` is doing two jobs.** SPEC §5.4 defines it as "below threshold but non-trivial, **or**
+   tier-3 pending". Those are different questions — "worth 6 chaos" and "worth an unknown amount,
+   here is why you should look" — and on a real bag the first will swamp the second. The renderer
+   sorts gate hits to the top of the block to compensate, which is a workaround. **Split them
+   before drawing the panel**, or raise the check floor a long way.
+
+**Before Phase 5 ships a bag screen, run `poedex appraise` on a real backpack after a real map.**
+It is one GGG request. If the answer is "I knew all that", the panel to build is a total and a
+tally, not a grid.
 
 ### Phase 5 — UI kit, web surface, appraisal UI
 Primitive **contracts** designed against both profiles up front — informed by the existing
@@ -379,6 +424,9 @@ navigation.
 | Third-party hosts get a per-hostname bucket in `net` | Structural rather than requested: a feature module cannot accidentally spend GGG's budget, and it needs no configuration call to avoid doing so |
 | Chaos is the only unit inside `prices` | poe.ninja's item overviews are denominated in exchange chaos (measured); carrying two denominations makes every sum a conversion bug waiting to happen |
 | Stash deferred | Prototype is bag-only; the digest reuses `prices` and the strict gate |
+| `appraisal` requires `poeapi` as well as `prices` | Its API is defined over `NormalizedItem`, and without a bag accessor `appraise_bag` would have to be a method the frontend posts a whole bag to. Feature→core is the ordinary direction |
+| A rare with no bulk price is *not* `unpriceable` | Bulk has never priced rares. Calling that a gap in poe.ninja's coverage would fill the panel with question marks and hide the gaps that are real |
+| Mod "tiers" are one regex and one threshold per group | A real mod database is tens of thousands of rows that go stale every league. Stated as an approximation in `gate.py`, used only by the generous gate, and off entirely at strict |
 
 ---
 
