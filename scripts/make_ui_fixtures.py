@@ -20,6 +20,10 @@ row is here because something real made it necessary:
 * two rows with the same name and different stack sizes, unmerged
 * a gated rare with no price and visible gate reasoning
 * a rare whose tier-3 query is still outstanding, so the total is a floor
+* a rare whose tier-3 query **finished and matched nothing** — a terminal answer that
+  must not render as `pricing…` (the first live appraisal's bug 2)
+* a quest item, which is not a loot decision and must never appear under `vendor`
+  (the first live appraisal's bug 3)
 * one row per price provenance: poe.ninja, the bulk exchange, a trade search, and
   the player's own ``~price`` note
 * a `check` row that is cheap-but-priced next to `check` rows that are gate hits —
@@ -62,6 +66,7 @@ from modules.prices.backend.api import (  # noqa: E402
     Price,
     PriceSource,
     TableStatus,
+    Tier3,
     Valuation,
 )
 
@@ -139,7 +144,7 @@ def valued(
     sample: int | None = None,
     note_chaos: float | None = None,
     market_chaos: float | None = None,
-    pricing: bool = False,
+    tier3: Tier3 = Tier3.NONE,
     reason: str | None = None,
 ) -> Valuation:
     price = (
@@ -172,7 +177,7 @@ def valued(
             if market_chaos is not None
             else None
         ),
-        pricing=pricing,
+        tier3=tier3,
         reason=reason,
     )
 
@@ -322,10 +327,62 @@ def build() -> dict:
             chest,
             # Started and still outstanding when the pass returned: the bag total is
             # a floor while this row exists, and the row shows `⋯`, never `0c`.
-            valued(chest, chaos=None, pricing=True, reason="tier 3 query outstanding"),
+            valued(
+                chest,
+                chaos=None,
+                tier3=Tier3.PENDING,
+                reason="tier 3 query outstanding",
+            ),
             gate(GateSignal("links", "6-linked", hard=True)),
         )
     )
+
+    # The other half of that word. This search ran, broadened, and matched nothing
+    # in the league — a *finished* answer. It must render as terminal, never as
+    # `pricing…`, and it must not be counted in "still pricing" under the total.
+    gauntlets = item(
+        "u-gauntlets",
+        "Dire Grasp",
+        base_type="Dragonscale Gauntlets",
+        category="armour",
+        rarity=Rarity.RARE,
+        ilvl=81,
+        width=2,
+        height=2,
+        explicit=("+109 to maximum Life", "10% increased Attack Speed"),
+    )
+    rows.append(
+        (
+            gauntlets,
+            valued(
+                gauntlets,
+                chaos=None,
+                tier3=Tier3.NO_LISTINGS,
+                reason="Dragonscale Gauntlets · rare · max life ≥ 87",
+            ),
+            gate(
+                GateSignal("fractured", "fractured", hard=True),
+                GateSignal(
+                    "roll:life",
+                    "max life 109>=80",
+                    mods=["+109 to maximum Life"],
+                    value=109.0,
+                    label="max life",
+                ),
+            ),
+        )
+    )
+
+    # -- not loot: no verdict block may tell the player to sell this ---------
+    tome = item(
+        "u-quest",
+        "",
+        base_type="The Mortinomicon Exitio Immortalis",
+        category="quest",
+        rarity=Rarity.QUEST,
+        ilvl=0,
+    )
+    rows.append((tome, valued(tome, chaos=None), NOT_CONSIDERED))
 
     # -- unpriceable: the index should carry these and does not --------------
     scarab = item("u-veiled", "Veiled Scarab", category="fragment", stack=174)

@@ -150,18 +150,36 @@ class ModGroup:
         """Add every match together before comparing — the only honest way to read
         resistances, which arrive as three or four separate lines."""
 
-    def measure(self, texts: Iterable[str]) -> float | None:
-        """The group's roll across ``texts``, or ``None`` if it is absent."""
+    def match(self, texts: Iterable[str]) -> tuple[float, list[str]] | None:
+        """The group's roll across ``texts`` **and the lines that produced it**.
+
+        Those lines are what tier 3 filters on. A signal that says ``max life
+        109>=80`` without carrying ``+109 to maximum Life`` forces the trade query to
+        re-derive the mod from a group name, and a query built from a guess about
+        which mod mattered is how a six-mod rare became an exact-match search.
+        """
         values: list[float] = []
+        sources: list[str] = []
         for text in texts:
             for match in self.pattern.finditer(text):
                 numbers = [float(g) for g in match.groups() if g is not None]
                 if not numbers:
                     continue
                 values.append(sum(numbers) / len(numbers))
+                sources.append(text)
         if not values:
             return None
-        return sum(values) if self.sum_matches else max(values)
+        if self.sum_matches:
+            # Resistances are a sum across several lines, so every line is a source
+            # and none of them alone is the roll. Deduplicated, order preserved.
+            return sum(values), list(dict.fromkeys(sources))
+        best = max(range(len(values)), key=values.__getitem__)
+        return values[best], [sources[best]]
+
+    def measure(self, texts: Iterable[str]) -> float | None:
+        """The group's roll across ``texts``, or ``None`` if it is absent."""
+        found = self.match(texts)
+        return None if found is None else found[0]
 
     def __repr__(self) -> str:
         return f"ModGroup({self.name!r}, >= {self.threshold:g})"
@@ -264,17 +282,25 @@ def mod_texts(mods: Mods) -> list[str]:
     return [*mods.explicit, *mods.implicit, *mods.crafted, *mods.fractured, *mods.enchant]
 
 
-def mod_hits(item: NormalizedItem, *, require_threshold: bool) -> list[tuple[ModGroup, float]]:
-    """Mod groups present on ``item``, optionally only those over their threshold."""
+def mod_hits(
+    item: NormalizedItem, *, require_threshold: bool
+) -> list[tuple[ModGroup, float, list[str]]]:
+    """Mod groups present on ``item``, optionally only those over their threshold.
+
+    Each hit carries the mod lines that produced it, so a tier-3 query can filter on
+    exactly what the gate reacted to instead of on everything the item happens to
+    have.
+    """
     texts = mod_texts(item.mods)
-    hits: list[tuple[ModGroup, float]] = []
+    hits: list[tuple[ModGroup, float, list[str]]] = []
     for group in MOD_GROUPS:
-        value = group.measure(texts)
-        if value is None:
+        found = group.match(texts)
+        if found is None:
             continue
+        value, sources = found
         if require_threshold and value < group.threshold:
             continue
-        hits.append((group, value))
+        hits.append((group, value, sources))
     return hits
 
 
@@ -289,7 +315,9 @@ def _hard_signals(item: NormalizedItem, allowlist: frozenset[str]) -> list[GateS
             GateSignal("influence", "/".join(sorted(item.influences)) + "-influenced", hard=True)
         )
     if item.fractured or item.mods.fractured:
-        signals.append(GateSignal("fractured", "fractured", hard=True))
+        signals.append(
+            GateSignal("fractured", "fractured", hard=True, mods=list(item.mods.fractured))
+        )
     if item.synthesised:
         signals.append(GateSignal("synthesised", "synthesised", hard=True))
     if item.sockets.links >= SIX_LINK:
@@ -328,16 +356,32 @@ def _soft_signals(item: NormalizedItem) -> list[GateSignal]:
         signals.append(GateSignal("veiled", f"{len(item.mods.veiled)} veiled"))
 
     over = mod_hits(item, require_threshold=True)
-    for group, value in over:
+    for group, value, sources in over:
         signals.append(
-            GateSignal(f"roll:{group.name}", f"{group.label} {value:g}>={group.threshold:g}")
+            GateSignal(
+                f"roll:{group.name}",
+                f"{group.label} {value:g}>={group.threshold:g}",
+                mods=sources,
+                value=value,
+                label=group.label,
+            )
         )
 
     if not over:
         present = mod_hits(item, require_threshold=False)
         if present:
-            labels = ", ".join(group.label for group, _ in present[:3])
-            signals.append(GateSignal("mod_group", f"mods present: {labels}"))
+            top = present[:3]
+            labels = ", ".join(group.label for group, _value, _src in top)
+            signals.append(
+                GateSignal(
+                    "mod_group",
+                    f"mods present: {labels}",
+                    # No `value`: the gate observed presence and made no claim about
+                    # the roll, so tier 3 must not invent a floor from it either.
+                    mods=[text for _group, _value, sources in top for text in sources],
+                    label=top[0][0].label,
+                )
+            )
     return signals
 
 

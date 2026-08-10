@@ -101,9 +101,9 @@ def test_the_generator_refuses_a_schema_it_cannot_express():
 # -- the fixture still poses the questions the frontend tests ask -------------------
 
 
-def test_the_fixture_carries_all_four_verdicts(bag_payload_json: dict):
+def test_the_fixture_carries_every_verdict(bag_payload_json: dict):
     counts = bag_payload_json["counts"]
-    assert set(counts) == {"keep", "check", "trash", "unpriceable"}
+    assert set(counts) == {"keep", "check", "trash", "unpriceable", "not_loot"}
     assert all(count > 0 for count in counts.values())
 
 

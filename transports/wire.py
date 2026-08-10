@@ -50,11 +50,17 @@ __all__ = [
     "VerdictCounts",
 ]
 
-Verdict = Literal["keep", "check", "trash", "unpriceable"]
+Verdict = Literal["keep", "check", "trash", "unpriceable", "not_loot"]
+# `not_loot` is a quest item, an MTX effect or a hideout decoration — a row that
+# is not a loot decision at all. It is a verdict rather than a filtered-out row
+# because the bag grid needs a verdict for every cell it draws.
 # The last member is spelled `unpriceable`, not `none`: `PriceSource.NONE` has
 # value "unpriceable" in `prices/api.py`, and this list is what a screen switches on.
 # Guessing it was the enum *member* name is exactly the drift this file catches.
 PriceSourceName = Literal["note", "bulk", "exchange", "trade", "unpriceable"]
+Tier3Name = Literal["none", "pending", "no_listings", "failed", "priced"]
+# What tier 3 did. `pending` is the only one that may render as "pricing…";
+# `no_listings` and `failed` are finished answers that used to wear its clothes.
 StrictnessName = Literal["generous", "strict"]
 LeagueSourceName = Literal["argument", "setting", "character"]
 
@@ -98,6 +104,8 @@ class ValuationPayload(Wire):
     stack_size: int
     unpriceable: bool
     pricing: bool
+    no_listings: bool
+    tier3: Tier3Name
     source: PriceSourceName
     total_chaos: float
     price: PricePayload | None
@@ -113,6 +121,8 @@ class GateSignalPayload(Wire):
     name: str
     detail: str
     hard: bool
+    mods: list[str]
+    value: float | None
 
 
 class GatePayload(Wire):
@@ -145,6 +155,8 @@ class ItemVerdictPayload(Wire):
     total_chaos: float
     unpriceable: bool
     pricing: bool
+    no_listings: bool
+    tier3: Tier3Name
     escalate: bool
     reason: str
     gate: GatePayload
@@ -152,12 +164,13 @@ class ItemVerdictPayload(Wire):
 
 
 class VerdictCounts(Wire):
-    """All four states, always present, zeroes included."""
+    """Every state, always present, zeroes included."""
 
     keep: int
     check: int
     trash: int
     unpriceable: int
+    not_loot: int
 
 
 class TableStatusPayload(Wire):
@@ -195,6 +208,7 @@ class BagAppraisalPayload(Wire):
     unpriceable_stack: int
     escalation_candidates: int
     pricing_count: int
+    no_listings_count: int
     total_is_floor: bool
     lookups: int
     trade_requests: int

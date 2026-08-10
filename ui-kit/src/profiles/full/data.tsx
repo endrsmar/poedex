@@ -11,7 +11,7 @@ import type {
 } from '../../contracts'
 import { resolveHint } from '../../profile'
 import { PROVENANCE_SHORT, VERDICT_GLYPH, VERDICT_LABEL } from '../../verdict'
-import { formatQuantity } from '../../format'
+import { formatPriceCell, formatQuantity, hasPrice } from '../../format'
 
 const P = 'full' as const
 
@@ -246,11 +246,7 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
   const shown = new Set(resolveHint(fields, P, DEFAULT_ROW_FIELDS))
   const Element = onSelect ? 'button' : 'div'
   const price = item.price
-  const priceText = price?.pricing
-    ? '⋯'
-    : price && price.chaos !== null && price.chaos !== undefined
-      ? `${price.chaos.toLocaleString('en-US', { maximumFractionDigits: 1 })}c`
-      : '—'
+  const priceText = formatPriceCell(price, 1)
 
   return (
     <Element
@@ -288,7 +284,7 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
       {shown.has('price') ? (
         <span
           className="pk-itemrow__price"
-          data-unpriced={priceText === '—' || priceText === '⋯'}
+          data-unpriced={!hasPrice(price)}
           title={price?.detail ?? undefined}
         >
           {priceText}
@@ -296,9 +292,7 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
       ) : null}
       {shown.has('provenance') ? (
         <span className="pk-itemrow__prov">
-          {price && !price.pricing && price.chaos !== null && price.chaos !== undefined
-            ? PROVENANCE_SHORT[price.provenance]
-            : ''}
+          {hasPrice(price) ? PROVENANCE_SHORT[price.provenance] : ''}
         </span>
       ) : null}
       {shown.has('reason') && item.reason ? (

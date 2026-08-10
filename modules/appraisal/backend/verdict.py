@@ -1,4 +1,4 @@
-"""Prices plus the gate → one of four verdicts (SPEC §5.4).
+"""Prices plus the gate → one verdict (SPEC §5.4).
 
 Pure functions over a :class:`~modules.prices.backend.api.Valuation` and a
 :class:`~modules.appraisal.backend.api.GateResult`. Nothing here can perform I/O or
@@ -8,14 +8,30 @@ compute a price; if a number is needed it was already asked for.
 
 ::
 
+    0.  not a loot decision at all (quest, MTX, decoration)   → not_loot
     1.  no price, and the bulk index should have carried it   → unpriceable
     1b. no price yet, tier 3 outstanding                      → check ("pricing…")
+    1c. no price, tier 3 answered and found nothing           → check (terminal)
     2.  stack total at or above the keep threshold            → keep
     3.  the tier-2 gate found something                       → check
     4.  stack total at or above the check floor               → check
     5.  otherwise                                             → trash
 
-**Unpriceable is tested first and can never be overridden.** Not because it is the
+**Not-loot is tested before everything, including unpriceable.** Every branch below
+it answers "what is this worth?", and for a quest item that question has no answer to
+get right or wrong: it has no market, so its absence from the price index is not a
+hole, and its lack of value is not a reason to vendor it. Falling through to ``trash``
+printed *vendor* next to an item that cannot be vendored — the one kind of wrong
+answer that makes a player stop trusting the four that were right.
+
+**Tier 3's silence is an answer, and it is not "pricing…".** Branch 1b used to catch
+both "a query is outstanding" and "a query came back with nothing", because the
+valuation carried one boolean for both. It rendered ``pricing…`` next to two searches
+that had already finished empty, promising a number that was never coming.
+:class:`~modules.prices.backend.api.Tier3` now separates them and 1c is the terminal
+half.
+
+**Unpriceable is tested next and can never be overridden by a price branch.** Not because it is the
 most important state but because it is the only one that is a statement about our
 own knowledge rather than about the item. Every other branch presumes a number
 exists; putting the "we do not have one" case anywhere but first means some branch
@@ -45,6 +61,7 @@ from modules.appraisal.backend.api import (
     Strictness,
     Verdict,
     indexable,
+    not_loot,
 )
 from modules.poeapi.backend.api import NormalizedItem
 from modules.prices.backend.api import BagValuation, PriceSource, Valuation
@@ -60,7 +77,10 @@ def classify(
     keep_chaos: float,
     check_chaos: float,
 ) -> tuple[Verdict, str]:
-    """The five branches above, plus the sentence that explains the answer."""
+    """The branches above, plus the sentence that explains the answer."""
+    if not_loot(item):
+        return Verdict.NOT_LOOT, _not_loot_reason(item)
+
     if valuation.unpriceable:
         if indexable(item):
             return Verdict.UNPRICEABLE, _unpriceable_reason(valuation)
@@ -71,7 +91,16 @@ def classify(
             # exactly this second job — "or tier-3 pending" — and the word matters:
             # "pricing…" says the number is coming, where the gate summary alone
             # implies we are never going to have one.
-            return Verdict.CHECK, f"pricing… · {gate.summary}" if gate.passed else "pricing…"
+            return Verdict.CHECK, _with_gate("pricing…", gate)
+        if valuation.no_listings:
+            # ...and this is the other half of that word. The search ran, broadened,
+            # and found nothing comparable in the league. Terminal, and phrased so
+            # nobody waits for it: the item is not worthless, it is *uncompared*.
+            return Verdict.CHECK, _with_gate("no matching listings", gate)
+        if valuation.tier3_failed:
+            return Verdict.CHECK, _with_gate(
+                valuation.reason or "the trade search could not run", gate
+            )
         if gate.passed:
             return Verdict.CHECK, gate.summary
         return Verdict.TRASH, _gate_miss_reason(gate)
@@ -101,10 +130,38 @@ whether to believe a number needs to know which of those it is, and the CLI has
 printed a source column since Phase 3 precisely so it can."""
 
 
+def _with_gate(state: str, gate: GateResult) -> str:
+    return f"{state} · {gate.summary}" if gate.passed else state
+
+
+_NOT_LOOT_WORDS: dict[str, str] = {
+    "quest": "quest item — cannot be traded or vendored",
+    "cosmetic": "cosmetic effect — account-bound",
+    "hideout": "hideout decoration — not a loot decision",
+}
+
+
+def _not_loot_reason(item: NormalizedItem) -> str:
+    """Why this row is outside the loot decision, in the player's terms.
+
+    Never a price sentence. The whole point is that the value question does not
+    apply, so a reason that mentions the index or the gate would reintroduce it.
+    """
+    return _NOT_LOOT_WORDS.get(item.category, "not a loot decision")
+
+
 def _provenance(valuation: Valuation) -> str:
     source = _SOURCE_WORDS.get(valuation.source, "poe.ninja")
-    if valuation.stack_size > 1 and valuation.price is not None:
-        return f"{valuation.stack_size} x {valuation.price.chaos:g}c · {source}"
+    price = valuation.price
+    if price is not None and price.source is PriceSource.TRADE and price.sample_size:
+        # A tier-3 median over one listing is one stranger's asking price, and the
+        # first live appraisal printed exactly that as `10.0c · trade search` with
+        # nothing to say it rested on a single comparable. The sample size is the
+        # cheapest possible honesty here, so it is in the sentence rather than in a
+        # detail pane nobody opens.
+        source = f"{source} ({price.sample_size} listing{'' if price.sample_size == 1 else 's'})"
+    if valuation.stack_size > 1 and price is not None:
+        return f"{valuation.stack_size} x {price.chaos:g}c · {source}"
     return source
 
 

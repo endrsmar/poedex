@@ -133,7 +133,7 @@ async def test_each_verdict_has_its_own_glyph_so_the_output_survives_greyscale(
     """SPEC §5.4 asks for shape as well as colour. With colour off — which is what a
     pipe, a log and this test all get — the glyph is the only visual channel left."""
     _, out = await run(appraised_stack, capsys, show_all=True)
-    assert len(set(GLYPH.values())) == 4
+    assert len(set(GLYPH.values())) == len(Verdict)
     for verdict in Verdict:
         assert any(row.strip().startswith(GLYPH[verdict]) for row in block(out, verdict)), verdict
     assert "\033[" not in out, "colour must be off when stdout is not a terminal"
@@ -350,3 +350,102 @@ def test_the_parser_accepts_the_command():
     assert args.strictness == "strict"
     assert args.threshold == 150.0
     assert args.all is True
+
+
+# -- bug 2 and bug 3, in the renderer ------------------------------------------
+
+
+def _row(out: str, name: str) -> str:
+    return next(line for line in out.splitlines() if name in line)
+
+
+async def test_bug2_a_finished_empty_search_is_drawn_as_terminal_not_as_pricing(
+    appraised_stack, server, capsys
+):
+    """The live symptom, exactly: rows reading ``⋯ · pricing…`` beside searches that
+    had already come back with zero results.
+
+    Asserted off the rendered text alone. Re-appraising to get an object to compare
+    against would spend the fake limiter's remaining budget and change the answer,
+    which is a decent illustration of why the rendered output is the deliverable.
+    """
+    server.trade_search_empty = True
+    _code, out = await run(appraised_stack, capsys, show_all=True)
+
+    # Rows, not the footnote — the footnote says the same words on purpose.
+    settled = [line for line in out.splitlines() if "no matching listings ·" in line]
+    assert settled, "nothing was escalated, so nothing came back empty"
+    for line in settled:
+        assert "pricing…" not in line, line
+        # ...and a different glyph from the one that means "a number is coming".
+        assert "∅" in line, line
+        assert "⋯" not in line, line
+        # Still no number, and never a zero: uncompared is not worthless.
+        assert " 0c" not in line, line
+
+
+async def test_bug2_the_footer_does_not_call_a_finished_search_still_pricing(
+    appraised_stack, server, capsys
+):
+    """The bag-total footnote said "2 item(s) still pricing" about items that had
+    finished. The two counts are now two sentences, and the wrong one is absent."""
+    server.trade_search_empty = True
+    _code, out = await run(appraised_stack, capsys, show_all=True)
+
+    assert "still pricing" not in out
+    footnote = next(
+        line for line in out.splitlines() if "searched and found no matching listings" in line
+    )
+    # The number in the footnote is the number of rows that say so, not a guess.
+    counted = len([line for line in out.splitlines() if "no matching listings ·" in line])
+    assert re.search(r"(\d+) item\(s\) searched", footnote).group(1) == str(counted)
+    # Nothing is outstanding, so the total does not wear a `≥` it cannot justify.
+    assert "bag total:  ≥" not in out
+
+
+async def test_bug2_an_outstanding_query_still_prints_pricing(appraised_stack, capsys, monkeypatch):
+    """The true case must survive the fix."""
+    import asyncio
+
+    prices = appraised_stack.get("prices")
+
+    async def never(*_args, **_kwargs):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(prices, "quote", never)
+    appraised_stack.settings.set("appraisal", "eager_timeout_seconds", 0.1)
+    _code, out = await run(appraised_stack, capsys, show_all=True)
+    assert "still pricing" in out
+    assert "⋯" in out
+
+
+async def test_bug3_a_quest_item_never_appears_under_an_instruction_to_sell_it(
+    appraised_stack, capsys
+):
+    """`Book of Skill` is in the fixture bag. It cannot be traded and cannot be
+    vendored, and the first live appraisal filed one under TRASH — headline
+    "vendor"."""
+    _code, out = await run(appraised_stack, capsys, show_all=True)
+
+    assert "Book of Skill" in out
+    assert "Book of Skill" not in "\n".join(block(out, Verdict.TRASH))
+    assert "Book of Skill" not in "\n".join(block(out, Verdict.UNPRICEABLE))
+    assert "Book of Skill" in "\n".join(block(out, Verdict.NOT_LOOT))
+
+    # The block it *is* in gives no instruction, and its own line says why.
+    heading = next(line for line in out.splitlines() if line.startswith("NOT_LOOT"))
+    assert "vendor" in heading and "nothing to vendor" in heading
+    line = _row(out, "Book of Skill")
+    assert "cannot be traded or vendored" in line
+    # No money column at all: a `0c`, or even a `—`, invites the value question back.
+    assert "0c" not in line
+
+
+async def test_bug3_the_not_loot_row_is_still_on_the_screen(appraised_stack, capsys):
+    """Excluding it from the verdict would have been the other way to fix this, and
+    it would have made the bag grid — which SPEC §6.3 calls a *map* — incomplete."""
+    result = await appraised(appraised_stack)
+    quest = next(row for row in result.items if row.name == "Book of Skill")
+    assert quest.slot is not None, "the row still knows where it is in the bag"
+    assert quest.verdict is Verdict.NOT_LOOT
+    assert quest.to_json()["verdict"] == "not_loot"

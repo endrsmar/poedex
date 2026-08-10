@@ -22,6 +22,57 @@ export function formatDivine(divine: number): string {
   return divine < 10 ? trimZeros(divine.toFixed(2)) : trimZeros(divine.toFixed(1))
 }
 
+/**
+ * What the value column says when it is not saying a number.
+ *
+ * Three different silences, and the first live appraisal proved they cannot share a
+ * glyph: two rares whose trade searches had already returned zero results were drawn
+ * with `⋯`, which promises a number that is never going to arrive. `∅` is the
+ * terminal answer — *we asked, nothing matched* — and `—` stays what it always was:
+ * no price, and none was ever sought.
+ */
+export const PRICE_PENDING = '⋯'
+export const PRICE_NO_LISTINGS = '∅'
+export const PRICE_NONE = '—'
+
+interface PriceCell {
+  chaos?: number | null
+  pricing?: boolean
+  noListings?: boolean
+}
+
+/**
+ * One price cell, for both profiles and every field list.
+ *
+ * A shared function rather than four copies of the same ternary, because four copies
+ * is how `∅` reaches three renderers and quietly misses the fourth.
+ */
+export function formatPriceCell(price: PriceCell | null | undefined, digits = 1): string {
+  if (price?.pricing) return PRICE_PENDING
+  if (price?.noListings) return PRICE_NO_LISTINGS
+  if (price && price.chaos !== null && price.chaos !== undefined) {
+    return `${price.chaos.toLocaleString('en-US', { maximumFractionDigits: digits })}c`
+  }
+  return PRICE_NONE
+}
+
+/**
+ * Is there a number for a provenance label to be about?
+ *
+ * A type predicate, so the caller that passes the check may also read the model —
+ * a provenance span guarded by a boolean and then reaching for `price!.provenance`
+ * is the same bug written twice.
+ */
+export function hasPrice<T extends PriceCell>(price: T | null | undefined): price is T {
+  return Boolean(
+    price &&
+      !price.pricing &&
+      !price.noListings &&
+      price.chaos !== null &&
+      price.chaos !== undefined,
+  )
+}
+
 /** `×40296`, grouped. The multiplication sign, not the letter x. */
 export function formatQuantity(quantity: number): string {
   return `×${quantity.toLocaleString('en-US')}`

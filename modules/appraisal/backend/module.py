@@ -75,7 +75,13 @@ from modules.appraisal.backend.api import (
 from modules.appraisal.backend.gate import HIGH_VALUE_BASES, evaluate
 from modules.appraisal.backend.verdict import appraise_bag, appraise_one
 from modules.poeapi.backend.api import NormalizedItem, PoeApi, Source
-from modules.prices.backend.api import BagValuation, Price, PricesApi, PriceSource
+from modules.prices.backend.api import (
+    BagValuation,
+    Price,
+    PricesApi,
+    PriceSource,
+    Tier3,
+)
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
 from runtime.log import get_logger
@@ -331,20 +337,38 @@ class AppraisalModule:
             [item for _position, item in chosen],
             league=league or override,
             timeout=float(self._setting("eager_timeout_seconds", DEFAULT_EAGER_TIMEOUT)),
+            # The gate just decided why each of these is interesting. Handing that
+            # down is what stops the query from ANDing every mod on the item — see
+            # `GateResult.focus`.
+            focus={item.uid: gates[position].focus() for position, item in chosen},
         )
         rows = list(valued.items)
         for position, item in chosen:
             quote = quotes.get(item.uid)
-            if quote is None or quote.chaos is None:
-                # Nothing came back: still unpriceable, and marked so the surface can
-                # say "we looked" rather than implying we never tried.
-                rows[position].pricing = True
+            if quote is None:
+                # Absent means the task was still running when the timeout fired.
+                # This is the *only* case that is genuinely "pricing…".
+                rows[position].tier3 = Tier3.PENDING
+                continue
+            if not quote.searched:
+                rows[position].tier3 = Tier3.FAILED
+                rows[position].reason = quote.unavailable
+                continue
+            if quote.chaos is None:
+                # The search ran — twice, if the first was empty — and matched
+                # nothing. A finished answer, and the surface must be able to stop
+                # spinning on it.
+                rows[position].tier3 = Tier3.NO_LISTINGS
+                rows[position].reason = quote.query or None
                 continue
             rows[position] = rows[position].replace_price(
                 Price(
                     quote.chaos,
                     PriceSource.TRADE,
-                    detail=f"median of {len(quote.listings)} online listing(s)",
+                    detail=(
+                        f"median of {len(quote.listings)} online listing(s) "
+                        f"of {quote.total} matching · {quote.query}"
+                    ),
                     listing_count=quote.total or None,
                     sample_size=len(quote.listings) or None,
                 ),

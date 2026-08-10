@@ -51,6 +51,7 @@ GLYPH: dict[Verdict, str] = {
     Verdict.CHECK: "◐",  # ◐ half
     Verdict.UNPRICEABLE: "?",
     Verdict.TRASH: "·",  # · dot
+    Verdict.NOT_LOOT: "◇",  # ◇ hollow — nothing to act on
 }
 
 COLOUR: dict[Verdict, str] = {
@@ -58,16 +59,26 @@ COLOUR: dict[Verdict, str] = {
     Verdict.CHECK: "\033[1;33m",
     Verdict.UNPRICEABLE: "\033[1;35m",
     Verdict.TRASH: "\033[2;37m",
+    Verdict.NOT_LOOT: "\033[2;36m",
 }
 RESET = "\033[0m"
 
-BLOCK_ORDER = (Verdict.KEEP, Verdict.CHECK, Verdict.UNPRICEABLE, Verdict.TRASH)
+BLOCK_ORDER = (
+    Verdict.KEEP,
+    Verdict.CHECK,
+    Verdict.UNPRICEABLE,
+    Verdict.TRASH,
+    Verdict.NOT_LOOT,
+)
 
 HEADLINE: dict[Verdict, str] = {
     Verdict.KEEP: "worth the trip",
     Verdict.CHECK: "look before you vendor",
     Verdict.UNPRICEABLE: "not in the price index — not worthless",
     Verdict.TRASH: "vendor",
+    # Deliberately not an instruction. This block's whole reason for existing is
+    # that the player is not being asked to do anything with these.
+    Verdict.NOT_LOOT: "not loot — nothing to sell, nothing to vendor",
 }
 
 
@@ -94,20 +105,30 @@ def _clip(text: str, width: int) -> str:
 def render_row(item: ItemVerdict, *, colour: bool) -> str:
     """One item: glyph, name, stack, line total, and the reason for the verdict.
 
-    The value column reads ``—`` for anything with no price at all, which includes
-    every gate-flagged rare. Printing ``0c`` next to "look before you vendor" was the
-    first draft, and it is a lie in the one place the output most needs to be honest:
-    the item is not worth nothing, it is worth *unknown*, and that is why it is on
-    the list.
+    Four things can occupy the value column, and they are four different claims:
+
+    * a number — we know what it is worth;
+    * ``⋯`` — a tier-3 query is **outstanding**; a number is coming;
+    * ``∅`` — a tier-3 query **finished** and matched nothing. No number is coming;
+    * ``—`` — no price and none was ever sought.
+
+    ``∅`` exists because the first live appraisal drew ``⋯`` for two rares whose
+    searches had already come back empty, which promises a number that never arrives.
+    Printing ``0c`` for any of the last three was the first draft, and it is a lie in
+    the one place the output most needs to be honest: the item is not worth nothing,
+    it is worth *unknown*.
     """
     glyph = paint(GLYPH[item.verdict], item.verdict, colour=colour)
     name = _clip(item.name, MAX_NAME)
     stack = f"x{item.stack_size}" if item.stack_size > 1 else ""
     if item.pricing:
-        # Still a dash rather than a number, because there is no number yet — but a
-        # different dash from the one that means "and there never will be". The
-        # reason column carries the word; this column carries the distinction.
         value = "     ⋯"
+    elif item.no_listings or item.tier3_failed:
+        value = "     ∅"
+    elif item.verdict is Verdict.NOT_LOOT:
+        # No column, not even a dash: a dash in a money column still invites the
+        # reader to ask what the money was.
+        value = "      "
     elif item.valuation.unpriceable:
         value = "     —"
     else:
@@ -130,7 +151,11 @@ def render_block(
     if not items:
         return []
     label = paint(f"{verdict.value.upper():<12}", verdict, colour=colour)
-    if verdict is Verdict.UNPRICEABLE:
+    if verdict is Verdict.NOT_LOOT:
+        # No subtotal. A money figure next to these rows — even `0c` — restates the
+        # question the block exists to retire.
+        head = f"{label}{len(items)} row(s)   {HEADLINE[verdict]}"
+    elif verdict is Verdict.UNPRICEABLE:
         units = sum(item.stack_size for item in items)
         head = f"{label}{len(items)} row(s), {units} unit(s)   {HEADLINE[verdict]}"
     else:
@@ -181,10 +206,20 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
             f"            excludes {len(unpriceable)} unpriceable row(s), "
             f"{result.unpriceable_stack} unit(s) — the total is a floor, not a value"
         )
+    # Two footnotes, never one. "Still pricing" said about a finished search is the
+    # bug this split exists to fix: the first live appraisal reported "2 item(s)
+    # still pricing" about two searches that had already returned zero results, so
+    # the reader waited for numbers that were never going to arrive.
     if result.pricing:
         lines.append(
             f"            {len(result.pricing)} item(s) still pricing — their value "
             "is not in the figure above"
+        )
+    empty = result.no_listings
+    if empty:
+        lines.append(
+            f"            {len(empty)} item(s) searched and found no matching "
+            "listings — unknown, not zero, and not still running"
         )
     lines.append("verdicts:   " + tally)
     candidates = result.escalation_candidates

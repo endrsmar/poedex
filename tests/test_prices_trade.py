@@ -11,14 +11,17 @@ from __future__ import annotations
 import pytest
 
 from modules.poeapi.backend.api import Location, NormalizedItem, Rarity, Source
-from modules.prices.backend.api import TradeUnavailable
+from modules.prices.backend.api import ModFocus, TradeUnavailable
 from modules.prices.backend.trade import (
     MAX_FETCH_IDS,
+    MAX_STAT_FILTERS,
     StatIndex,
     TradeClient,
+    build_plan,
     build_query,
     median_of_cheapest,
     normalize_stat_text,
+    widened,
 )
 from runtime.storage import Storage
 from tests.conftest import FakeClock, price_payload
@@ -354,3 +357,178 @@ def test_the_fake_clock_is_used_not_the_wall_clock():
     """Guards the fixtures above: a real clock would make the TTL tests time bombs."""
     clock = FakeClock(5.0)
     assert clock() == 5.0
+
+
+# -- bug 1: the query was an exact-match conjunction of every mod -------------------
+#
+# The first live appraisal escalated three gate-flagged rares and got two zeroes and
+# one single-listing "median" out of it. `build_query` ANDed every resolvable
+# explicit and implicit mod into one filter set, so a six-mod rare asked the market
+# for a near-duplicate of itself. Raising the eager timeout from 12s to 60s changed
+# nothing, which is what ruled out slowness and left query shape.
+
+# The live ring, mod for mod. Seven filters went out; zero listings came back.
+SIX_MOD_RARE = [
+    "+30 to Strength",
+    "Adds 2 to 5 Physical Damage to Attacks",
+    "Adds 1 to 28 Lightning Damage to Attacks",
+    "+103 to maximum Life",
+    "+33% to Fire Resistance",
+    "+38% to Lightning Resistance",
+]
+
+
+def _stats() -> StatIndex:
+    """An index in which **every** one of the six mods resolves.
+
+    Deliberately not the shared ``trade-stats.json`` fixture, which happens to carry
+    only one of them: this test is about what the builder does when it *could* name
+    every mod, and against that fixture it would pass for the wrong reason. These are
+    the real opaque ids, resolved against the live stats document during the
+    investigation and pasted here so the test needs no network.
+    """
+    return StatIndex(
+        {
+            normalize_stat_text("+30 to Strength"): "explicit.stat_4080418644",
+            normalize_stat_text(
+                "Adds 2 to 5 Physical Damage to Attacks"
+            ): "pseudo.pseudo_adds_physical_damage_to_attacks",
+            normalize_stat_text(
+                "Adds 1 to 28 Lightning Damage to Attacks"
+            ): "pseudo.pseudo_adds_lightning_damage_to_attacks",
+            normalize_stat_text("+103 to maximum Life"): "explicit.stat_3299347043",
+            normalize_stat_text("+33% to Fire Resistance"): "explicit.stat_3372524247",
+            normalize_stat_text("+38% to Lightning Resistance"): "explicit.stat_1671376347",
+        },
+        0.0,
+    )
+
+
+def test_bug1_a_six_mod_rare_is_not_an_exact_match_conjunction_of_all_its_mods():
+    """The regression, stated as the property that was violated.
+
+    Every one of these six mods resolves to a stat id, so the old builder emitted six
+    ANDed filters. The rule is not "fewer filters is nicer" — it is that a query
+    naming every mod on the item can only match near-duplicates of it, and a price
+    taken from near-duplicates of a random rare is a price taken from nothing.
+    """
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    filters = build_query(item, _stats())["query"]["stats"][0]["filters"]
+
+    assert len(filters) < len(SIX_MOD_RARE), "every mod is still in the query"
+    assert len(filters) <= MAX_STAT_FILTERS
+
+
+def test_bug1_the_caller_chooses_which_mods_the_query_is_about():
+    """`prices` cannot ask the gate — that would be a dependency cycle — so the
+    caller that decided to escalate says why, and the query is built from that."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    plan = build_plan(
+        item,
+        _stats(),
+        [ModFocus(text="+103 to maximum Life", minimum=82, label="max life")],
+    )
+    filters = plan[0].body["query"]["stats"][0]["filters"]
+    assert len(filters) == 1
+    assert filters[0]["value"] == {"min": 82}
+    # ...and it is legible, because a tier-3 number nobody can trace is a number
+    # nobody can argue with.
+    assert "max life ≥ 82" in plan[0].description
+    assert "Amethyst Ring" in plan[0].description
+
+
+def test_bug1_a_roll_becomes_a_widened_range_not_an_equality():
+    """Trade filters take min/max. Matching the exact roll of a random rare is the
+    same mistake as naming every mod, in one dimension instead of six."""
+    assert widened(103) == 82
+    assert widened(109) == 87
+    # Small rolls stay meaningful rather than collapsing to zero.
+    assert widened(0.34) == 0.27
+
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    focus = [ModFocus(text="+103 to maximum Life", minimum=widened(103), label="max life")]
+    entry = build_query(item, _stats(), focus)["query"]["stats"][0]["filters"][0]
+    assert entry["value"]["min"] < 103
+
+
+def test_bug1_a_rare_is_priced_against_rares():
+    """Left open, a base-type query lets a unique of the same base — priced by its
+    unique name, not by its mods — into the sample."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    filters = build_query(item, _stats())["query"]["filters"]["type_filters"]["filters"]
+    assert filters["rarity"] == {"option": "rare"}
+    # A unique is still searched by name, where rarity is implied and would only
+    # narrow the query for nothing.
+    assert "filters" not in build_query(_unique("Tabula Rasa", "Simple Robe"), None)["query"]
+
+
+def test_bug1_the_plan_has_a_broadening_step_that_is_strictly_wider():
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    focus = [ModFocus(text="+103 to maximum Life", minimum=82, label="max life")]
+    plan = build_plan(item, _stats(), focus)
+    assert len(plan) == 2
+    first, second = plan
+    assert first.body["query"]["stats"][0]["filters"][0]["value"] == {"min": 82}
+    # Same mod, no floor: the smallest change that can turn a zero into a number.
+    assert "value" not in second.body["query"]["stats"][0]["filters"][0]
+    assert "broadened" in second.description
+
+
+def test_bug1_a_mod_nobody_can_resolve_never_becomes_a_bare_base_type_search_silently():
+    """It is still made — for an item with no readable mods the base type genuinely
+    is everything we know — but it says so, so a surprising number is traceable."""
+    item = _rare("Amethyst Ring", ["Grants Level 20 Nonexistent"])
+    plan = build_plan(item, _stats())
+    assert plan[0].body["query"]["stats"][0]["filters"] == []
+    assert "base type only" in plan[0].description
+
+
+async def test_bug1_a_zero_result_search_is_retried_once_wider_and_never_twice(
+    trade, server, monkeypatch
+):
+    """One extra request, for items that would otherwise have no answer at all."""
+    import tests.conftest as conftest
+
+    real = conftest.price_payload
+
+    def empty(name: str):
+        if name == "trade-search.json":
+            return {"id": "X", "result": [], "total": 0}
+        return real(name)
+
+    monkeypatch.setattr(conftest, "price_payload", empty)
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    quote = await trade.quote(
+        item,
+        "Standard",
+        chaos_of=_chaos_of,
+        focus=[ModFocus(text="+58 to maximum Life", minimum=46, label="max life")],
+    )
+
+    searches = [r for r in server.trade_requests() if "/search/" in r.url.path]
+    assert len(searches) == 2, "the broadening retry did not run, or ran more than once"
+    assert quote.attempts == 2
+    assert quote.chaos is None
+    # An *answer*, not an absence: the caller has to be able to tell this from a
+    # query that never finished. See bug 2.
+    assert quote.searched
+    assert quote.total == 0
+
+
+async def test_bug1_a_search_that_works_first_time_costs_no_extra_request(trade, server):
+    item = _rare("Amethyst Ring", ["+58 to maximum Life"])
+    await trade.quote(item, "Standard", chaos_of=_chaos_of)
+    searches = [r for r in server.trade_requests() if "/search/" in r.url.path]
+    assert len(searches) == 1
+
+
+async def test_bug1_the_quote_carries_the_query_that_produced_it(trade):
+    """Bug 1's other half: the live run reported `10.0c · trade search` for a jewel
+    with exactly one comparable in the league, and nothing on screen could have told
+    anybody that. The quote now carries the filters and the match count."""
+    item = _rare("Amethyst Ring", ["+58 to maximum Life"])
+    quote = await trade.quote(item, "Standard", chaos_of=_chaos_of)
+    assert quote.query
+    assert "Amethyst Ring" in quote.query
+    assert quote.to_json()["query"] == quote.query
+    assert quote.to_json()["attempts"] == quote.attempts

@@ -414,12 +414,25 @@ only on demand, with a visible cost (*"43 items, ~12 will escalate, ~4 min"*).
 `POST /api/trade/search/{league}` then `GET /api/trade/fetch/{ids}?query={id}` (max 10 ids).
 Stat filters key off opaque ids from `/api/trade/data/stats` — never readable text.
 
-Filter to online sellers; take the **median of the cheapest N**, not the minimum. Show a
-per-item `pricing…` state that never gates the grid; display the bag total as `≥ N div` while
-tier-3 items are outstanding. Both are implemented: `Valuation.pricing` carries the per-item
-state, `BagAppraisal.total_is_floor` the bag one, and the CLI prints `⋯` in the value column and
-`≥` before the total. A quote that has not returned by the timeout is abandoned, not awaited — a
-slow query may cost a number, never the output.
+**Query a subset of the mods, not all of them.** The first live appraisal ANDed every resolvable
+explicit and implicit mod into one filter set. Measured against Allflame, the three flagged rares
+produced 0, 0 and 1 matching listings — and the "1" was reported as `10.0c`, a median over a
+sample of one. The gate has already decided which mods make an item interesting, so `prices` asks
+about *those*: `GateResult.focus()` hands `ModFocus` entries down (`prices` may not import
+`appraisal` — that is a cycle), rolls become **widened `min` filters** rather than exact values,
+at most `MAX_STAT_FILTERS` (2) apply, and rarity is pinned so a unique of the same base cannot
+enter the sample. The same three items then returned 2524, 198 and 438 listings. A search that
+still matches nothing gets **one** broadening retry (one filter, no floor) and no more.
+
+Filter to online sellers; take the **median of the cheapest N**, not the minimum — and carry the
+sample size onto the screen, because a median over one listing is one stranger's asking price.
+
+Show a per-item `pricing…` state that never gates the grid; display the bag total as `≥ N div`
+while tier-3 items are outstanding. `Valuation.tier3` carries the per-item state and
+`BagAppraisal.total_is_floor` the bag one; the CLI prints `⋯` for outstanding, `∅` for
+searched-and-empty, and `≥` before the total only while something is genuinely outstanding. A
+quote that has not returned by the timeout is abandoned, not awaited — a slow query may cost a
+number, never the output.
 
 Trade limits are separate from the item bucket: `trade-search-request-limit`
 `5:10:60, 15:60:300, 30:300:1800, 600:21600:3600`, `trade-fetch-request-limit`
@@ -430,8 +443,9 @@ nothing. Re-measured 2026-08-10. `/api/trade/data/stats` and `/api/trade/data/st
 rate-limit headers at all and a `max-age=1799`/`1800`.
 
 **Budget for one `poedex appraise`, worst case:** 1 account request (the bag) + 1 stat document +
-4 searches + 4 fetches + ≤2 bulk-exchange = **12**, spread over four independent policies, of
-which exactly one is the account's. Steady state, with the stat document and exchange rates
+4 searches + 4 broadening retries + 4 fetches + ≤2 bulk-exchange = **16**, spread over four
+independent policies, of which exactly one is the account's. The retry only fires for an item
+that would otherwise have no answer at all, and `broaden_on_no_matches` turns it off. Steady state, with the stat document and exchange rates
 cached and no new rares: 1 account request and up to 8 trade requests. The `5:10:60` search rule
 is the binding one, and four of five leaves a request spare for the player's own browser.
 
@@ -440,18 +454,33 @@ containing the seller's character name. Never log a raw listing.
 
 ### 5.4 Verdict model
 
-Four states, encoded in **both** color and shape so the grid survives greyscale.
+Five states, encoded in **both** color and shape so the grid survives greyscale.
 
 | Verdict | Meaning |
 |---|---|
 | `keep` | At or above the keep threshold |
-| `check` | Below threshold but non-trivial, or tier-3 pending |
+| `check` | Below threshold but non-trivial, or tier 3 pending, or tier 3 found nothing |
 | `trash` | Confidently below threshold |
 | `unpriceable` | **No tier could price it** — do not conflate with trash |
+| `not_loot` | Quest item, MTX, hideout decoration — **not a loot decision at all** |
 
 `unpriceable` is not optional. The test account's Standard stash holds ~170 `Veiled Scarab`, a
 removed item absent from poe.ninja's league index. Reporting those as `trash` would understate
 stash value badly and destroy trust in the total.
+
+`not_loot` was added after the first live appraisal, which filed a quest item
+(`The Mortinomicon Exitio Immortalis`) under `trash` — headline *vendor*. A quest item cannot be
+traded and cannot be vendored, so that is not unhelpful advice but an impossible instruction, and
+the four states above have no slot for "cannot be sold at all". It is a verdict rather than a
+filtered-out row because SPEC §6.3 makes the bag grid a *map*, and every cell in a map needs a
+colour. `modules/appraisal/backend/api.py:NOT_LOOT_CATEGORIES` is the list.
+
+**Tier 3's silence is an answer.** `check` covers both "a query is outstanding" and "a query came
+back with nothing", and a surface **must not render them the same way**. The first live appraisal
+showed `pricing…` beside two searches that had already returned zero results — promising a number
+that was never coming, and counting those rows in a "still pricing" footnote. The valuation now
+carries a `Tier3` state (`none` / `pending` / `no_listings` / `failed` / `priced`); only `pending`
+may say `pricing…`, and only `pending` makes the bag total a `≥` floor.
 
 **Open:** keep threshold default. ~20c gives a busy panel; divine-tier gives a quiet one.
 

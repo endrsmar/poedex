@@ -71,6 +71,7 @@ from modules.prices.backend.api import (
     LeagueChoice,
     LeagueSource,
     LeagueUnknownError,
+    ModFocus,
     Price,
     PricesApi,
     PricesError,
@@ -355,6 +356,17 @@ class PricesModule:
                 "description": (
                     "How many of the cheapest online listings a tier-3 quote takes "
                     "the median of. The endpoint's own maximum is 10."
+                ),
+            },
+            "broaden_on_no_matches": {
+                "type": "bool",
+                "default": True,
+                "label": "Retry a tier-3 search that matched nothing",
+                "description": (
+                    "When the first query finds no listings, spend one more search "
+                    "on a wider version of it — one filter, no roll floor. Costs at "
+                    "most one extra request per item, and only for items that would "
+                    "otherwise have no answer at all."
                 ),
             },
         }
@@ -766,7 +778,12 @@ class PricesModule:
         return store.load(target) if store is not None else None
 
     async def quote(
-        self, item: NormalizedItem, *, sample: int = 0, league: str | None = None
+        self,
+        item: NormalizedItem,
+        *,
+        sample: int = 0,
+        league: str | None = None,
+        focus: Sequence[ModFocus] | None = None,
     ) -> TradeQuote:
         """Tier 3. On demand only — never reached from a valuation pass."""
         trade = self._require_trade()
@@ -778,6 +795,8 @@ class PricesModule:
                 choice.league,
                 chaos_of=index.chaos_for_trade_id,
                 sample=sample or int(self._setting("trade_sample", DEFAULT_TRADE_SAMPLE)),
+                focus=focus,
+                retry_on_empty=bool(self._setting("broaden_on_no_matches", True)),
             )
         except RateLimited as exc:
             raise TradeUnavailable(
@@ -793,6 +812,7 @@ class PricesModule:
         league: str | None = None,
         sample: int = 0,
         timeout: float | None = None,
+        focus: Mapping[str, Sequence[ModFocus]] | None = None,
     ) -> dict[str, TradeQuote]:
         """Tier 3 for several items, bounded by ``timeout``. Keyed by ``uid``.
 
@@ -803,24 +823,35 @@ class PricesModule:
         never gate the grid; a timeout the caller controls is how that is kept when
         one search is slow and four are not.
 
-        Failures are swallowed per item and reported as absence. An item that could
-        not be quoted keeps whatever it had, which is normally ``unpriceable`` — and
-        never a zero.
+        **Absence means "still running", and nothing else.** A search that ran and
+        matched nothing is present with ``chaos is None``; a query that could not be
+        made is present with :attr:`TradeQuote.unavailable` set. That distinction is
+        the whole of the fix for ``pricing…`` rendering forever next to two searches
+        that had already come back empty — a caller cannot report an answer it was
+        handed as an absence.
+
+        An item that could not be priced keeps whatever it had, which is normally
+        ``unpriceable`` — and never a zero.
         """
         rows = [item for item in items if item.uid]
         if not rows:
             return {}
         self._require_trade()
         results: dict[str, TradeQuote] = {}
+        wanted = dict(focus or {})
 
         async def one(item: NormalizedItem) -> None:
             try:
-                quote = await self.quote(item, sample=sample, league=league)
+                quote = await self.quote(
+                    item, sample=sample, league=league, focus=wanted.get(item.uid)
+                )
             except (TradeUnavailable, PricesError, LeagueUnknownError) as exc:
                 self._log().info("no tier-3 quote for %s: %s", item.name, exc)
+                results[item.uid] = TradeQuote(
+                    None, considered=0, online=0, total=0, attempts=0, unavailable=str(exc)
+                )
                 return
-            if quote.chaos is not None:
-                results[item.uid] = quote
+            results[item.uid] = quote
 
         tasks = [asyncio.create_task(one(item)) for item in rows]
         try:

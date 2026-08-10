@@ -9,7 +9,7 @@
  */
 
 /** SPEC §5.4. Four states, and the fourth is not a worse third. */
-export type Verdict = 'keep' | 'check' | 'trash' | 'unpriceable'
+export type Verdict = 'keep' | 'check' | 'trash' | 'unpriceable' | 'not_loot'
 
 /** PoE's own rarity vocabulary, carried through so a name can be coloured. */
 export type Rarity =
@@ -46,6 +46,14 @@ export interface PriceModel {
   divine?: number | null
   /** `true` while a tier-3 query is outstanding: show `⋯`, never `0c`. */
   pricing?: boolean
+  /**
+   * `true` when a tier-3 query **finished** and matched nothing: show `∅`.
+   *
+   * Distinct from `pricing` on purpose. One says a number is coming; this one says
+   * the answer arrived and it was silence. The first live appraisal had only the
+   * first flag and used it for both, so two finished searches span forever.
+   */
+  noListings?: boolean
 }
 
 export type PriceProvenance = 'note' | 'bulk' | 'exchange' | 'trade' | 'unpriceable'

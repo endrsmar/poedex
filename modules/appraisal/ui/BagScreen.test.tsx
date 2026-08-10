@@ -15,9 +15,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TransportError, clearClient, installClient } from '@poedex/core'
+import { VERDICT_HEADLINE } from '@poedex/ui'
 import type { BagAppraisalPayload, PoedexClient } from '@poedex/core'
 import { BagScreen } from './BagScreen'
-import { blocksOf, checkLane, floorNote, glyphFor, toRow } from './model'
+import { blocksOf, checkLane, copyFor, floorNote, glyphFor, tallyOf, toRow } from './model'
 import fixture from './fixtures/bag-appraisal.json'
 
 const BAG = fixture as unknown as BagAppraisalPayload
@@ -166,6 +167,7 @@ describe('the total', () => {
       unpriceable_count: 0,
       unpriceable_stack: 0,
       pricing_count: 0,
+      no_listings_count: 0,
       total_is_floor: false,
     }
     await show(async () => solid)
@@ -404,12 +406,13 @@ describe('an empty bag', () => {
     await show(async () => ({
       ...BAG,
       items: [],
-      counts: { keep: 0, check: 0, trash: 0, unpriceable: 0 },
+      counts: { keep: 0, check: 0, trash: 0, unpriceable: 0, not_loot: 0 },
       total_chaos: 0,
       total_divine: 0,
       unpriceable_count: 0,
       unpriceable_stack: 0,
       pricing_count: 0,
+      no_listings_count: 0,
       total_is_floor: false,
     }))
     expect(screen.getByText('nothing in the backpack')).toBeInTheDocument()
@@ -445,5 +448,111 @@ describe('model', () => {
     const divine = BAG.items.find((item) => item.name === 'Divine Orb')!
     expect(toRow(divine, BAG.divine_rate).price?.chaos).toBe(divine.total_chaos)
     expect(divine.total_chaos).toBeGreaterThan(214)
+  })
+})
+
+// -- the first live appraisal's bugs, in the surface that has to show them ---------
+
+describe('bug 2: a tier-3 answer of "nothing" is terminal, not pending', () => {
+  it('draws a finished empty search differently from an outstanding one', async () => {
+    await show()
+    const block = section('check · no price yet')
+    const settled = rowFor('Dire Grasp', block)
+    const outstanding = rowFor('Rift Shroud', block)
+
+    // The one that finished: no ellipsis, no promise, and never a zero.
+    expect(settled.textContent).toContain('∅')
+    expect(settled.textContent).not.toContain('⋯')
+    expect(settled.textContent).not.toContain('pricing…')
+    expect(settled.textContent).not.toContain('0c')
+
+    // The one that has not: unchanged, because the fix must not delete the true case.
+    expect(outstanding.textContent).toContain('⋯')
+    expect(outstanding.textContent).toContain('pricing…')
+  })
+
+  it('marks the finished row so the player knows we looked', async () => {
+    await show()
+    const settled = rowFor('Dire Grasp', section('check · no price yet'))
+    expect(settled.textContent).toContain('no listings')
+  })
+
+  it('says in the detail pane that the search finished, and what it asked', async () => {
+    await show()
+    const detail = await inspect('Dire Grasp')
+    expect(detail.textContent).toContain('no matching listings')
+    expect(detail.textContent).not.toContain('still outstanding')
+    // The query is carried through, so a surprising answer is traceable.
+    expect(detail.textContent).toContain('max life')
+  })
+
+  it('counts finished-and-empty rows separately from still-pricing ones', () => {
+    const note = floorNote(BAG)!
+    expect(note).toMatch(/still pricing/)
+    expect(note).toMatch(/no matching listings/)
+    // Two clauses, two counts — not one number describing both.
+    expect(note).toMatch(new RegExp(`${BAG.pricing_count} items? still pricing`))
+    expect(note).toMatch(new RegExp(`${BAG.no_listings_count} items? searched`))
+  })
+
+  it('drops the still-pricing clause when nothing is outstanding', () => {
+    const settled = { ...BAG, pricing_count: 0 }
+    const note = floorNote(settled)!
+    expect(note).not.toMatch(/still pricing/)
+    expect(note).toMatch(/no matching listings/)
+  })
+})
+
+describe('bug 3: a quest item is not a loot decision', () => {
+  it('never appears under an instruction to sell or destroy it', async () => {
+    await show()
+    await reveal('trash')
+    expect(within(section('trash')).queryByText('The Mortinomicon Exitio Immortalis')).toBeNull()
+    expect(
+      within(section('unpriceable')).queryByText('The Mortinomicon Exitio Immortalis'),
+    ).toBeNull()
+
+    const block = section('not loot')
+    expect(within(block).getByText('The Mortinomicon Exitio Immortalis')).toBeInTheDocument()
+    // ...and the block it *is* in is not one of the four that ask for an action.
+    // The headline itself is asserted below, at the model level: only `full`
+    // renders section descriptions, so the DOM is the wrong place to look for it.
+    expect(within(block).queryByText(VERDICT_HEADLINE.trash)).toBeNull()
+  })
+
+  it('gives the block a headline that instructs nothing', () => {
+    const block = blocksOf(BAG).find((entry) => entry.verdict === 'not_loot')!
+    // The copy, at the model level, because only `full` renders descriptions.
+    expect(copyFor(block).headline).toBe('not loot — nothing to sell, nothing to vendor')
+  })
+
+  it('shows no money for it, not even a zero, and says why at both densities', async () => {
+    await show()
+    const row = rowFor('The Mortinomicon Exitio Immortalis', section('not loot'))
+    expect(row.textContent).not.toContain('0c')
+    // `compact` has no reason column, so the fact travels as a mark — otherwise the
+    // 300 px row is a name, a category and a bare dash.
+    expect(row.textContent).toContain('not loot')
+  })
+
+  it('carries the reason wherever there is room for a sentence', async () => {
+    await show()
+    const detail = await inspect('The Mortinomicon')
+    expect(detail.textContent).toContain('cannot be traded or vendored')
+  })
+
+  it('keeps it in the grid, because the grid is a map of the bag', async () => {
+    await show()
+    const grid = screen.getByRole('grid', { name: 'bag layout, by verdict' })
+    expect(within(grid).getByLabelText(/The Mortinomicon/)).toBeInTheDocument()
+  })
+
+  it('gives it a tally slot, so the state is visible even at zero', () => {
+    const entry = tallyOf(BAG).find((row) => row.id === 'not_loot')
+    expect(entry).toBeDefined()
+    expect(entry!.count).toBe(BAG.counts.not_loot)
+    expect(tallyOf({ ...BAG, counts: { ...BAG.counts, not_loot: 0 } }).map((r) => r.id)).toContain(
+      'not_loot',
+    )
   })
 })
