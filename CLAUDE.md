@@ -14,8 +14,18 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Plan at v3, no code written yet.** Docs only. Next action is **Phase 1** (runtime, boundaries,
-credentials).
+**Phase 1 done.** `runtime/` (registry, context, events, storage, settings, methods, redacting
+log), `modules/credentials/backend/`, a `poedex` CLI, and the boundary tests. Next action is
+**Phase 2** (`net` and `poeapi`).
+
+```bash
+python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest        # everything offline
+.venv/bin/ruff check .
+```
+
+Module layout is fixed by the registry: `modules/<id>/backend/module.py` exports `MODULE`, a
+module instance; `api.py` is the only file dependents may import.
 
 ## Module architecture in one paragraph
 
