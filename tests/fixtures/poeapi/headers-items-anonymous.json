@@ -1,0 +1,9 @@
+{
+  "Date": "Mon, 10 Aug 2026 09:00:00 GMT",
+  "Content-Type": "application/json",
+  "X-Rate-Limit-Policy": "backend-item-request-limit",
+  "X-Rate-Limit-Rules": "Ip",
+  "X-Rate-Limit-Ip": "6:4:10,12:120:300,20:3600:600",
+  "X-Rate-Limit-Ip-State": "1:4:0,1:120:0,1:3600:0",
+  "cf-cache-status": "DYNAMIC"
+}

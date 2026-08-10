@@ -1,0 +1,11 @@
+{
+  "Date": "Mon, 10 Aug 2026 09:00:00 GMT",
+  "Content-Type": "application/json",
+  "Retry-After": "60",
+  "X-Rate-Limit-Policy": "backend-item-request-limit",
+  "X-Rate-Limit-Rules": "Account,Ip",
+  "X-Rate-Limit-Account": "30:60:60,100:1800:600",
+  "X-Rate-Limit-Account-State": "31:60:60,44:1800:0",
+  "X-Rate-Limit-Ip": "45:60:60,180:1800:600",
+  "X-Rate-Limit-Ip-State": "31:60:0,44:1800:0"
+}

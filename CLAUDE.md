@@ -14,14 +14,29 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phase 1 done.** `runtime/` (registry, context, events, storage, settings, methods, redacting
-log), `modules/credentials/backend/`, a `poedex` CLI, and the boundary tests. Next action is
-**Phase 2** (`net` and `poeapi`).
+**Phases 1, 2 and 6 done.** `runtime/` (registry, context, events, storage, settings, methods,
+redacting log); core modules `credentials`, `net` (header-driven limiter + httpx), `poeapi`
+(endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); a `poedex` CLI; and the
+boundary tests. Next action is **Phase 3** (`prices`, the first feature module).
+
+**Nothing here has run against the live API, a real Client.txt, or a Deck.** Two things need a
+human and would close most of the open risk:
+
+- `poedex selftest freshness` — needs someone in the game (research-notes §2.1).
+- `poedex gamelog status` and `poedex gamelog watch` on the Deck through one portal-to-hideout
+  and one map entry — would confirm the path probes, the town/hub area ids, and whether
+  `Generating` and `You have entered` really arrive back-to-back.
+
+The rate limiter has never seen a real GGG response header. If parsing degrades it falls back to
+a 1-request-per-10s seed budget — safe, but it looks like the tool is broken rather than
+mis-parsing. `poedex limits` still showing seed buckets after several requests is the symptom.
 
 ```bash
-python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/pytest        # everything offline
 .venv/bin/ruff check .
+poedex sync             # normalized bag; spends real rate-limit budget
+poedex limits           # what the limiter has learned
 ```
 
 Module layout is fixed by the registry: `modules/<id>/backend/module.py` exports `MODULE`, a

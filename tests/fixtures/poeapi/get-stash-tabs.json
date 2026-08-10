@@ -1,0 +1,67 @@
+{
+  "numTabs": 5,
+  "tabs": [
+    {
+      "n": "C",
+      "i": 0,
+      "id": "91d567619cf024dc8547a183c359bbdcd3fcd695d8c9bec18df97a32ae2658f2",
+      "type": "CurrencyStash",
+      "selected": false,
+      "colour": {
+        "r": 200,
+        "g": 100,
+        "b": 50
+      }
+    },
+    {
+      "n": "Gear",
+      "i": 1,
+      "id": "3c372b2fae2b7bce988562283ab191a189e845d1b3f56609e588f1ef4b13a6da",
+      "type": "PremiumStash",
+      "selected": false,
+      "colour": {
+        "r": 54,
+        "g": 84,
+        "b": 226
+      }
+    },
+    {
+      "n": "~price 1 chaos",
+      "i": 2,
+      "id": "6073424d31e17800aa32f9a404329f0085ab4cc40a4145a2ef645bb33f4c9767",
+      "type": "PremiumStash",
+      "selected": false,
+      "colour": {
+        "r": 124,
+        "g": 81,
+        "b": 50
+      }
+    },
+    {
+      "n": "(Remove-only) Placeholder League",
+      "i": 3,
+      "id": "5adcadfc4d565dceb1f6a80fa7624baa39cc4dbbd88242549df265457d23d06f",
+      "type": "NormalStash",
+      "selected": false,
+      "colour": {
+        "r": 124,
+        "g": 81,
+        "b": 50
+      }
+    },
+    {
+      "n": "M",
+      "i": 4,
+      "id": "ea22311b65afbc04d492c5fff3445f1f2fd8c656161c4038c71aa4c1122fdf4a",
+      "type": "MapStash",
+      "selected": false,
+      "hidden": true,
+      "colour": {
+        "r": 124,
+        "g": 81,
+        "b": 50
+      }
+    }
+  ],
+  "items": []
+}

@@ -1,0 +1,688 @@
+{
+  "items": [
+    {
+      "verified": false,
+      "w": 2,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQmVsdHMvQmVsdDQiLCJ3IjoyLCJoIjoxLCJzY2FsZSI6MX1d/0000000000/Belt4.png",
+      "league": "Standard",
+      "id": "f596eebb77a80a17a27f830e1c0ae4f56b0303d3b6101620225f5a176e6cf421",
+      "name": "Placeholder Girdle",
+      "typeLine": "Cloth Belt",
+      "baseType": "Cloth Belt",
+      "ilvl": 69,
+      "identified": true,
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "64",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        }
+      ],
+      "implicitMods": [
+        "24% increased Stun and Block Recovery"
+      ],
+      "explicitMods": [
+        "+59 to Armour",
+        "+144 to maximum Life",
+        "+41% to Fire Resistance"
+      ],
+      "craftedMods": [
+        "+13% to Lightning and Chaos Resistances"
+      ],
+      "frameType": 2,
+      "x": 0,
+      "y": 0,
+      "inventoryId": "Belt"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 2,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRmxhc2tzL2Jhc2FsdGZsYXNrIiwidyI6MSwiaCI6Miwic2NhbGUiOjF9XQ/0000000000/basaltflask.png",
+      "league": "Standard",
+      "id": "5705b8b5f6555c5a93038f1ad65f1d44591f861b426b81b13ea6b1e77ac04909",
+      "name": "",
+      "typeLine": "Bottomless Basalt Flask of the Walrus",
+      "baseType": "Basalt Flask",
+      "ilvl": 65,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Lasts {0} Seconds",
+          "values": [
+            [
+              "4.60",
+              0
+            ]
+          ],
+          "displayMode": 3
+        },
+        {
+          "name": "Currently has {0} Charges",
+          "values": [
+            [
+              "60",
+              0
+            ]
+          ],
+          "displayMode": 3
+        }
+      ],
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "50",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        }
+      ],
+      "utilityMods": [
+        "20% more Armour"
+      ],
+      "implicitMods": [
+        "Taunts nearby Enemies on use"
+      ],
+      "explicitMods": [
+        "31% increased Charge Recovery",
+        "43% less Duration"
+      ],
+      "descrText": "Right click to drink. Can only hold charges while in belt.",
+      "frameType": 1,
+      "x": 4,
+      "y": 0,
+      "inventoryId": "Flask"
+    },
+    {
+      "verified": false,
+      "w": 2,
+      "h": 3,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQXJtb3Vycy9Cb2R5QXJtb3Vycy9Cb2R5U3RyNyIsInciOjIsImgiOjMsInNjYWxlIjoxfV0/0000000000/BodyStr7.png",
+      "league": "Standard",
+      "id": "883782535932f025dfc785fd48bb8406c6821cc98b39c293246afa8e4a073e77",
+      "sockets": [
+        {
+          "group": 0,
+          "attr": "S",
+          "sColour": "R"
+        },
+        {
+          "group": 0,
+          "attr": "S",
+          "sColour": "R"
+        },
+        {
+          "group": 0,
+          "attr": "D",
+          "sColour": "G"
+        },
+        {
+          "group": 0,
+          "attr": "I",
+          "sColour": "B"
+        },
+        {
+          "group": 0,
+          "attr": "S",
+          "sColour": "R"
+        },
+        {
+          "group": 1,
+          "attr": "S",
+          "sColour": "R"
+        }
+      ],
+      "name": "Placeholder Shroud",
+      "typeLine": "Legion Plate",
+      "baseType": "Legion Plate",
+      "ilvl": 84,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Armour",
+          "values": [
+            [
+              "1640",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 16
+        }
+      ],
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "78",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        },
+        {
+          "name": "Str",
+          "values": [
+            [
+              "172",
+              0
+            ]
+          ],
+          "displayMode": 1,
+          "type": 63
+        }
+      ],
+      "explicitMods": [
+        "+494 to Armour",
+        "+154 to maximum Life",
+        "+28% to Cold Resistance"
+      ],
+      "socketedItems": [
+        {
+          "verified": false,
+          "w": 1,
+          "h": 1,
+          "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9EZXRlcm1pbmF0aW9uIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/Determination.png",
+          "support": false,
+          "id": "681a6ecb9b11b369f47868bbfff7b9b3bbf31b0e405d8a163bcc4d35fdb80f00",
+          "name": "",
+          "typeLine": "Determination",
+          "baseType": "Determination",
+          "ilvl": 0,
+          "identified": true,
+          "properties": [
+            {
+              "name": "Aura, Spell, AoE, Physical",
+              "values": [],
+              "displayMode": 0
+            }
+          ],
+          "explicitMods": [
+            "You and nearby allies gain 1000 additional Armour"
+          ],
+          "descrText": "Place into an item socket of the right colour.",
+          "frameType": 4,
+          "socket": 0,
+          "colour": "S"
+        }
+      ],
+      "frameType": 2,
+      "x": 0,
+      "y": 0,
+      "inventoryId": "BodyArmour"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/CurrencyRerollRare.png",
+      "stackSize": 23,
+      "maxStackSize": 5000,
+      "league": "Standard",
+      "id": "c9659c83f861dbad8c2ea1e8a20db17499d23548581c5dd044377c8760b6eaf8",
+      "name": "",
+      "typeLine": "Chaos Orb",
+      "baseType": "Chaos Orb",
+      "ilvl": 0,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Stack Size",
+          "values": [
+            [
+              "23/5000",
+              0
+            ]
+          ],
+          "displayMode": 0
+        }
+      ],
+      "explicitMods": [
+        "Reforges a rare item with new random modifiers"
+      ],
+      "descrText": "Right click this item then left click a rare item to apply it.",
+      "frameType": 5,
+      "x": 0,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5hdGlvbi9JbnZlbnRvcnlJY29uIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/InventoryIcon.png",
+      "stackSize": 4,
+      "maxStackSize": 8,
+      "league": "Standard",
+      "id": "ceb86e9c4e139ed86cc7385ffc796f742464d8a1e35f433416136b3ca9e672ca",
+      "name": "",
+      "typeLine": "The Placeholder Card",
+      "baseType": "The Placeholder Card",
+      "ilvl": 0,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Stack Size",
+          "values": [
+            [
+              "4/8",
+              0
+            ]
+          ],
+          "displayMode": 0
+        }
+      ],
+      "explicitMods": [
+        "<uniqueitem>{Placeholder Unique}"
+      ],
+      "flavourText": [
+        "Fixture text, not a real card."
+      ],
+      "frameType": 6,
+      "x": 1,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9Hcm90dG8iLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/0000000000/Grotto.png",
+      "league": "Standard",
+      "id": "eb4b438a028fa3a10ab1f4e7deac478abc68df0e759548cfac57413a5d927b7c",
+      "name": "",
+      "typeLine": "Grotto Map",
+      "baseType": "Grotto Map",
+      "ilvl": 83,
+      "identified": true,
+      "corrupted": true,
+      "properties": [
+        {
+          "name": "Map Tier",
+          "values": [
+            [
+              "14",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 1
+        },
+        {
+          "name": "Item Quantity",
+          "values": [
+            [
+              "+62%",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 2
+        }
+      ],
+      "implicitMods": [
+        "Area is influenced by The Shaper"
+      ],
+      "explicitMods": [
+        "Monsters deal 50% extra Damage as Fire"
+      ],
+      "frameType": 0,
+      "x": 2,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9WYWFsMDEiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/0000000000/Vaal01.png",
+      "stackSize": 3,
+      "maxStackSize": 10,
+      "league": "Standard",
+      "id": "8b80c14b0b2d16d8173c835f4794d87d1b82fd3fe662db9af770ebdfb8d12a0e",
+      "name": "",
+      "typeLine": "Sacrifice at Dusk",
+      "baseType": "Sacrifice at Dusk",
+      "ilvl": 0,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Stack Size",
+          "values": [
+            [
+              "3/10",
+              0
+            ]
+          ],
+          "displayMode": 0
+        }
+      ],
+      "descrText": "Can be used in a personal Map Device.",
+      "frameType": 0,
+      "x": 3,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9BZGRlZEZpcmVEYW1hZ2VTdXBwb3J0IiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/AddedFireDamageSupport.png",
+      "support": true,
+      "league": "Standard",
+      "id": "8d6ad7ae220b4b2ede5d5127f4525fef530590a96ea0fe76b6e3f0b3f6b74c41",
+      "name": "",
+      "typeLine": "Awakened Added Fire Damage Support",
+      "baseType": "Awakened Added Fire Damage Support",
+      "ilvl": 0,
+      "identified": true,
+      "corrupted": true,
+      "properties": [
+        {
+          "name": "Support, Physical, Fire",
+          "values": [],
+          "displayMode": 0
+        },
+        {
+          "name": "Level",
+          "values": [
+            [
+              "5",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 5
+        },
+        {
+          "name": "Quality",
+          "values": [
+            [
+              "+20%",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 6
+        }
+      ],
+      "explicitMods": [
+        "Supported Skills deal 15% more Fire Damage"
+      ],
+      "frameType": 4,
+      "x": 4,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL2Jhc2ljaW50IiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/basicint.png",
+      "league": "Standard",
+      "id": "0f9c205e2cf7d873c8f979bf6a98a2c1c37b94d20cc73da8b393662ca076e04c",
+      "name": "Placeholder Fragment",
+      "typeLine": "Cobalt Jewel",
+      "baseType": "Cobalt Jewel",
+      "ilvl": 84,
+      "identified": true,
+      "explicitMods": [
+        "9% increased maximum Life",
+        "12% increased Fire Damage"
+      ],
+      "descrText": "Place into an allocated Jewel Socket.",
+      "frameType": 2,
+      "x": 5,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQW11bGV0cy9BbXVsZXQzIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0000000000/Amulet3.png",
+      "league": "Standard",
+      "id": "3f54ea16a3eba5bdff2e6c60bd947550b757d8f38a0d9d8bb6181f5440ce2115",
+      "name": "<<set:MS>><<set:M>><<set:S>>Placeholder Pendant",
+      "typeLine": "<<set:MS>><<set:M>><<set:S>>Onyx Amulet",
+      "baseType": "Onyx Amulet",
+      "ilvl": 86,
+      "identified": true,
+      "corrupted": true,
+      "synthesised": true,
+      "influences": {
+        "shaper": true,
+        "elder": true
+      },
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "68",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        }
+      ],
+      "implicitMods": [
+        "+12 to all Attributes"
+      ],
+      "explicitMods": [
+        "+40% to Fire Resistance",
+        "20% increased Rarity of Items found"
+      ],
+      "enchantMods": [
+        "Allocates Constitution"
+      ],
+      "note": "~price 3 divine",
+      "frameType": 3,
+      "x": 6,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvUmluZ3MvUmluZzUiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/0000000000/Ring5.png",
+      "league": "Standard",
+      "id": "6d9f7e7b5018d71a415f4d55e6e326e622833c2d08209e2d2f55ea16cb6ed14f",
+      "name": "",
+      "typeLine": "Two-Stone Ring",
+      "baseType": "Two-Stone Ring",
+      "ilvl": 82,
+      "identified": false,
+      "fractured": true,
+      "fracturedMods": [
+        "+65 to maximum Life"
+      ],
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "68",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        }
+      ],
+      "implicitMods": [
+        "+12% to Fire and Cold Resistances"
+      ],
+      "note": "~b/o 25 chaos",
+      "frameType": 2,
+      "x": 7,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 2,
+      "h": 3,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9Cb3dzL0JvdzYiLCJ3IjoyLCJoIjozLCJzY2FsZSI6MX1d/0000000000/Bow6.png",
+      "league": "Standard",
+      "id": "7eedfeb595360dd4c8942821923059297cace435338af4f85e4d8467d790ddc8",
+      "sockets": [
+        {
+          "group": 0,
+          "attr": "D",
+          "sColour": "G"
+        },
+        {
+          "group": 0,
+          "attr": "D",
+          "sColour": "G"
+        },
+        {
+          "group": 1,
+          "attr": "I",
+          "sColour": "B"
+        }
+      ],
+      "name": "Placeholder Barrage",
+      "typeLine": "Spine Bow",
+      "baseType": "Spine Bow",
+      "ilvl": 85,
+      "identified": true,
+      "properties": [
+        {
+          "name": "Bow",
+          "values": [],
+          "displayMode": 0
+        },
+        {
+          "name": "Physical Damage",
+          "values": [
+            [
+              "112-330",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 9
+        }
+      ],
+      "requirements": [
+        {
+          "name": "Level",
+          "values": [
+            [
+              "64",
+              0
+            ]
+          ],
+          "displayMode": 0,
+          "type": 62
+        },
+        {
+          "name": "Dex",
+          "values": [
+            [
+              "212",
+              0
+            ]
+          ],
+          "displayMode": 1,
+          "type": 64
+        }
+      ],
+      "explicitMods": [
+        "145% increased Physical Damage",
+        "+280 to Accuracy Rating"
+      ],
+      "veiledMods": [
+        "Veiled Suffix"
+      ],
+      "frameType": 2,
+      "x": 8,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvUXVlc3QvTWVzc2FnZUluQUJvdHRsZSIsInciOjEsImgiOjEsInNjYWxlIjoxfV0/0000000000/MessageInABottle.png",
+      "league": "Standard",
+      "name": "",
+      "typeLine": "Message in a Bottle",
+      "baseType": "Message in a Bottle",
+      "ilvl": 0,
+      "identified": true,
+      "descrText": "Right click to read.",
+      "frameType": 7,
+      "x": 9,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/Delve/Resonator1.png?scale=1",
+      "stackSize": 7,
+      "league": "Standard",
+      "id": "e71fad103b73d25238122db1cdc0dcecc09aa7d92614deeb3c4c8c6bbb07ad95",
+      "name": "",
+      "typeLine": "Primitive Chaotic Resonator",
+      "baseType": "Primitive Chaotic Resonator",
+      "ilvl": 0,
+      "identified": true,
+      "sockets": [
+        {
+          "group": 0,
+          "attr": "DV",
+          "sColour": "DV"
+        }
+      ],
+      "frameType": 5,
+      "x": 10,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    },
+    {
+      "verified": false,
+      "w": 1,
+      "h": 1,
+      "league": "Standard",
+      "id": "1878d3d4a0ed438173f92fc738386162319831fd52c409cc300f44ad9e2bbaf7",
+      "name": "",
+      "typeLine": "Placeholder Oddity",
+      "baseType": "Placeholder Oddity",
+      "ilvl": 0,
+      "identified": true,
+      "frameType": 0,
+      "x": 11,
+      "y": 0,
+      "inventoryId": "MainInventory"
+    }
+  ],
+  "character": {
+    "name": "PlaceholderWarden",
+    "league": "Standard",
+    "classId": 6,
+    "ascendancyClass": 1,
+    "class": "Warden",
+    "level": 97,
+    "experience": 3827942501
+  }
+}

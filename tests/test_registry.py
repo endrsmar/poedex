@@ -305,13 +305,11 @@ async def test_one_module_failing_to_stop_does_not_block_the_others(registry, fa
 # -- discovery -----------------------------------------------------------------
 
 
-def test_discovery_finds_the_credentials_module():
-    found = {m.id: m for m in discover(REPO_ROOT / "modules")}
-    # Containment rather than equality: the shipped module set grows every phase,
-    # and the phases are built on parallel branches. What is under test is that
-    # discovery imports a real module tree, not how many modules are in it.
-    assert "credentials" in found
-    assert found["credentials"].kind == "core"
+def test_discovery_finds_every_shipped_module():
+    """The inventory. Spelled out so a module that stops being discovered is loud."""
+    found = discover(REPO_ROOT / "modules")
+    assert [m.id for m in found] == ["credentials", "gamelog", "net", "poeapi"]
+    assert all(m.kind == "core" for m in found)
 
 
 def test_discovery_of_an_empty_tree_is_not_an_error(tmp_path):
@@ -331,8 +329,10 @@ def test_a_module_without_the_module_attribute_is_an_error(tmp_path, monkeypatch
         discover(tmp_path / "pkg", package="pkg")
 
 
-def test_build_from_the_real_tree_starts_credentials():
+def test_build_from_the_real_tree_resolves_in_dependency_order():
     registry = Registry()
     registry.load(REPO_ROOT / "modules")
-    assert "credentials" in registry.resolve()
+    # poeapi requires net requires credentials, so that chain is forced;
+    # gamelog has no deps and lands by the id tie-break.
+    assert registry.resolve() == ["credentials", "gamelog", "net", "poeapi"]
     assert registry.record("credentials").state is ModuleState.REGISTERED
