@@ -302,7 +302,11 @@ def check_all(root: Path) -> list[Violation]:
 def test_checker_actually_sees_the_source_tree():
     """Guard against a checker that passes because it found nothing to check."""
     assert len(list(python_files(REPO_ROOT / RUNTIME_DIR))) >= 5
-    assert set(manifests(REPO_ROOT)) == {"credentials"}
+    # A subset assertion, not equality: the module set grows every phase, and the
+    # phases are built on parallel branches. Equality would make each new module a
+    # merge conflict on this line while proving nothing extra — what this guards
+    # against is a walker that found *nothing*.
+    assert {"credentials", "gamelog"} <= set(manifests(REPO_ROOT))
     creds = REPO_ROOT / MODULES_DIR / "credentials" / "backend" / "module.py"
     assert any(dotted.startswith("runtime.") for _, dotted in imports_of(creds, REPO_ROOT))
 
@@ -487,4 +491,4 @@ def test_assembled_real_registry_has_no_boundary_problems():
     real = Registry()
     real.load(REPO_ROOT / MODULES_DIR)
     assert real.check_boundaries() == []
-    assert real.resolve() == ["credentials"]
+    assert "credentials" in real.resolve()
