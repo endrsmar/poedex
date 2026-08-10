@@ -28,8 +28,17 @@ def poedex_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point every path helper at a throwaway directory."""
     monkeypatch.setenv("POEDEX_CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setenv("POEDEX_CACHE_DIR", str(tmp_path / "cache"))
-    for leaked in ("DECKY_PLUGIN_SETTINGS_DIR", "DECKY_PLUGIN_RUNTIME_DIR", "XDG_CONFIG_HOME"):
+    for leaked in (
+        "DECKY_PLUGIN_SETTINGS_DIR",
+        "DECKY_PLUGIN_RUNTIME_DIR",
+        "XDG_CONFIG_HOME",
+        "POEDEX_GAMELOG_FROM_START",
+    ):
         monkeypatch.delenv(leaked, raising=False)
+    # `gamelog` starts a watcher whenever the registry starts, and left alone it
+    # would probe the developer's real ~/.steam. Point it at a path that will never
+    # exist: the watcher then sits in `waiting` and touches nothing outside tmp_path.
+    monkeypatch.setenv("POEDEX_GAMELOG_PATH", str(tmp_path / "no-such-Client.txt"))
     return tmp_path
 
 

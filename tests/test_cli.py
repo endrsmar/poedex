@@ -138,3 +138,41 @@ def test_modules_lists_the_registry(capsys: pytest.CaptureFixture):
     assert "credentials" in out
     assert "core" in out
     assert "started" in out
+
+
+# -- gamelog ---------------------------------------------------------------------
+
+
+def test_gamelog_status_explains_a_log_it_cannot_read(capsys: pytest.CaptureFixture):
+    """The autouse fixture points the watcher at a path that will never exist."""
+    assert cli.main(["gamelog", "status"]) == 1
+    out = capsys.readouterr().out
+    assert "waiting" in out
+    assert "no-such-Client.txt" in out
+    assert "--path" in out, "an unusable log must come with the fix"
+
+
+def test_gamelog_watch_prints_classified_zone_events(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    log = tmp_path / "Client.txt"
+    log.write_text(
+        '2018/05/13 16:10:08 1795218 d8  [INFO Client 1636] Generating level 83 area '
+        '"MapWorldsGrotto" with seed 2049423767\n'
+        "2018/05/13 16:10:14 1801062 9b0 [INFO Client 1636] : You have entered Grotto.\n"
+        "2018/05/13 16:10:20 1801062 9b0 [INFO Client 1636] Spoofer: You have entered Hideout.\n",
+        encoding="utf-8",
+    )
+    assert cli.main(["gamelog", "watch", "--path", str(log), "--from-start", "--seconds", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "watching" in out
+    assert "map      Grotto (level 83)" in out
+    assert "hideout" not in out, "the chat line must not have been believed"
+
+
+def test_gamelog_flags_do_not_persist_into_the_settings_file(tmp_path: Path):
+    log = tmp_path / "Client.txt"
+    log.write_text("", encoding="utf-8")
+    cli.main(["gamelog", "watch", "--path", str(log), "--seconds", "0"])
+    settings = config_dir() / "settings.json"
+    assert not settings.exists() or str(log) not in settings.read_text()
