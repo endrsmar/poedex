@@ -461,6 +461,79 @@ navigation.
 
 ---
 
+## 5b. The pivot: highlight, don't price
+
+**Decided 2026-08-10, after the first live appraisals. This supersedes automatic rare pricing.**
+
+### What failed
+
+Two live runs against a real account, two failure modes, same root cause:
+
+- Querying **every** resolvable mod made a six-mod rare a near-exact-match search. Two of three
+  flagged rares returned **zero listings**.
+- Querying **one loose mod** on a jewel matched **exactly one item in the league** — a worse jewel
+  someone was asking 10c for. "Median of the cheapest N" over n=1 reported 10c for an item worth
+  1.00c across 438 comparables.
+
+Narrowing produced a missing answer; widening produced a confidently wrong one. There is no
+setting between them that is right, because the question the query encodes — *which mods make
+**this** item interesting* — is not answerable from the item alone. It is player knowledge.
+
+### What replaces it
+
+Awakened PoE Trade's model, and the reason that model won:
+
+1. The gate **highlights** items that are *potentially* expensive — valuable base at high ilvl,
+   high-tier rolls, six-link, rare influence mods — and claims no number.
+2. Selecting an item shows its mods as a **checkbox list**, with the significant ones **pre-ticked**,
+   plus an **open-affix count** filter.
+3. The **player triggers** the price check. The query is built from their selection.
+
+The gate stops being a decision-maker and becomes a proposal. Being wrong costs a tick, not a
+wrong number.
+
+### What this deletes
+
+Eager tier 3, `max_eager_quotes`, `eager_timeout_seconds`, and the whole escalate-on-appraise
+path. With no automatic searches the `600:21600:3600` ceiling stops binding, which retires both
+the quote cache and the budget-aware cap that were queued to make it sustainable.
+
+**Bulk pricing stays automatic.** poe.ninja works, is free, is accurate, and needs no input. The
+pivot is about rares only.
+
+### What it makes load-bearing
+
+Three of the four highlight criteria need facts the project does not have: high-tier rolls need
+real tiers, influence mods need the influence pools, and open-affix counting needs prefix/suffix
+classification. All three live in RePoE. `moddb` moves from "later" to **prerequisite**.
+
+### Phase 8 — `moddb` core module
+RePoE-derived: mod → tier for a base and ilvl, prefix/suffix, open-affix counts, influence-mod
+identification, base tags, max achievable ranges. Build-time trim from 21 MB to a committed
+artifact; regeneration documented and required each league. Attribution ambiguity returned
+honestly rather than guessed.
+
+**Done:** `gate.py`'s hand-typed thresholds and 26-base allowlist have a factual replacement.
+
+### Phase 9 — highlight-not-price
+Gate becomes a highlighter. Per-mod checkbox list, pre-ticked by tier. Open-affix filter. Manual
+check action building the query from the selection. Eager tier 3 removed.
+
+**Done:** a rare in the bag is flagged, its mods are ticked sensibly by default, and one action
+returns a price the player can trust because they chose what it asked.
+
+### Phase 10 — stash tabs
+Tab enumeration and per-tab fetch (one request per tab; no batch endpoint). Remove-only tabs
+fetched once and cached forever — 86% of the measured Standard stash, taking a full refresh from
+~34 min to ~45 s. Per-tab staleness. Quad tabs at 24×24. Special tabs have bespoke layouts and
+`stackSize` legitimately exceeds `maxStackSize` there. Map tabs returned zero items in both
+leagues and may need substash traversal — unresolved, and the failure mode that silently
+under-reports value.
+
+**Done:** the highlighting and manual check work over stash tabs, not only the bag.
+
+---
+
 ## 6. Decisions made, flag if you disagree
 
 | Decision | Rationale |
