@@ -42,7 +42,7 @@ from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
 from modules.poeapi.backend.api import NormalizedItem, Rarity
-from modules.prices.backend.api import TableStatus, Valuation
+from modules.prices.backend.api import LeagueSource, TableStatus, Valuation
 from runtime.errors import PoedexError
 
 __all__ = [
@@ -302,6 +302,7 @@ class BagAppraisal:
         "divine_rate",
         "items",
         "league",
+        "league_source",
         "lookups",
         "strictness",
         "table",
@@ -316,6 +317,7 @@ class BagAppraisal:
         league: str,
         threshold_chaos: float,
         strictness: Strictness,
+        league_source: LeagueSource | None = None,
         divine_rate: float | None = None,
         table: TableStatus | None = None,
         lookups: int = 0,
@@ -323,6 +325,11 @@ class BagAppraisal:
     ) -> None:
         self.items = list(items)
         self.league = league
+        self.league_source = league_source
+        """Why :attr:`league` is what it is, carried through from the valuation. A
+        verdict screen that shows a bare league name asks the player to trust it;
+        one that shows where the name came from lets them check it."""
+
         self.threshold_chaos = threshold_chaos
         self.strictness = strictness
         self.divine_rate = divine_rate
@@ -397,6 +404,12 @@ class BagAppraisal:
     def to_json(self) -> dict[str, Any]:
         return {
             "league": self.league,
+            "league_source": self.league_source.value if self.league_source else None,
+            "league_overridden": (
+                self.league_source is not LeagueSource.CHARACTER
+                if self.league_source
+                else None
+            ),
             "strictness": self.strictness.value,
             "threshold_chaos": self.threshold_chaos,
             "items": [item.to_json() for item in self.ranked()],
@@ -434,12 +447,25 @@ class AppraisalApi(Protocol):
         *,
         strictness: Strictness | None = None,
         threshold_chaos: float | None = None,
+        league: str | None = None,
+        override: str | None = None,
     ) -> BagAppraisal:
-        """Verdict every item. ``None`` means "use the configured value"."""
+        """Verdict every item. ``None`` means "use the configured value".
+
+        ``league`` is the league the items are in — ``ItemSet.league`` — and
+        ``override`` deliberately prices them against a different one. Both go
+        straight to ``PricesApi``, which refuses to price anything it cannot place in
+        an economy; nothing here invents one.
+        """
         ...
 
     async def appraise_item(
-        self, item: NormalizedItem, *, strictness: Strictness | None = None
+        self,
+        item: NormalizedItem,
+        *,
+        strictness: Strictness | None = None,
+        league: str | None = None,
+        override: str | None = None,
     ) -> ItemVerdict:
         """One item, same rules."""
         ...

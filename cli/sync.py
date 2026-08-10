@@ -96,6 +96,10 @@ async def cmd_sync(
     sources = [Source.BAG, Source.EQUIPMENT] if equipment else [Source.BAG]
 
     print(f"character:  {result.character}")
+    # Printed even though `sync` prices nothing: this is where the league enters the
+    # pipeline, and an "unknown" here is the upstream cause of everything downstream
+    # refusing to price.
+    print(f"league:     {result.league or 'unknown'}")
     print(f"freshness:  {render_freshness(result)}")
     print(f"hash:       {result.content_hash[:16]}")
     print()

@@ -28,7 +28,7 @@ from __future__ import annotations
 import os
 import sys
 
-from cli.value import format_chaos
+from cli.value import format_chaos, prepare_league
 from modules.appraisal.backend.api import (
     AppraisalApi,
     BagAppraisal,
@@ -181,21 +181,35 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
     return "\n".join(lines)
 
 
-def render_header(result: BagAppraisal, *, character: str | None, rows: int) -> str:
+def render_header(
+    result: BagAppraisal,
+    *,
+    character: str | None,
+    rows: int,
+    league: str | None = None,
+) -> str:
+    """The six facts a verdict list is only meaningful against.
+
+    ``league`` is the resolved description — "Allflame (from the character)" — not a
+    bare name. Every chaos figure below it is denominated in that league's economy,
+    and the player is the only one who can tell whether it is the right one.
+    """
     table = result.table
     if table is None:
         tables = "unknown"
     else:
         when = table.newest.isoformat(timespec="seconds") if table.newest else "never"
-        tables = f"{table.loaded}/{table.requested} loaded, newest {when}"
+        tables = f"{table.loaded}/{table.requested} loaded for {table.league or '-'}, newest {when}"
         tables += " (STALE)" if table.stale else " (ok)"
+        if table.note:
+            tables += f"\n            {table.note}"
     context = "bag" if result.strictness is Strictness.GENEROUS else "stash"
     gated = [item for item in result.items if item.gate.considered]
     flagged = len(result.escalation_candidates)
     return "\n".join(
         [
             f"character:  {character or '-'}",
-            f"league:     {result.league}",
+            f"league:     {league or result.league}",
             f"keep at:    {format_chaos(result.threshold_chaos)} chaos",
             f"tables:     {tables}",
             f"items:      {rows} row(s), {result.lookups} price lookup(s)",
@@ -217,19 +231,27 @@ async def cmd_appraise(
     threshold: float | None = None,
     show_all: bool = False,
     colour: bool | None = None,
+    league: str | None = None,
 ) -> int:
-    if refresh_prices:
-        await prices.refresh(force=True)
     bag = await poeapi.get_items(character, refresh=refresh)
+    choice = await prepare_league(prices, bag.league, override=league)
+    if refresh_prices:
+        await prices.refresh(force=True, league=choice.league)
     items = bag.by_source(Source.BAG)
     result = await appraisal.appraise(
         items,
         strictness=Strictness(strictness) if strictness else None,
         threshold_chaos=threshold,
+        league=bag.league,
+        override=league,
     )
     painted = use_colour() if colour is None else colour
 
-    print(render_header(result, character=bag.character, rows=len(items)))
+    print(
+        render_header(
+            result, character=bag.character, rows=len(items), league=choice.describe()
+        )
+    )
     print()
     print(render_appraisal(result, show_all=show_all, colour=painted))
     print()

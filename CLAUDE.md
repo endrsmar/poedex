@@ -143,5 +143,13 @@ install-from-URL is first-class and permanent.
 
 ## Unresolved, needs the user
 
-SPEC §11. The two worth raising early: the **keep threshold default** (~20c gives a busy panel,
-divine-tier a quiet one) and which **league** is primary.
+SPEC §11. The one worth raising early: the **keep threshold default** (~20c gives a busy panel,
+divine-tier a quiet one).
+
+**"Which league is primary?" (SPEC §11, row 2) is answered: none of them.** A bag is priced
+against the league of the character it came from, carried on `ItemSet.league` and read off
+`get-characters`. `prices.league` is an *override*, empty by default; `poedex value|appraise
+--league` overrides it for one run. When nothing knows the league the tool raises
+`LeagueUnknownError` rather than falling back to Standard — which is what it used to do,
+silently, while the character was in Allflame and a Divine Orb cost 897.7c in one and 209.0c in
+the other. Price tables are per league, and tables loaded for one are never used for another.

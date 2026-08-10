@@ -160,6 +160,7 @@ def appraise_bag(
     return BagAppraisal(
         verdicts,
         league=valued.league,
+        league_source=valued.league_source,
         threshold_chaos=keep_chaos,
         strictness=strictness,
         divine_rate=valued.divine_rate,

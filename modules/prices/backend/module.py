@@ -18,6 +18,33 @@ Three behaviours here exist to protect somebody other than the caller:
   :meth:`quote` and counts its own requests so a test can prove the separation.
 * **poe.ninja costs zero GGG budget.** It is a different host, and `net` gives
   foreign hosts a bucket keyed by hostname. Pricing a bag cannot delay a sync.
+
+## Which league a bag is priced against
+
+This module used to answer that from its own setting, whose default was
+``"Standard"``, and never looked at the bag. A character in Allflame was therefore
+priced against Standard, silently: the divine rate was 897.7c instead of 209.0c
+(research-notes, Phase 3), league-specific items were missing from the wrong index
+and came back ``unpriceable``, and the totals looked completely ordinary. Wrong
+numbers with a confident face are worse than no numbers.
+
+So the league is now resolved per call, in this order:
+
+1. an explicit argument (``poedex value --league``),
+2. the ``prices.league`` setting **if it is set** — it defaults to empty and exists
+   only to deliberately price against a different economy,
+3. the bag's own league, off :attr:`ItemSet.league`,
+4. :class:`LeagueUnknownError`. There is no fifth step.
+
+The setting sits above the bag rather than below it because that is the only reading
+under which it is an *override*: something you set when you want the other answer,
+that then wins. Empty by default means the ordinary path never consults it at all.
+
+The tables are prefetched before any character is known, so they may be a different
+league's. They are never quietly reused for another: :meth:`status` reports which
+league the loaded tables are for, a mismatch prices nothing, and
+:meth:`ensure_tables` is the explicit "go and get the right ones" that a surface
+calls — announcing it, because sixteen conditional requests take a moment.
 """
 
 from __future__ import annotations
@@ -34,6 +61,9 @@ from modules.poeapi.backend.api import NormalizedItem, PoeApi, Source
 from modules.prices.backend.api import (
     PRICES_UPDATED,
     BagValuation,
+    LeagueChoice,
+    LeagueSource,
+    LeagueUnknownError,
     Price,
     PricesApi,
     PricesError,
@@ -61,7 +91,14 @@ __all__ = ["MODULE", "PricesModule"]
 
 _fallback_log = get_logger("module.prices")
 
-DEFAULT_LEAGUE = "Standard"
+NO_OVERRIDE = ""
+"""The ``league`` setting's default. Empty means "follow the bag".
+
+It was ``"Standard"``, and that constant is the whole bug: a default that is
+plausible for most accounts, invisible when wrong, and attached to the number every
+other number in the tool is denominated in.
+"""
+
 DEFAULT_TRADE_SAMPLE = MAX_FETCH_IDS
 
 
@@ -100,6 +137,10 @@ class PricesModule:
         self._net: NetApi | None = None
         self._poeapi: PoeApi | None = None
         self._tables: dict[str, PriceTable] = {}
+        self._tables_league: str | None = None
+        """Which league ``_tables`` belong to. ``None`` until something establishes
+        one — there is no starting guess."""
+
         self._failures: dict[str, str] = {}
         self._prefetch_task: asyncio.Task[Any] | None = None
 
@@ -116,15 +157,21 @@ class PricesModule:
         if self._trade is None:
             self._trade = TradeClient(self._net, ctx.storage, clock=self._clock)
 
-        self._load_cached_tables()
-        if self._prefetch_on_start:
-            # Scheduled, not awaited: module start must not block on somebody else's
-            # web server, and a bag valuation before the tables land is honestly
-            # reported as having none rather than being made to wait.
-            self._prefetch_task = asyncio.create_task(self._prefetch())
+        # Nothing here knows which character will be appraised, so the only league
+        # that can be prefetched is one the user named. Without an override the
+        # module starts empty and `ensure_tables` fills it from the disk cache — free
+        # — the moment a bag arrives with a league on it.
+        self._tables_league = self.override
+        if self._tables_league is not None:
+            self._load_cached_tables()
+            if self._prefetch_on_start:
+                # Scheduled, not awaited: module start must not block on somebody
+                # else's web server, and a bag valuation before the tables land is
+                # honestly reported as having none rather than being made to wait.
+                self._prefetch_task = asyncio.create_task(self._prefetch())
         ctx.logger.info(
             "prices ready: league=%s, %d/%d tables cached",
-            self.league,
+            self._tables_league or "unset (follows the character's bag)",
             len(self._tables),
             len(self._wanted()),
         )
@@ -151,12 +198,14 @@ class PricesModule:
         return {
             "league": {
                 "type": "str",
-                "default": DEFAULT_LEAGUE,
-                "label": "Price league",
+                "default": NO_OVERRIDE,
+                "label": "Price league override",
                 "description": (
-                    "Which league's economy to price against. Must match the league "
-                    "the items are actually in; Standard prices are not Allflame "
-                    "prices."
+                    "Leave empty — every bag is then priced against the league its "
+                    "own character is in, which is the only source that cannot be "
+                    "wrong. Set it to deliberately price against a different "
+                    "economy; it then wins over the character, and every surface "
+                    "says so. Standard prices are not Allflame prices."
                 ),
             },
             "table_ttl_seconds": {
@@ -196,17 +245,103 @@ class PricesModule:
     # -- PricesApi -------------------------------------------------------------
 
     @property
-    def league(self) -> str:
-        return str(self._setting("league", DEFAULT_LEAGUE)) or DEFAULT_LEAGUE
+    def override(self) -> str | None:
+        """The ``prices.league`` setting, or ``None`` when it is not set."""
+        return str(self._setting("league", NO_OVERRIDE)).strip() or None
 
-    def index(self) -> PriceIndex:
-        return PriceIndex(tables=dict(self._tables), league=self.league)
+    @property
+    def tables_league(self) -> str | None:
+        return self._tables_league
 
-    async def value(self, item: NormalizedItem) -> Valuation:
-        return self.index().value(item)
+    def league_choice(
+        self, bag_league: str | None = None, *, explicit: str | None = None
+    ) -> LeagueChoice:
+        """Argument, then override, then the bag. No fourth answer.
 
-    async def value_all(self, items: Sequence[NormalizedItem]) -> BagValuation:
-        return self.index().value_all(items, table_status=self.status())
+        Raising here rather than returning a default is the entire fix. The caller
+        that has nothing to offer is a caller that does not know which economy it is
+        talking about, and every number it would go on to produce would be wrong by
+        whatever the two leagues' divine rates differ by.
+        """
+        if explicit and explicit.strip():
+            return LeagueChoice(explicit.strip(), LeagueSource.ARGUMENT)
+        override = self.override
+        if override:
+            return LeagueChoice(override, LeagueSource.SETTING)
+        if bag_league and bag_league.strip():
+            return LeagueChoice(bag_league.strip(), LeagueSource.CHARACTER)
+        raise LeagueUnknownError(
+            "cannot tell which league to price against: these items carry no league "
+            "and no override is set. Pass --league, or set the prices.league "
+            "setting. Refusing rather than assuming Standard — a Divine Orb was "
+            "897.7c there and 209.0c in Allflame on the same day."
+        )
+
+    def index(self, league: str | None = None) -> PriceIndex:
+        """The loaded tables as an index — but only for the league they belong to.
+
+        Ask for another league and the index comes back **empty** rather than
+        answering out of the wrong economy's tables. Every item is then reported
+        ``unpriceable`` with a table status that names both leagues, which is the
+        loud version of the failure this module used to have quietly.
+        """
+        target = league or self._tables_league
+        if target is None:
+            raise LeagueUnknownError(
+                "no price tables have been loaded for any league yet"
+            )
+        if target != self._tables_league:
+            return PriceIndex(tables={}, league=target)
+        return PriceIndex(tables=dict(self._tables), league=target)
+
+    async def value(
+        self,
+        item: NormalizedItem,
+        *,
+        league: str | None = None,
+        override: str | None = None,
+    ) -> Valuation:
+        choice = self.league_choice(league, explicit=override)
+        return self.index(choice.league).value(item)
+
+    async def value_all(
+        self,
+        items: Sequence[NormalizedItem],
+        *,
+        league: str | None = None,
+        override: str | None = None,
+    ) -> BagValuation:
+        choice = self.league_choice(league, explicit=override)
+        return self.index(choice.league).value_all(
+            items,
+            table_status=self.status(choice.league),
+            league_source=choice.source,
+        )
+
+    async def ensure_tables(self, league: str) -> TableStatus:
+        """Load ``league``'s tables: from disk if they are there, else from poe.ninja.
+
+        Separate from :meth:`value_all` so the no-request guarantee survives. A
+        surface calls this once, having said what it is doing, and then values as
+        many bags as it likes without touching a socket.
+        """
+        target = (league or "").strip()
+        if not target:
+            raise LeagueUnknownError("ensure_tables needs a league")
+        # A CLI run reaches this within milliseconds of start, with the background
+        # prefetch still in flight. Two concurrent passes would fetch every table
+        # twice — poe.ninja's bandwidth, spent on bytes we are already downloading.
+        await self._settle_prefetch()
+        if target != self._tables_league:
+            self._adopt_league(target)
+        missing = [
+            category
+            for category in self._wanted()
+            if category.key not in self._tables or self._is_expired(self._tables[category.key])
+        ]
+        if missing:
+            await self.refresh()
+        return self.status()
 
     async def bulk(self, category: str) -> Mapping[str, Price]:
         """One table as ``name -> Price``, fetching it if it is not already loaded.
@@ -220,7 +355,8 @@ class PricesModule:
             )
         table = self._tables.get(category)
         if table is None or self._is_expired(table):
-            await self._refresh_one(CATALOGUE[category])
+            self._require_ninja()  # "not started" beats "no league" as a diagnosis
+            await self._refresh_one(CATALOGUE[category], self._league_or_raise())
             table = self._tables.get(category)
         if table is None:
             return {}
@@ -236,22 +372,40 @@ class PricesModule:
             for line in table.lines
         }
 
-    async def refresh(self, *, force: bool = False) -> TableStatus:
+    async def refresh(self, *, force: bool = False, league: str | None = None) -> TableStatus:
         """Conditional-GET every wanted table. Costs zero GGG budget."""
+        target = (league or "").strip() or self._league_or_raise()
+        if target != self._tables_league:
+            self._adopt_league(target)
         changed = 0
         for category in self._wanted():
             table = self._tables.get(category.key)
             if not force and table is not None and not self._is_expired(table):
                 continue
-            if await self._refresh_one(category, force=force):
+            if await self._refresh_one(category, target, force=force):
                 changed += 1
         status = self.status()
         await self._announce(status, changed)
         return status
 
-    def status(self) -> TableStatus:
-        stamps = [table.fetched_at for table in self._tables.values()]
+    def status(self, league: str | None = None) -> TableStatus:
         wanted = self._wanted()
+        target = (league or "").strip() or None
+        if target is not None and target != self._tables_league:
+            # The one thing this must not do is report sixteen healthy tables while
+            # answering about a league none of them describes.
+            held = self._tables_league or "no league"
+            return TableStatus(
+                league=self._tables_league,
+                loaded=0,
+                requested=len(wanted),
+                stale=True,
+                note=(
+                    f"the loaded price tables are {held}'s, not {target}'s — nothing "
+                    f"here can be priced against {target} until they are refetched"
+                ),
+            )
+        stamps = [table.fetched_at for table in self._tables.values()]
         note = None
         if self._failures:
             note = "; ".join(f"{key}: {reason}" for key, reason in sorted(self._failures.items()))
@@ -259,7 +413,7 @@ class PricesModule:
             note = "no price tables loaded yet"
         oldest = min(stamps) if stamps else None
         return TableStatus(
-            league=self.league,
+            league=self._tables_league,
             loaded=len(self._tables),
             requested=len(wanted),
             oldest=_as_datetime(oldest),
@@ -268,14 +422,17 @@ class PricesModule:
             note=note,
         )
 
-    async def quote(self, item: NormalizedItem, *, sample: int = 0) -> TradeQuote:
+    async def quote(
+        self, item: NormalizedItem, *, sample: int = 0, league: str | None = None
+    ) -> TradeQuote:
         """Tier 3. On demand only — never reached from a valuation pass."""
         trade = self._require_trade()
-        index = self.index()
+        choice = self.league_choice(league)
+        index = self.index(choice.league)
         try:
             return await trade.quote(
                 item,
-                self.league,
+                choice.league,
                 chaos_of=index.chaos_for_trade_id,
                 sample=sample or int(self._setting("trade_sample", DEFAULT_TRADE_SAMPLE)),
             )
@@ -295,14 +452,20 @@ class PricesModule:
 
     async def value_bag_json(self, character: str | None = None) -> dict[str, Any]:
         bag = await self._require_poeapi().get_items(character)
-        result = await self.value_all(bag.by_source(Source.BAG))
-        return result.to_json()
+        choice = self.league_choice(bag.league)
+        await self.ensure_tables(choice.league)
+        result = await self.value_all(bag.by_source(Source.BAG), league=bag.league)
+        payload = result.to_json()
+        payload["character"] = bag.character
+        return payload
 
-    async def status_json(self) -> dict[str, Any]:
-        return self.status().to_json()
+    async def status_json(self, league: str | None = None) -> dict[str, Any]:
+        return self.status(league).to_json()
 
-    async def refresh_json(self, force: bool = False) -> dict[str, Any]:
-        return (await self.refresh(force=force)).to_json()
+    async def refresh_json(
+        self, force: bool = False, league: str | None = None
+    ) -> dict[str, Any]:
+        return (await self.refresh(force=force, league=league)).to_json()
 
     async def quote_json(self, uid: str, character: str | None = None) -> dict[str, Any]:
         """Quote one item of the current bag, by uid.
@@ -313,7 +476,7 @@ class PricesModule:
         bag = await self._require_poeapi().get_items(character)
         for item in bag.items:
             if item.uid == uid:
-                return (await self.quote(item)).to_json()
+                return (await self.quote(item, league=bag.league)).to_json()
         raise PricesError(f"no item {uid!r} in the current bag")
 
     # -- internals -------------------------------------------------------------
@@ -332,15 +495,47 @@ class PricesModule:
         keys = [str(key) for key in configured] if isinstance(configured, list) else list(PREFETCH)
         return [CATALOGUE[key] for key in keys if key in CATALOGUE]
 
+    def _league_or_raise(self) -> str:
+        if self._tables_league is None:
+            raise LeagueUnknownError(
+                "no league has been established: call ensure_tables(league) first, "
+                "or set the prices.league setting"
+            )
+        return self._tables_league
+
+    def _adopt_league(self, league: str) -> None:
+        """Switch to another league's tables.
+
+        The held tables are dropped rather than merged. Two leagues' overviews share
+        every item name and agree on almost no price, so a merged index would answer
+        confidently out of whichever league happened to be fetched last.
+        """
+        if self._tables_league is not None and self._tables:
+            self._log().info(
+                "switching price tables from %s to %s", self._tables_league, league
+            )
+        self._tables_league = league
+        self._tables = {}
+        self._failures = {}
+        self._load_cached_tables()
+
     def _load_cached_tables(self) -> None:
         """Warm start. A table on disk is usable even when it is past its TTL —
         stale prices with an honest timestamp beat an empty panel."""
         store = self._require_store()
-        league = self.league
+        league = self._league_or_raise()
         for category in self._wanted():
             table = store.load(league, category.key)
             if table is not None:
                 self._tables[category.key] = table
+
+    async def _settle_prefetch(self) -> None:
+        """Wait for the start-time prefetch, if one is still running."""
+        task = self._prefetch_task
+        if task is None or task.done():
+            return
+        with suppress(asyncio.CancelledError, Exception):
+            await task
 
     async def _prefetch(self) -> None:
         try:
@@ -350,7 +545,7 @@ class PricesModule:
         except Exception as exc:  # a price table is never worth failing a start over
             self._log().warning("price prefetch failed: %s", exc)
 
-    async def _refresh_one(self, category, *, force: bool = False) -> bool:
+    async def _refresh_one(self, category, league: str, *, force: bool = False) -> bool:
         """Fetch one table. Returns whether its contents changed.
 
         A failure is recorded against the category and swallowed: one 500 from
@@ -361,7 +556,7 @@ class PricesModule:
         existing = self._tables.get(category.key)
         etag = None if force else (existing.etag if existing else None)
         try:
-            table = await ninja.fetch(category, self.league, etag=etag, now=self.now())
+            table = await ninja.fetch(category, league, etag=etag, now=self.now())
         except (NetError, PricesError) as exc:
             self._failures[category.key] = _short(exc)
             self._log().info("price table %s unavailable: %s", category.key, exc)
@@ -425,7 +620,7 @@ class PricesModule:
         return self._trade
 
     def __repr__(self) -> str:
-        return f"PricesModule(tables={len(self._tables)}, league={self.league!r})"
+        return f"PricesModule(tables={len(self._tables)}, league={self._tables_league!r})"
 
 
 def _as_datetime(epoch: float | None) -> datetime | None:

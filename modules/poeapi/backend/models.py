@@ -207,7 +207,18 @@ class ItemSet(Base):
     items: list[NormalizedItem] = Field(default_factory=list)
     source: Source
     character: str | None = None
+
     league: str | None = None
+    """Which economy these items belong to — the character's league for a bag, the
+    tab's league for a stash tab.
+
+    ``None`` means *unknown*, and consumers must treat it as unknown rather than as
+    "Standard". Every price in the tool is denominated per league (a Divine Orb was
+    897.7c in Standard and 209.0c in Allflame on the same measured day), so a bag
+    that has lost this field cannot be priced at all — which is the correct outcome,
+    and better than the confident wrong total it used to produce.
+    """
+
     tab_index: int | None = None
     tab_name: str | None = None
     meta: Meta

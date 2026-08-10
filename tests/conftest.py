@@ -25,7 +25,7 @@ from runtime.events import EventBus
 from runtime.methods import MethodRegistry
 from runtime.registry import Registry
 from runtime.secrets import clear_secrets
-from runtime.settings import SettingsStore
+from runtime.settings import SETTINGS_FILENAME, SettingsStore
 from runtime.storage import StorageRoot
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -56,6 +56,36 @@ def poedex_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # exist: the watcher then sits in `waiting` and touches nothing outside tmp_path.
     monkeypatch.setenv("POEDEX_GAMELOG_PATH", str(tmp_path / "no-such-Client.txt"))
     return tmp_path
+
+
+@pytest.fixture
+def league_override() -> str:
+    """Which league the suite pins ``prices`` to. Override it in a test module.
+
+    ``""`` means "no override": the league then comes from the bag, which is the
+    product's real path and what ``tests/test_league.py`` exercises.
+    """
+    return "Standard"
+
+
+@pytest.fixture(autouse=True)
+def _pin_price_league(tmp_path: Path, poedex_home: Path, league_override: str) -> None:
+    """Write ``prices.league`` into the settings file every registry fixture reads.
+
+    Until the league fix, ``"Standard"`` was ``prices``' silent default and every
+    test in this suite was written on top of it — against Standard fixtures, with no
+    test ever naming a league. Now that a bag's own league decides and the setting is
+    an override, that assumption has to be *stated* rather than inherited: this pins
+    it, so those tests keep testing what they were written to test instead of
+    accidentally becoming tests of the new resolution order.
+
+    The new resolution order gets its own file, which sets ``league_override`` to
+    ``""`` and takes the fixtures' Allflame character out for a walk.
+    """
+    path = tmp_path / "config" / SETTINGS_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    values = {"prices": {"league": league_override}} if league_override else {}
+    path.write_text(json.dumps(values), "utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -127,7 +157,7 @@ def fake_module() -> type[FakeModule]:
 
 
 @pytest.fixture
-def registry_factory(tmp_path: Path) -> Callable[..., Registry]:
+def registry_factory(tmp_path: Path, _pin_price_league: None) -> Callable[..., Registry]:
     """A Registry whose services all live under ``tmp_path``."""
 
     def build(**kwargs: Any) -> Registry:
@@ -269,8 +299,12 @@ class Server:
         leave it and a conditional request gets a 304."""
 
         self.bag_fixture = "get-items.json"
+        self.characters: Any = payload("get-characters.json")
+        """The roster, as an attribute so a test can empty it or move a character to
+        another league. Which league a character is in is now load-bearing — it is
+        what every price is denominated in — so it has to be a knob, not a constant."""
+
         self._payloads = {
-            "/character-window/get-characters": payload("get-characters.json"),
             "/character-window/get-stash-items": payload("get-stash-items.json"),
         }
 
@@ -290,7 +324,9 @@ class Server:
                 self.status, json=self.error_body, headers=headers(self.header_file)
             )
         path = request.url.path
-        if path == "/character-window/get-items":
+        if path == "/character-window/get-characters":
+            body = self.characters
+        elif path == "/character-window/get-items":
             body = bag_payload(self.bag_fixture)
         elif path == "/character-window/get-stash-items" and request.url.params.get("tabs") == "1":
             body = payload("get-stash-tabs.json")

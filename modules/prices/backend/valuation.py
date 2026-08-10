@@ -45,6 +45,7 @@ from datetime import UTC, datetime
 from modules.poeapi.backend.api import NormalizedItem, Rarity
 from modules.prices.backend.api import (
     BagValuation,
+    LeagueSource,
     Price,
     PriceSource,
     TableStatus,
@@ -298,6 +299,7 @@ class PriceIndex:
         items: Iterable[NormalizedItem],
         *,
         table_status: TableStatus | None = None,
+        league_source: LeagueSource | None = None,
     ) -> BagValuation:
         """Price a bag. One lookup per distinct :func:`price_key`, fanned out."""
         resolved: dict[tuple, Valuation] = {}
@@ -324,6 +326,7 @@ class PriceIndex:
         return BagValuation(
             out,
             league=self.league,
+            league_source=league_source,
             divine_rate=self.chaos_per_divine,
             table=table_status,
             lookups=len(resolved),

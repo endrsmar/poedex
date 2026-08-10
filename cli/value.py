@@ -23,9 +23,33 @@ from __future__ import annotations
 import sys
 
 from modules.poeapi.backend.api import PoeApi, Source
-from modules.prices.backend.api import BagValuation, PricesApi, Valuation
+from modules.prices.backend.api import BagValuation, LeagueChoice, PricesApi, Valuation
 
 MAX_NAME = 34
+
+
+async def prepare_league(
+    prices: PricesApi, bag_league: str | None, *, override: str | None = None
+) -> LeagueChoice:
+    """Decide which economy to price against, and load its tables, out loud.
+
+    Shared by `value` and `appraise` because getting this wrong is the same bug in
+    both. Two things are printed rather than logged: which league won and why, and
+    the fact that a table switch is about to spend a few seconds on poe.ninja. The
+    second exists because sixteen conditional requests with no output is
+    indistinguishable from a hang, and a user who kills the command at that point
+    concludes the tool is broken.
+    """
+    choice = prices.league_choice(bag_league, explicit=override)
+    if prices.tables_league != choice.league:
+        held = prices.tables_league or "none"
+        print(
+            f"tables:     loaded for {held}, need {choice.league} — fetching from "
+            "poe.ninja (no GGG budget)",
+            flush=True,
+        )
+    await prices.ensure_tables(choice.league)
+    return choice
 
 
 def format_chaos(value: float) -> str:
@@ -118,15 +142,20 @@ async def cmd_value(
     character: str | None,
     refresh: bool,
     refresh_prices: bool,
+    league: str | None = None,
 ) -> int:
-    if refresh_prices:
-        await prices.refresh(force=True)
     bag = await poeapi.get_items(character, refresh=refresh)
+    # The bag first, then the league, then the tables: the league is a property of
+    # the character, so nothing can be fetched for the right economy until the bag
+    # has said which one that is.
+    choice = await prepare_league(prices, bag.league, override=league)
+    if refresh_prices:
+        await prices.refresh(force=True, league=choice.league)
     items = bag.by_source(Source.BAG)
-    result = await prices.value_all(items)
+    result = await prices.value_all(items, league=bag.league, override=league)
 
     print(f"character:  {bag.character}")
-    print(f"league:     {result.league}")
+    print(f"league:     {choice.describe()}")
     print(render_tables(result))
     print(f"items:      {len(items)} row(s), {result.lookups} price lookup(s)")
     print()

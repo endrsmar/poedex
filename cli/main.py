@@ -65,6 +65,24 @@ _STATE_TEXT = {
 }
 
 
+def _add_league_argument(command: argparse.ArgumentParser) -> None:
+    """``--league``, on every command that turns items into money.
+
+    An override, not a selector. The default is the league of the character whose
+    bag is being read, which is the only source that cannot disagree with reality;
+    this flag is for deliberately asking "what would this be worth in Standard?",
+    and the output labels the answer as an override when it is used.
+    """
+    command.add_argument(
+        "--league",
+        default=None,
+        help=(
+            "price against this league instead of the character's own. Overrides "
+            "the prices.league setting for this run; the output says so."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="poedex", description="PoEDex — Path of Exile assistant")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -161,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
             "stored ETag. Normally unnecessary: the tables are prefetched at start."
         ),
     )
+    _add_league_argument(value)
 
     appraise = sub.add_parser(
         "appraise",
@@ -200,6 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     appraise.add_argument(
         "--all", action="store_true", help="list the trash rows instead of collapsing them"
     )
+    _add_league_argument(appraise)
 
     sub.add_parser("limits", help="print the rate limiter's current view")
 
@@ -416,6 +436,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 character=args.character,
                 refresh=args.force,
                 refresh_prices=args.refresh_prices,
+                league=args.league,
             )
 
     elif args.command == "appraise":
@@ -431,6 +452,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 strictness=args.strictness,
                 threshold=args.threshold,
                 show_all=args.all,
+                league=args.league,
             )
 
     elif args.command == "limits":
