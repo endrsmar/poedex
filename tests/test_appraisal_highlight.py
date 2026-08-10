@@ -22,7 +22,14 @@ from modules.appraisal.backend.api import (
     Selection,
 )
 from modules.appraisal.backend.gate import evaluate, report_for
-from modules.appraisal.backend.highlight import build as build_highlight
+from modules.appraisal.backend.highlight import (
+    MAX_PRETICKED,
+    eligible_count,
+    significance,
+)
+from modules.appraisal.backend.highlight import (
+    build as build_highlight,
+)
 from modules.moddb.backend.module import ModDbModule
 from modules.poeapi.backend.api import PoeApi
 from tests.test_appraisal_gate import item
@@ -109,6 +116,60 @@ def test_top_tier_rolls_are_preticked_and_mediocre_ones_are_not(db):
     great, poor = highlight_for(subject, db).mods
     assert great.top_tier and great.preticked
     assert not poor.preticked
+
+
+# -- defect 1: the pre-tick was worst exactly where the item was best --------------
+
+
+def test_the_pre_tick_is_capped_and_says_what_it_held_back(db):
+    """Six high rolls, three ticks, and the other three named rather than hidden.
+
+    A manual check never broadens, so the pre-ticked set *is* the query the default
+    press sends. Six filters is the conjunction Phase 9 measured returning zero
+    listings on two of three live rares; three is the cap, and the rows it did not
+    tick are still there, still tickable, and counted in the note.
+    """
+    subject = item(
+        **HELMET,
+        explicit=[
+            "+130 to maximum Life",
+            "+48% to Fire Resistance",
+            "+48% to Cold Resistance",
+            "+48% to Lightning Resistance",
+            "+60 to Strength",
+            "+60 to Intelligence",
+        ],
+    )
+    proposal = highlight_for(subject, db)
+    eligible = eligible_count(report_for(subject, db))
+    assert eligible > MAX_PRETICKED, "the fixture item stopped being all-high-rolls"
+    assert len(proposal.preticked) == MAX_PRETICKED
+    assert f"{eligible - MAX_PRETICKED} more high-tier rolls left unticked" in proposal.note
+    assert len(proposal.mods) == 6
+
+
+def test_an_item_with_few_high_rolls_is_untouched_by_the_cap(db):
+    """The cap folds the tail of the distribution and leaves the middle alone."""
+    subject = item(**HELMET, explicit=["+130 to maximum Life", "+12% to Fire Resistance"])
+    proposal = highlight_for(subject, db)
+    assert proposal.preticked == (0,)
+    assert "left unticked" not in proposal.note
+
+
+def test_significance_ranks_on_the_level_the_game_demands_not_on_the_tier_number(db):
+    """The ordering is a fact about ladders, never a list of mod names.
+
+    A T1 of a ladder that unlocks at ilvl 30 and a T1 of one that unlocks at 84 are
+    the same tier number and not the same claim. Ranking on the tier alone is what put
+    ``20% increased Global Accuracy Rating`` — genuinely T1, genuinely of a three-tier
+    ladder nobody searches — level with a top-tier life roll.
+    """
+    high = item(**HELMET, explicit=["+130 to maximum Life"])
+    low = item(**HELMET, explicit=["20% increased Global Accuracy Rating"])
+    life = report_for(high, db).matches[0]
+    accuracy = report_for(low, db).matches[0]
+    assert life.top_group and accuracy.top_group, "both must be top-tier for this to bite"
+    assert significance(life) > significance(accuracy)
 
 
 def test_an_influence_mod_is_preticked_whatever_its_tier(db):
@@ -248,6 +309,64 @@ def test_a_ticked_roll_searches_a_widened_floor_not_an_exact_match(db):
     spec = Selection(uid=subject.uid, mods=(0,)).spec(proposal)
     assert spec.mods[0].minimum == 96
     assert spec.mods[0].minimum < 120
+
+
+# -- defect 2: a negative roll needs a direction before it needs an id -------------
+
+AMULET = dict(base_type="Onyx Amulet", category="accessory", subcategory="amulet", ilvl=86)
+MANA_COST = "-9 to Total Mana Cost of Skills"
+
+
+def test_a_ticked_negative_roll_searches_a_filter_that_contains_its_own_item(db):
+    """The regression Phase 9b predicted and declined to ship.
+
+    ``widened(-9)`` is ``-7.2``, and ``min: -7.2`` **excludes the -9 item it came
+    from** while matching every worse one. That is not a near miss — it is a search
+    that returns listings, prices them, and answers a question nobody asked. So the
+    bound goes on the other side, and the property tested here is the one that
+    matters: whatever the filter is, the item that produced it satisfies it.
+    """
+    subject = item(**AMULET, explicit=["+85 to maximum Life"], crafted=[MANA_COST])
+    proposal = highlight_for(subject, db)
+    row = next(option for option in proposal.mods if option.text == MANA_COST)
+    assert row.value == -9.0
+    assert row.higher_is_better is False
+
+    focus = next(
+        f for f in Selection(uid=subject.uid, mods=(0, 1)).spec(proposal).mods
+        if f.text == MANA_COST
+    )
+    assert focus.minimum is None
+    assert focus.maximum == -7.2
+    # The whole point, said as the player would check it.
+    assert focus.maximum >= row.value
+
+
+def test_direction_is_read_off_the_mod_and_not_off_the_sign_of_the_word(db):
+    """A positive roll is unaffected, and the two bounds are never both set."""
+    subject = item(**AMULET, explicit=["+85 to maximum Life"], crafted=[MANA_COST])
+    proposal = highlight_for(subject, db)
+    life, mana = proposal.mods
+    assert (life.higher_is_better, life.suggested_maximum) == (True, None)
+    assert life.suggested_minimum == 68
+    assert (mana.higher_is_better, mana.suggested_minimum) == (False, None)
+    assert mana.suggested_maximum == -7.2
+    for option in proposal.mods:
+        assert option.suggested_minimum is None or option.suggested_maximum is None
+
+
+def test_a_negative_roll_the_database_cannot_read_still_gets_a_direction(db):
+    """The fallback, and the case where it matters most.
+
+    Without a database there is no ladder to read a direction off, but the sign of the
+    roll is still a fact about the item — and this is exactly the path where nobody is
+    checking the answer.
+    """
+    subject = item(**AMULET, crafted=[MANA_COST])
+    row = build_highlight(subject, evaluate(subject), None, moddb=None).mods[0]
+    assert row.value == -9.0, "the leading minus was dropped on the untiered path"
+    assert row.higher_is_better is False
+    assert row.suggested_maximum == -7.2
 
 
 def test_a_ticked_line_with_no_number_becomes_a_presence_filter(db):

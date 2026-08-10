@@ -14,7 +14,7 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9 and 9b done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9, 9b and 9c done.** `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
 httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
 `moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
@@ -175,14 +175,17 @@ sustained rate-limit violations.
   `explicit.stat_960081730`. Measured live, the aggregate matches a strict superset: 161 listings
   against 160 for the same movement-speed filter on Two-Toned Boots.
 
-- **The pre-tick is a claim about rolls, and roughly one tick in seven is on a mod nobody
-  prices.** Measured on twenty real identified rares from public listings: a median of 3 ticks per
-  item, and 8 of 53 ticks landed on genuine T1/T2 rolls of groups no one searches — stun and block
-  recovery, light radius, global accuracy. That is not a bug in `NEAR_TOP_TIER`; it is §5b's own
-  conclusion, that which mods matter is player knowledge. **A junk-mod list is `MOD_GROUPS` coming
-  back** and must not be added. Two things that *are* worth fixing: on an item where every roll is
-  high the pre-tick ticks all six, which is the conjunction that returned zero listings live; and
-  where `moddb` mis-tiers, the pre-tick misses the mod that makes the item expensive.
+- **The pre-tick proposes at most two filters, and 2 is a measurement.** On twenty real rares it
+  used to tick a median of 3 and, on the best item in the sample, **6 of 6** — the conjunction
+  Phase 9 measured returning zero listings, sent by the default press with no broadening behind
+  it. Live against the fixture's 2-divine Soldier Gloves: **6 filters → 0, 3 → 0, 2 → 3, 1 → 35**,
+  so `MAX_PRETICKED` is 2 and not the 3 the median suggested. The order is
+  `highlight.significance`, ranked on facts `moddb` already has — influence pool, then **the item
+  level the game demands for the roll**, then proximity to the base's ceiling, then ladder depth.
+  **A junk-mod list is `MOD_GROUPS` coming back** and must not be added; the noise count fell 8 →
+  4 without one, and the four survivors are genuine T1 rolls of groups nobody searches, which is
+  §5b's conclusion and not a bug. The cap is on the *proposal*: `MAX_QUERY_FILTERS` is still 6, no
+  row is disabled, and the note says how many high rolls were left unticked.
 
 - **A checkbox list is the one list that may not truncate.** Every other kit list takes a `limit`
   and reports what it hid; `CheckList` takes none. A hidden row is a filter the player can neither
@@ -201,10 +204,21 @@ sustained rate-limit violations.
   keep it that way.
 
 - **`moddb` says "unknown" rather than guessing which mod produced a line.** Several groups can
-  render one sentence, hybrids write several, and essence, influence and bench-craft tiers are
-  counted from different ladders. `Attribution` is `exact`/`group`/`ambiguous`/`unknown` and the
-  last two expose no tier. On the live fixtures 79% of affix lines resolve confidently; showing
-  "T2" for the rest would be right most of the time, which is exactly what makes it dangerous.
+  render one sentence, hybrids write several, essence, influence and bench-craft tiers are counted
+  from different ladders, and **the game adds two affixes of the same stat into one displayed
+  line** — `+161 to Evasion Rating` is a hybrid plus a prefix, and the single-affix reading of it
+  was `T1 of 8`, asserted. `Attribution` is `exact`/`group`/`ambiguous`/`unknown` and the last two
+  expose no tier. Showing "T2" for the rest would be right most of the time, which is exactly what
+  makes it dangerous. The summed reading is refused only where the item has a **free affix slot**
+  for the second mod — per line the sum is conceivable on 12 of 99 fixture lines, against the
+  affix budget on 5, and the difference is a refusal rather than a policy of not answering.
+
+- **A widened floor is only a floor if up is good.** About ten gear sentences roll negative
+  (`-9 to Total Mana Cost of Skills`) and for those a lower number is the better item, so
+  `widened(-9) = -7.2` goes out as `max`, never `min` — `min: -7.2` excludes the item the filter
+  was built from and matches every worse one, which is a search that returns listings and is
+  still wrong. Which way a mod runs is `ModMatch.higher_is_better`, read off the mod's own
+  reachable range, and `moddb`'s ranges are flipped into the units the item displays on load.
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
 - **A module's UI writes no CSS and imports no Decky API.** It composes `@poedex/ui` primitives
   and declares density with per-profile hints (`limit={{compact: 5, full: null}}`). The rule is

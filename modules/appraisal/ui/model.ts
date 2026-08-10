@@ -427,7 +427,14 @@ function metaOf(mod: ModOptionPayload): string | undefined {
     parts.push(`${mod.value} of ${mod.ceiling}`)
   }
   if (mod.influences.length > 0) parts.push(mod.influences.join('/'))
+  // One bound or the other, never both. About ten gear sentences roll negative
+  // (`-9 to Total Mana Cost of Skills`) and for those a lower number is the better
+  // item, so the row searches `≤ -7.2` — the set that contains this item. Printing
+  // `≥ -7.2` there would describe a filter for strictly worse items in words that
+  // read like a promise, which is why the direction is on the wire rather than
+  // guessed from the sign here.
   if (mod.suggested_minimum !== null) parts.push(`searches ≥ ${mod.suggested_minimum}`)
+  else if (mod.suggested_maximum !== null) parts.push(`searches ≤ ${mod.suggested_maximum}`)
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 

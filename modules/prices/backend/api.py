@@ -225,6 +225,20 @@ class ModFocus:
     """A widened floor, already computed by the caller. Never the exact roll: an
     equality filter on a random roll matches almost nothing."""
 
+    maximum: float | None = None
+    """The same widened bound, for a mod where **lower is the better roll**.
+
+    About ten gear sentences are spelled with a minus — ``-9 to Total Mana Cost of
+    Skills`` — and for those the item the filter came from sits *below* its own widened
+    bound rather than above it. ``min: -7.2`` for a ``-9`` roll excludes that item and
+    matches every worse one: a search that returns listings and is still the wrong
+    search, which is the failure mode this tier has to avoid above all others. Which way
+    a mod runs is `moddb`'s :attr:`ModMatch.higher_is_better`, decided from the mod's own
+    reachable range and carried here through :attr:`ModOption.higher_is_better`.
+
+    At most one of ``minimum`` and ``maximum`` is ever set. Both ``None`` is a presence
+    filter — the mod is on the item and nothing is claimed about how well it rolled."""
+
     label: str = ""
     """Human words for the query description, so a wrong query is legible."""
 

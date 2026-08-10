@@ -731,3 +731,71 @@ def test_a_dropped_mod_is_counted_in_the_description():
     step = build_plan(item, _stats(), spec)[0]
     assert len(step.body["query"]["stats"][0]["filters"]) == 1
     assert "1 not asked" in step.description
+
+
+# -- defect 2: a negative roll needs a direction before it needs an id -------------
+#
+# `-9 to Total Mana Cost of Skills` is the family. Phase 9b resolved it as far as
+# "there is no id for this sentence" and stopped, correctly: the id on its own is a
+# regression, because `widened(-9)` is `-7.2` and `min: -7.2` excludes the -9 item.
+# Both halves are here — the bound goes on the other side of the value, and the id is
+# found under the sign GGG spells it with.
+
+MANA_COST = "-9 to Total Mana Cost of Skills"
+MANA_COST_ID = "explicit.stat_3736589033"
+
+
+def _signed_stats() -> StatIndex:
+    """GGG's document, as measured: the sentence exists under ``+#`` and nowhere else.
+
+    Checked against the live ``/api/trade/data/stats`` during this phase, alongside
+    ``+# Physical Damage taken from Attack Hits`` (``explicit.stat_3441651621``). An
+    item that rolled the beneficial direction writes the same sentence with a minus,
+    which is the whole of the mismatch.
+    """
+    return StatIndex({"+# to Total Mana Cost of Skills": {"explicit": MANA_COST_ID}}, 0.0)
+
+
+def test_a_negatively_spelled_sentence_resolves_to_the_id_ggg_files_it_under():
+    stats = _signed_stats()
+    assert stats.stat_id(MANA_COST) == MANA_COST_ID
+    assert stats.stat_ids(MANA_COST) == {"explicit": MANA_COST_ID}
+    # Tried second, never first: a handful of sentences really do exist under both
+    # signs as different stats, and an exact hit is always the answer.
+    both = StatIndex(
+        {
+            "-# to Total Mana Cost of Skills": {"explicit": "explicit.stat_minus"},
+            "+# to Total Mana Cost of Skills": {"explicit": MANA_COST_ID},
+        },
+        0.0,
+    )
+    assert both.stat_id(MANA_COST) == "explicit.stat_minus"
+
+
+def test_a_filter_for_a_negative_roll_contains_the_item_it_was_built_from():
+    """The regression, stated as the property that catches it.
+
+    ``min: -7.2`` is a search for items whose mana cost reduction is *worse* than the
+    one being priced, and it returns listings, so nothing downstream looks wrong.
+    ``max: -7.2`` is the set that contains this item and everything better.
+    """
+    item = _rare("Onyx Amulet", [MANA_COST])
+    spec = QuerySpec(mods=(ModFocus(text=MANA_COST, maximum=-7.2),))
+    step = build_plan(item, _signed_stats(), spec)[0]
+    entry = step.body["query"]["stats"][0]["filters"][0]
+    assert entry["id"] == MANA_COST_ID
+    assert entry["value"] == {"max": -7.2}
+    assert entry["value"]["max"] >= -9.0
+    assert "≤ -7.2" in step.description
+
+
+def test_the_broadening_step_drops_a_ceiling_the_same_way_it_drops_a_floor():
+    """The automatic path's one retry keeps the mod and gives up the bound — either
+    bound. A ``max`` left behind on a "loosened" filter would be the narrower query
+    wearing the wider one's description."""
+    item = _rare("Onyx Amulet", [MANA_COST])
+    spec = QuerySpec(mods=(ModFocus(text=MANA_COST, maximum=-7.2),), broaden=True)
+    plan = build_plan(item, _signed_stats(), spec)
+    assert len(plan) == 2
+    loosened = plan[1].body["query"]["stats"][0]["filters"][0]
+    assert "value" not in loosened

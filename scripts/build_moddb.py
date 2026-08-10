@@ -141,6 +141,24 @@ read — an old artifact here is a query that silently matches nothing."""
 USER_AGENT = "poedex-build/0.1 (+https://github.com/; mod database trim step)"
 
 
+def signed_key(text: str) -> str:
+    """``-# to Total Mana Cost of Skills`` → ``+# to Total Mana Cost of Skills``.
+
+    Both documents publish a sentence with the sign its *format* string carries, and a
+    mod that rolled the beneficial direction renders the same sentence with a minus.
+    About ten gear sentences are in this family — reduced mana cost, physical damage
+    taken from attack hits — and every one of them came out of Phase 9b **unbridged**,
+    so a mod the trade site has a perfectly good filter for was annotated "no trade
+    filter" on the panel and dropped from the query. Checked against the live
+    ``/api/trade/data/stats``: ``explicit.stat_3736589033`` and
+    ``explicit.stat_3441651621`` exist there under ``+#`` and under nothing else.
+
+    Used as a **fallback** key, never a replacement. A handful of sentences really do
+    exist under both signs as different stats, and an exact hit is always the answer.
+    """
+    return text.replace("-#", "+#")
+
+
 def strip_local(text: str) -> tuple[str, bool]:
     """``("#% increased Armour", True)`` for ``"#% increased Armour (Local)"``."""
     for suffix in LOCAL_SUFFIXES:
@@ -697,8 +715,9 @@ def build(documents: Mapping[str, Any], provenance: Mapping[str, Any], version: 
     local_table: dict[str, list[Any]] = {}
     game_table: dict[str, list[str]] = {}
     for index, key in enumerate(text_list):
+        signed = signed_key(key)
         for source, table in ((trade_by_text, trade_table), (ggg_local, local_table)):
-            bridged = source.get(key)
+            bridged = source.get(key) or source.get(signed)
             if not bridged:
                 continue
             mask = 0
@@ -708,7 +727,7 @@ def build(documents: Mapping[str, Any], provenance: Mapping[str, Any], version: 
                     mask |= 1 << position
                     ids.append(bridged[origin])
             table[str(index)] = [mask, ids[0]] if len(set(ids)) == 1 else [mask, *ids]
-        game_ids = game_by_text.get(key)
+        game_ids = game_by_text.get(key) or game_by_text.get(signed)
         if game_ids:
             game_table[str(index)] = list(game_ids)
 

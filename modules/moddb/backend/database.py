@@ -65,8 +65,8 @@ from modules.moddb.backend.api import (
     ModMatch,
     ModReport,
     Origin,
-    denominate,
 )
+from modules.moddb.backend.text import negated_slots, readings
 
 __all__ = ["DATA_FILE", "ModDatabase", "load"]
 
@@ -190,6 +190,11 @@ class ModDatabase:
         # How many values each line carries is the number of ``#`` in its text, so
         # the flat encoding stores no arity and this table is how it is recovered.
         arity = [text.count("#") for text in self._texts]
+        # ...and which of those slots the sentence spells with a leading minus. The
+        # build step stores ``-(4-9) to Total Mana Cost of Skills`` as the positive
+        # range ``(4, 9)``; every consumer of this module wants the ``(-9, -4)`` the
+        # item actually displays, so the flip happens once, here, on the way in.
+        self._negated = [negated_slots(text) for text in self._texts]
         self._domains: list[str] = list(vocab["domains"])
         self._classes: list[str] = list(vocab["classes"])
         self._influences: list[str] = list(vocab["influences"])
@@ -202,7 +207,9 @@ class ModDatabase:
             any(weight for _tag, weight in vector) for vector in self._spawn
         ]
 
-        self._mods: list[_Mod] = [_read_mod(record, arity) for record in document["mods"]]
+        self._mods: list[_Mod] = [
+            _read_mod(record, arity, self._negated) for record in document["mods"]
+        ]
 
         self._by_text: dict[int, list[int]] = {}
         for index, mod in enumerate(self._mods):
@@ -307,15 +314,81 @@ class ModDatabase:
         origin: Origin,
         influences: Sequence[str],
         alongside: frozenset[int] | None,
-    ) -> tuple[ModMatch, tuple[int, ...]]:
+    ) -> tuple[ModMatch, tuple[int, ...], frozenset[Affix]]:
         """:meth:`identify`, plus the mod indices that survived.
 
         The indices never leave this module — they are artifact row numbers and mean
         nothing outside it — but :meth:`report` needs them: two lines belong to the
         same affix when one surviving *mod* explains both, and a public
         :class:`ModMatch` deliberately does not expose which mod that was.
+
+        A negatively-rolled line is asked twice, because the game data spells its sign
+        two ways and **both spellings are real sentences in the same group**:
+        ``IncreaseFlatManaCost`` writes ``# to Total Mana Cost of Skills`` for its
+        ``-4`` and ``-5`` tiers and ``-# to Total Mana Cost of Skills`` for the rest.
+        Taking the first spelling that merely *exists* therefore answers "nothing that
+        can spawn here produces this text" about a mod the artifact carries nine tiers
+        of, which is how every reduced-cost roll in the game came back unknown. The
+        first reading that produces an actual answer wins; only if neither does is the
+        refusal reported, and then against the sentence as written.
         """
-        normalized, values = denominate(text)
+        attempts = [
+            self._resolve_reading(
+                text,
+                index,
+                normalized,
+                values,
+                base_type=base_type,
+                ilvl=ilvl,
+                origin=origin,
+                influences=influences,
+                alongside=alongside,
+            )
+            for normalized, values in readings(text)
+            if (index := self._lookup(normalized)) is not None
+        ]
+        for attempt in attempts:
+            if attempt[0].attribution is not Attribution.UNKNOWN:
+                return attempt
+        if attempts:
+            return attempts[0]
+        return self._unreadable(text, origin)
+
+    def _unreadable(self, text: str, origin: Origin) -> tuple[
+        ModMatch, tuple[int, ...], frozenset[Affix]
+    ]:
+        normalized, values = readings(text)[0]
+        blank = ModMatch(
+            text=text,
+            normalized=normalized,
+            values=tuple(low for low, _high in values),
+            origin=origin,
+            attribution=Attribution.UNKNOWN,
+        )
+        if not _DOMAINS_BY_ORIGIN.get(origin, frozenset()):
+            return _with_note(
+                blank, f"{origin.value} lines are not affixes; the database carries none"
+            ), (), frozenset()
+        return _with_note(
+            blank,
+            "no mod in the database renders this text — the artifact may be a "
+            "league out of date",
+        ), (), frozenset()
+
+    def _resolve_reading(
+        self,
+        text: str,
+        text_index: int,
+        normalized: str,
+        values: tuple[tuple[float, float], ...],
+        *,
+        base_type: str | None,
+        ilvl: int,
+        origin: Origin,
+        influences: Sequence[str],
+        alongside: frozenset[int] | None,
+    ) -> tuple[ModMatch, tuple[int, ...], frozenset[Affix]]:
+        """:meth:`_resolve` for one already-chosen spelling of the sentence."""
         rolled = tuple(low for low, _high in values)
         blank = ModMatch(
             text=text,
@@ -330,19 +403,13 @@ class ModDatabase:
             return _with_note(
                 blank,
                 f"{origin.value} lines are not affixes; the database carries none",
-            ), ()
-
-        text_index = self._lookup(normalized)
-        if text_index is None:
-            return _with_note(
-                blank,
-                "no mod in the database renders this text — the artifact may be a "
-                "league out of date",
-            ), ()
+            ), (), frozenset()
 
         base = self._bases.get((base_type or "").strip().casefold())
         if base_type and base is None:
-            return _with_note(blank, f"{base_type!r} is not a base that rolls affixes"), ()
+            return _with_note(
+                blank, f"{base_type!r} is not a base that rolls affixes"
+            ), (), frozenset()
         if base is not None and influences:
             base = self._influenced(base, influences)
 
@@ -356,6 +423,11 @@ class ModDatabase:
         # lose the local/global choice would put the wrong id on exactly the lines
         # nobody can check.
         spawnable: list[int] = []
+        # Everything the base *and* the item level allow, before the roll is compared
+        # against anything. This is the set :meth:`_summed` reasons over — the game
+        # adds two affixes granting the same stat into one displayed line, and the two
+        # that did it are each individually too small to fit the number on screen.
+        placeable: list[int] = []
         rejected_by_value = 0
         for index in self._by_text.get(text_index, ()):
             mod = self._mods[index]
@@ -371,6 +443,7 @@ class ModDatabase:
                 # whose only matching tier is marked level 81. Applying the filter
                 # there turned a mod the player paid for into "unknown".
                 continue
+            placeable.append(index)
             if not _fits(mod, text_index, values):
                 rejected_by_value += 1
                 continue
@@ -386,7 +459,7 @@ class ModDatabase:
                 if rejected_by_value
                 else "nothing that can spawn here produces this text"
             )
-            return _with_note(replace(blank, local=local), reason), ()
+            return _with_note(replace(blank, local=local), reason), (), frozenset()
 
         if not survivors:
             # Context narrows; it never eliminates. If every candidate writes a line
@@ -394,13 +467,19 @@ class ModDatabase:
             # database missed a sentence, not that the mod is impossible — so the
             # unfiltered answer is given back rather than an "unknown" that is more
             # confident about its own ignorance than the evidence supports.
-            return _with_note(
+            unfiltered = _with_note(
                 self._decide(blank, loose, base, text_index, local),
                 "every candidate also writes a line this item does not show; "
                 "attributed without that check",
-            ), tuple(loose)
+            )
+            return unfiltered, tuple(loose), frozenset()
 
-        return self._decide(blank, survivors, base, text_index, local), tuple(survivors)
+        decided = self._decide(blank, survivors, base, text_index, local)
+        return (
+            decided,
+            tuple(survivors),
+            self._summed_sides(decided, placeable, text_index, values, alongside),
+        )
 
     def report(self, item: ItemMods) -> ModReport:
         base = self.base(item.base_type)
@@ -409,9 +488,14 @@ class ModDatabase:
         # ruled in or out: a mod that writes two lines must find both of them here.
         present: dict[Origin, set[int]] = {}
         for origin, text in lines:
-            found = self._lookup(denominate(text)[0])
-            if found is not None:
-                present.setdefault(origin, set()).add(found)
+            # Every spelling the line could be filed under, not just the first that
+            # exists. A negative roll has two, they are the same sentence, and the
+            # hybrid check is a subset test — recording only one of them would rule
+            # out a hybrid because it wrote its line the other way round.
+            for normalized, _values in readings(text):
+                found = self._lookup(normalized)
+                if found is not None:
+                    present.setdefault(origin, set()).add(found)
         resolved = [
             self._resolve(
                 text,
@@ -423,11 +507,9 @@ class ModDatabase:
             )
             for origin, text in lines
         ]
-        matches = tuple(match for match, _survivors in resolved)
-
         affix_lines = [
             (origin, match, survivors)
-            for (origin, _text), (match, survivors) in zip(lines, resolved, strict=True)
+            for (origin, _text), (match, survivors, _sides) in zip(lines, resolved, strict=True)
             if origin.is_affix
         ]
         prefixes, suffixes, unattributed, hybrids, uncertain = self._count(affix_lines)
@@ -435,6 +517,22 @@ class ModDatabase:
         max_prefixes, max_suffixes = MAX_AFFIXES.get(item.rarity.lower(), (3, 3))
         if base is not None and base.item_class in _JEWEL_CLASSES and item.rarity.lower() == "rare":
             max_prefixes = max_suffixes = 2
+
+        # A two-affix reading of a line costs one more slot than the one-affix
+        # reading, and the game only has six. Asked per line the sum is nearly always
+        # *conceivable*; asked against what the rest of the item has already spent it
+        # is often impossible, and an item with no free prefix cannot be hiding a
+        # second prefix inside a displayed total. Counted from the same numbers
+        # `ModReport.open_prefixes` publishes, so the refusal and the open-affix
+        # filter can never disagree about how full the item is.
+        free = {
+            Affix.PREFIX: max(0, max_prefixes - prefixes - unattributed),
+            Affix.SUFFIX: max(0, max_suffixes - suffixes - unattributed),
+        }
+        matches = tuple(
+            _as_summed(match) if any(free[side] for side in sides) else match
+            for match, _survivors, sides in resolved
+        )
 
         return ModReport(
             base=base,
@@ -467,7 +565,7 @@ class ModDatabase:
         origin: Origin = Origin.EXPLICIT,
         local: bool | None = None,
     ) -> str | None:
-        index = self._lookup(denominate(text)[0])
+        index, _normalized, _values = self._reading(text)
         if index is None:
             return None
         found = self._trade_local.get(index) if local else self._trade.get(index)
@@ -496,7 +594,7 @@ class ModDatabase:
         return f"{wanted}.{ids[rank]}"
 
     def game_stat_ids(self, text: str) -> tuple[str, ...]:
-        index = self._lookup(denominate(text)[0])
+        index, _normalized, _values = self._reading(text)
         if index is None:
             return ()
         return self._game_stats.get(index, ())
@@ -640,6 +738,81 @@ class ModDatabase:
             essence_only=mod.essence,
         )
 
+    def _summed_sides(
+        self,
+        match: ModMatch,
+        placeable: Sequence[int],
+        text_index: int,
+        values: Sequence[tuple[float, float]],
+        alongside: frozenset[int] | None,
+    ) -> frozenset[Affix]:
+        """Which **extra affix slot** a two-affix reading of this line would need.
+
+        Path of Exile does not print a line per affix; it prints a line per *stat*.
+        Two affixes granting the same stat are added together before the tooltip is
+        drawn, and the number on screen is then a roll no single mod ever made. Phase
+        9b measured 2 of 104 lines on the live-rare fixture like this — ``+161 to
+        Evasion Rating`` on a Grizzly Pelt is a P2 hybrid plus a P3 prefix — and the
+        failure was not the miss but the **confidence**: asked about the sum this file
+        found the one tier whose range contains 161, answered ``T1 of 8``, and the
+        panel pre-ticked it as a top-tier roll.
+
+        Empty means no two-affix reading exists. A non-empty result is a *question*,
+        answered by :meth:`report` against the item's remaining affix slots, because
+        the constraint that settles it is a whole-item fact and not a per-line one.
+
+        Four conditions, each a fact rather than a preference:
+
+        * **Different groups.** An item cannot carry two affixes of the same group, so
+          a pair drawn from one group is not a reading the game could have produced.
+        * **Both fully written.** Every *other* sentence each mod would have had to
+          write is on the item — the same ``alongside`` deduction that fixes hybrids
+          everywhere else in this file. It is also why this returns nothing at all
+          without item context: :meth:`identify` on a bare sentence has no way to know
+          whether the hybrid's other line is there, and a database that answered
+          "possibly summed" to every question would be refusing to read the game.
+        * **The arithmetic works**, slot by slot: the displayed number lies inside
+          ``(low_a + low_b, high_a + high_b)``.
+        * **The pair contains the single reading's own side**, so the difference
+          between the two readings is exactly one more affix, and this can name which
+          side it would have to come from.
+
+        Note what is *not* required: that no single mod fits. A number two readings
+        both explain is uncertain whichever is likelier, and preferring the likelier
+        one is the habit this module exists in order not to have.
+        """
+        single = match.affix
+        if alongside is None or not values or single is None:
+            return frozenset()
+        candidates: list[tuple[_Mod, tuple[tuple[float, float], ...]]] = []
+        for index in placeable:
+            mod = self._mods[index]
+            if not {t for t, _s in mod.lines} <= alongside:
+                continue
+            slots = _slots_for(mod, text_index)
+            if len(slots) != len(values):
+                continue
+            candidates.append((mod, slots))
+
+        needed: set[Affix] = set()
+        for position, (first, first_slots) in enumerate(candidates):
+            for second, second_slots in candidates[position + 1 :]:
+                if first.group == second.group:
+                    continue
+                if not all(
+                    low_a + low_b <= rolled <= high_a + high_b
+                    for (low_a, high_a), (low_b, high_b), (rolled, _same) in zip(
+                        first_slots, second_slots, values, strict=True
+                    )
+                ):
+                    continue
+                sides = [_side(first), _side(second)]
+                if single not in sides:
+                    continue
+                sides.remove(single)
+                needed.add(sides[0])
+        return frozenset(needed)
+
     def _decide(
         self,
         blank: ModMatch,
@@ -724,6 +897,21 @@ class ModDatabase:
                     break
         return seen.pop() if len(seen) == 1 else None
 
+    def _reading(self, text: str) -> tuple[int | None, str, tuple[tuple[float, float], ...]]:
+        """The vocabulary's index for a line, and the reading that found it.
+
+        A line whose value is negative has two spellings and only the artifact knows
+        which one it was built with; :func:`readings` offers both and this takes the
+        first that exists. When neither does, the first reading is returned so the
+        ``unknown`` note still quotes the sentence the way it was written.
+        """
+        options = readings(text)
+        for normalized, values in options:
+            found = self._lookup(normalized)
+            if found is not None:
+                return found, normalized, values
+        return None, options[0][0], options[0][1]
+
     def _lookup(self, normalized: str) -> int | None:
         """The text's index, with a case-insensitive fallback.
 
@@ -746,8 +934,14 @@ class ModDatabase:
         not against what this tier can do. Restricted to the same pool, because a
         Shaper-only tier is not something an ordinary rare could have rolled and
         comparing against it would make every normal roll look mediocre.
+
+        **"Best" is not "largest."** ``-9 to Total Mana Cost of Skills`` is a better
+        roll than ``-4``, so on a ladder whose reachable values are negative the
+        ceiling is the *minimum*. Taking the maximum there returned the worst tier in
+        the game and called it the thing to measure against — a ceiling that makes a
+        top roll look like 44% of what was available.
         """
-        best: float | None = None
+        reachable: list[tuple[float, float]] = []
         for mod in self._mods:
             if mod.group != exemplar.group or mod.domain != exemplar.domain:
                 continue
@@ -756,12 +950,13 @@ class ModDatabase:
             if base is not None and not self._spawns(mod, base):
                 continue
             slots = _slots_for(mod, text_index)
-            if not slots:
-                continue
-            high = slots[0][1]
-            if best is None or high > best:
-                best = high
-        return best
+            if slots:
+                reachable.append(slots[0])
+        if not reachable:
+            return None
+        if all(high <= 0 for _low, high in reachable):
+            return min(low for low, _high in reachable)
+        return max(high for _low, high in reachable)
 
     def _count(
         self, affix_lines: Sequence[tuple[Origin, ModMatch, tuple[int, ...]]]
@@ -837,17 +1032,28 @@ class _Ladder:
         return self.levels.get(level, self.size)
 
 
-def _read_mod(record: Sequence[Any], arity: Sequence[int]) -> _Mod:
-    """One mod record, with its ``[text, lo, hi, lo, hi, text, ...]`` line list undone."""
+def _read_mod(
+    record: Sequence[Any], arity: Sequence[int], negated: Sequence[Sequence[bool]]
+) -> _Mod:
+    """One mod record, with its ``[text, lo, hi, lo, hi, text, ...]`` line list undone.
+
+    ``negated`` turns the artifact's units into the item's. A sentence that spells its
+    own minus (``-# to Total Mana Cost of Skills``) stores ``(4, 9)`` and means
+    ``(-9, -4)``, and every question this module answers — does the roll fit, what is
+    the best this base reaches, which way is good — is asked about the number on the
+    tooltip. Flipping once on load is what stops each of those from having to know.
+    """
     flat = record[7]
     lines: list[tuple[int, tuple[tuple[float, float], ...]]] = []
     position = 0
     while position < len(flat):
         text_index = int(flat[position])
         position += 1
+        signs = negated[text_index]
         slots: list[tuple[float, float]] = []
-        for _ in range(arity[text_index]):
-            slots.append((float(flat[position]), float(flat[position + 1])))
+        for slot in range(arity[text_index]):
+            low, high = float(flat[position]), float(flat[position + 1])
+            slots.append((-high, -low) if slot < len(signs) and signs[slot] else (low, high))
             position += 2
         lines.append((text_index, tuple(slots)))
     return _Mod(
@@ -883,6 +1089,34 @@ def _fits(mod: _Mod, text_index: int, values: Sequence[tuple[float, float]]) -> 
         if not (low <= rolled <= high):
             return False
     return True
+
+
+def _side(mod: _Mod) -> Affix:
+    return Affix.PREFIX if mod.affix == 0 else Affix.SUFFIX
+
+
+SUMMED_NOTE = (
+    "two affixes could have been added into this one displayed line and the item has "
+    "a free slot for the second, so the number on screen may be a roll no single mod "
+    "made"
+)
+"""Why a tier was withheld from a line that reads like one affix.
+
+Named so the panel, the CLI and a test can agree about which refusal happened without
+matching on prose. See :meth:`ModDatabase._summed_sides`."""
+
+
+def _as_summed(match: ModMatch) -> ModMatch:
+    """Withdraw the tier claim from a line the game may have summed.
+
+    The candidates stay: which *groups* can write this sentence here is still known,
+    and :attr:`ModMatch.affix` is still unanimous, so the open-affix counts and the
+    prefix/suffix label survive intact. Only the tier — the one number that would be
+    read off a ladder the roll may never have been on — is withdrawn.
+    """
+    if not match.attribution.is_confident:
+        return match
+    return replace(match, attribution=Attribution.AMBIGUOUS, ceiling=None, note=SUMMED_NOTE)
 
 
 def _with_note(match: ModMatch, note: str) -> ModMatch:

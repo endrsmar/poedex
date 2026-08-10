@@ -242,11 +242,18 @@ is asking about items *like this one*, which is the ``+82``-and-up band, not the
 
 
 def widened_floor(value: float, widen: float = DEFAULT_WIDEN) -> float:
-    """A measured roll, dropped ``widen`` below itself. ``103 → 82``.
+    """A measured roll, relaxed ``widen`` towards worse. ``103 → 82``, ``-9 → -7.2``.
 
     Mirrors :func:`modules.prices.backend.trade.widened` rather than importing it:
     `appraisal` may import `prices`' **api** and nothing else, and a four-line
     arithmetic helper is not worth widening that surface for.
+
+    The arithmetic is the same in both directions — a roll multiplied by 0.8 is 20%
+    worse whichever way its ladder runs. What is *not* the same is the comparison it
+    goes into, and :attr:`ModOption.higher_is_better` decides that: ``82`` is a ``min``
+    and ``-7.2`` is a ``max``. Phase 9b measured the cost of not knowing — ``min:
+    -7.2`` excludes the ``-9`` item the filter was built from, and matches every worse
+    one.
     """
     floor = value * (1.0 - widen)
     return float(math.floor(floor)) if floor >= 1 else round(floor, 2)
@@ -407,6 +414,13 @@ class ModOption:
     influences: tuple[str, ...] = ()
     preticked: bool = False
 
+    higher_is_better: bool = True
+    """Which way is good for this mod — `moddb`'s :attr:`ModMatch.higher_is_better`.
+
+    On the wire, unlike ``local``, because it changes what the row *says*: a panel
+    printing "searches ≥ -7.2" for a ``-9`` mana-cost roll is describing a filter for
+    strictly worse items, and no frontend can work that out from the sentence."""
+
     local: bool | None = None
     """Which reading of the sentence this line is — `moddb`'s :attr:`ModMatch.local`.
 
@@ -429,8 +443,28 @@ class ModOption:
 
     @property
     def suggested_minimum(self) -> float | None:
-        """The ``min`` a tick on this row should search for. Never the exact roll."""
-        return None if self.value is None else widened_floor(self.value)
+        """The ``min`` a tick on this row should search for. Never the exact roll.
+
+        ``None`` on a row where lower is better — there the floor is a *ceiling* and
+        lives on :attr:`suggested_maximum`. Exactly one of the two is ever set, so a
+        surface that reads both can render ``≥`` or ``≤`` without having to know why.
+        """
+        if self.value is None or not self.higher_is_better:
+            return None
+        return widened_floor(self.value)
+
+    @property
+    def suggested_maximum(self) -> float | None:
+        """The ``max`` a tick searches for where **lower** is the better roll.
+
+        ``-9 to Total Mana Cost of Skills`` searches ``max: -7.2``, which is the set of
+        items whose mana cost reduction is at least as good — and which contains the
+        item the filter came from. The ``min: -7.2`` it used to send contained
+        everything *except* it.
+        """
+        if self.value is None or self.higher_is_better:
+            return None
+        return widened_floor(self.value)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -448,7 +482,9 @@ class ModOption:
             "influences": list(self.influences),
             "preticked": self.preticked,
             "tradeable": self.tradeable,
+            "higher_is_better": self.higher_is_better,
             "suggested_minimum": self.suggested_minimum,
+            "suggested_maximum": self.suggested_maximum,
         }
 
 
@@ -593,8 +629,11 @@ class Selection:
 
         Three rules, each of them a fix for something that went wrong live:
 
-        * A ticked roll becomes ``min = roll * (1 - widen)``, never the exact value.
-          Exact matching is what returned zero listings on two of three rares.
+        * A ticked roll becomes ``roll * (1 - widen)``, never the exact value. Exact
+          matching is what returned zero listings on two of three rares. Whether that
+          number is a ``min`` or a ``max`` comes from the **mod**, not from the code:
+          ``ModOption.higher_is_better`` is `moddb`'s reading of which way its ladder
+          runs, and on the ten-odd negative gear sentences it runs the other way.
         * A ticked line with no number becomes a presence filter, because that is all
           there is to claim about it.
         * A line the **live** stat index cannot resolve is dropped downstream, by
@@ -608,13 +647,14 @@ class Selection:
             option = by_index.get(index)
             if option is None:
                 continue
-            minimum = (
+            widened = (
                 widened_floor(option.value, self.widen) if option.value is not None else None
             )
             focus.append(
                 ModFocus(
                     text=option.text,
-                    minimum=minimum,
+                    minimum=widened if option.higher_is_better else None,
+                    maximum=None if option.higher_is_better else widened,
                     label=option.text,
                     origin=option.origin,
                     # Which of the two ids this sentence has. `moddb` decided it from
