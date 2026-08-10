@@ -26,6 +26,7 @@ and the default-character lookup has usually just made the call.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, ClassVar
@@ -33,6 +34,7 @@ from typing import Any, ClassVar
 from modules.credentials.backend.api import CredentialsApi, CredentialState
 from modules.net.backend.api import AuthRejected, HttpStatusError, NetApi, NetError, RateLimited
 from modules.poeapi.backend.api import (
+    CHARACTER_ENV,
     CHARACTERS_PATH,
     ITEMS_PATH,
     STASH_PATH,
@@ -157,6 +159,17 @@ class PoeApiModule:
                 "description": (
                     "Required by get-items. Falls back to the name stored with the "
                     "credential; set it here to override."
+                ),
+            },
+            "character": {
+                "type": "str",
+                "default": "",
+                "label": "Character",
+                "description": (
+                    "Which character to read. Leave empty to follow whoever you "
+                    "played most recently, which is usually what you want. Set it "
+                    "to pin a surface that has no way to ask — the web page reads "
+                    "this, since a browser tab cannot pass a flag."
                 ),
             },
             "characters_ttl_seconds": {
@@ -415,18 +428,24 @@ class PoeApiModule:
         The roster is handed back rather than re-fetched by the caller so that
         resolving *both* the default character and its league costs the one
         ``get-characters`` call — the tightest endpoint on the account.
+
+        Precedence: explicit argument, then ``POEDEX_CHARACTER`` (one process,
+        set by a flag), then the persisted ``poeapi.character`` setting, then
+        whoever was played most recently. A named character short-circuits the
+        roster fetch entirely; only the fallback needs it.
         """
         if explicit and explicit.strip():
             return explicit.strip(), None
+        chosen = os.environ.get(CHARACTER_ENV) or str(self._setting("character", ""))
+        if chosen.strip():
+            return chosen.strip(), None
         roster = await self.get_characters()
         current = roster.current()
         if current is None:
             raise PoeApiError("the account has no characters in any league")
         return current.name, roster
 
-    async def _character_league(
-        self, name: str, roster: CharacterList | None
-    ) -> str | None:
+    async def _character_league(self, name: str, roster: CharacterList | None) -> str | None:
         """The league ``name`` is playing in, or ``None`` if it cannot be had.
 
         Not an error: a bag is still a bag without its league, and the honest

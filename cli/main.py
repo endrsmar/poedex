@@ -47,7 +47,7 @@ from modules.gamelog.backend.api import (
     GameLogApi,
     GameLogStatus,
 )
-from modules.poeapi.backend.api import PoeApi
+from modules.poeapi.backend.api import CHARACTER_ENV, PoeApi
 from modules.prices.backend.api import PricesApi
 from runtime.errors import PoedexError
 from runtime.events import Event
@@ -170,9 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     value.add_argument("--character", help="character name (default: most recently played)")
-    value.add_argument(
-        "--force", action="store_true", help="ignore the inventory cache TTL"
-    )
+    value.add_argument("--force", action="store_true", help="ignore the inventory cache TTL")
     value.add_argument(
         "--refresh-prices",
         action="store_true",
@@ -250,6 +248,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("--port", type=int, default=DEFAULT_PORT, help="TCP port (default 7331)")
     serve.add_argument(
+        "--character",
+        default=None,
+        help=(
+            "read this character instead of whoever you played most recently. "
+            "Applies to this run only; set poeapi.character to make it stick"
+        ),
+    )
+    serve.add_argument(
         "--host",
         default="127.0.0.1",
         # Accepted so the refusal is reachable and testable, never advertised.
@@ -279,9 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_INTERVAL,
         help=f"seconds between polls (minimum {MIN_INTERVAL:.0f})",
     )
-    freshness.add_argument(
-        "--seconds", type=float, default=DEFAULT_SECONDS, help="how long to run"
-    )
+    freshness.add_argument("--seconds", type=float, default=DEFAULT_SECONDS, help="how long to run")
     return parser
 
 
@@ -436,6 +440,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     runner: Command
     if args.command == "auth":
         if args.auth_command == "set":
+
             async def runner(registry: Registry) -> int:
                 return await cmd_auth_set(registry, args.account)
         elif args.auth_command == "status":
@@ -453,6 +458,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.gamelog_command == "status":
             runner = cmd_gamelog_status
         else:
+
             async def runner(registry: Registry) -> int:
                 return await cmd_gamelog_watch(registry, args.seconds)
     elif args.command == "sync":
@@ -497,11 +503,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "limits":
         runner = cmd_limits
     elif args.command == "serve":
+        # Set before _with_runtime builds the registry: poeapi reads it at resolve
+        # time, and a flag must not persist into the user's settings file.
+        if args.character:
+            os.environ[CHARACTER_ENV] = args.character
 
         async def runner(registry: Registry) -> int:
-            return await cmd_serve(
-                registry, host=args.host, port=args.port, static_dir=args.static
-            )
+            return await cmd_serve(registry, host=args.host, port=args.port, static_dir=args.static)
 
     elif args.command == "selftest":
 

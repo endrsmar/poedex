@@ -33,8 +33,18 @@ from modules.poeapi.backend.models import (
 )
 from runtime.errors import PoedexError
 
+CHARACTER_ENV = "POEDEX_CHARACTER"
+"""Which character to read, for the lifetime of one process.
+
+A surface may set this; :meth:`_character` consults it after an explicit argument
+and before the persisted setting. It exists for the same reason
+``POEDEX_GAMELOG_PATH`` does: ``serve --character`` must not rewrite the user's
+settings file just because they wanted to look at a different character once.
+"""
+
 __all__ = [
     "CHARACTERS_PATH",
+    "CHARACTER_ENV",
     "ITEMS_PATH",
     "STASH_PATH",
     "SYNC_COMPLETE",
