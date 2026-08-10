@@ -178,8 +178,10 @@ def _mount_spa(app: FastAPI, static_dir: Path | str | None) -> None:
                     "kind": "NoBuild",
                     "message": (
                         "the web surface has not been built — run 'pnpm install && "
-                        "pnpm build', or use 'poedex serve --dev' with the Vite dev "
-                        "server on :5173"
+                        "pnpm build' from the repo root, then start 'poedex serve' "
+                        "again. To iterate on the frontend instead, run 'pnpm dev' "
+                        "in one terminal and 'poedex serve' in another: Vite serves "
+                        "the UI on :5173 and proxies /api to this server."
                     ),
                     "retry_after": None,
                 },
