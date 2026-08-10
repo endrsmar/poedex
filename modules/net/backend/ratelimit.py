@@ -46,16 +46,20 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 
 from modules.net.backend.api import LimitSnapshot
 from runtime.log import get_logger
 
 __all__ = [
+    "COURTESY_RULE",
+    "DEFAULT_COURTESY_MAX_HITS",
+    "DEFAULT_COURTESY_PERIOD",
     "Bucket",
     "Decision",
     "LimitSpec",
+    "Policy",
     "RateLimiter",
     "StateSpec",
     "margin_for",
@@ -88,6 +92,19 @@ SEED_PERIOD = 10
 # world is wrong, so we back off harder than the header asks.
 BACKOFF_BASE = 5.0
 BACKOFF_CAP = 900.0
+
+# A host that publishes no `X-Rate-Limit-*` headers gets a fixed courtesy budget
+# instead. poe.ninja is the case that forced this: it asks for politeness in prose
+# ("be reasonable with concurrency and volume") and states nothing machine-readable,
+# so there is nothing to learn and the seed budget — one request per ten seconds —
+# would stretch a sixteen-table prefetch across three minutes for no reason.
+#
+# 40 per minute is sized to fit two full sixteen-table passes with headroom, which is
+# the worst honest burst: a prefetch at start followed by a user asking for a forced
+# refresh. Steady state is one pass per thirty minutes.
+DEFAULT_COURTESY_MAX_HITS = 40
+DEFAULT_COURTESY_PERIOD = 60
+COURTESY_RULE = "courtesy"
 
 
 def margin_for(max_hits: int) -> int:
@@ -336,6 +353,9 @@ class RateLimiter:
         # record that, a `Retry-After: 300` would only hold us back for the length of
         # the seed window.
         self._route_blocks: dict[str, tuple[float, str]] = {}
+        # Routes on a budget we chose, which no response header may move. See
+        # `declare_budget`.
+        self._pinned: set[str] = set()
 
     # -- introspection ---------------------------------------------------------
 
@@ -345,6 +365,47 @@ class RateLimiter:
     def policy_for(self, route: str) -> Policy | None:
         name = self.routes.get(route)
         return self.policies.get(name) if name else None
+
+    def declare_budget(
+        self,
+        name: str,
+        routes: Iterable[str],
+        *,
+        max_hits: int = DEFAULT_COURTESY_MAX_HITS,
+        period: int = DEFAULT_COURTESY_PERIOD,
+    ) -> Policy:
+        """Give ``routes`` a fixed local budget under a policy we invented ourselves.
+
+        For hosts that publish no rate-limit headers. The policy is a first-class
+        :class:`Policy`, so everything else — ``check``, ``record_request``, 429
+        backoff, ``snapshots`` — works on it unchanged, and crucially it is a
+        *separate* policy: a third-party host can neither spend GGG's budget nor be
+        held back by a GGG restriction.
+
+        Idempotent, and **pinned**: a declared route stays on this policy whatever
+        arrives in a response header. That is not paranoia for its own sake. Route
+        mapping is normally learned from ``X-Rate-Limit-Policy``, so without the pin
+        a third-party host that happened to send ``backend-item-request-limit`` would
+        be merged into GGG's buckets — inheriting a budget that is not its own, and
+        able to push our count of GGG's budget wherever it liked.
+        """
+        policy = self.policies.get(name)
+        if policy is None:
+            policy = Policy(name=name)
+            self.policies[name] = policy
+        # margin=0: the number is ours, not a server's, so there is nothing to keep a
+        # safety margin below. Politeness is expressed by picking a small max_hits.
+        policy.bucket(
+            COURTESY_RULE,
+            LimitSpec(max_hits=max_hits, period=period),
+            pad=self.pad,
+            margin=0,
+        )
+        for route in routes:
+            self.routes[route] = name
+            self._pinned.add(route)
+            self._seeds.pop(route, None)
+        return policy
 
     def seed_bucket(self, route: str) -> Bucket:
         bucket = self._seeds.get(route)
@@ -470,6 +531,11 @@ class RateLimiter:
         get = _header_reader(headers)
 
         policy_name = (get(POLICY_HEADER) or "").strip()
+        if route in self._pinned:
+            # A pinned route is on a budget we chose. Nothing a foreign host claims
+            # about rate-limit policies applies to it — but a 429 or a 5xx from it
+            # still backs its own policy off, below.
+            policy_name = ""
         policy: Policy | None = None
         if policy_name:
             policy = self.policies.get(policy_name)

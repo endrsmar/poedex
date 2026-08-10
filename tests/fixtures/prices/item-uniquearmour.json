@@ -1,0 +1,86 @@
+{
+ "lines": [
+  {
+   "id": 1388,
+   "name": "Tabula Rasa",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQXJtb3Vycy9Cb2R5QXJtb3Vycy9UYWJ1bGFSYXNhIiwidyI6MiwiaCI6Mywic2NhbGUiOjF9XQ/3bdbff0756/TabulaRasa.png",
+   "baseType": "Simple Robe",
+   "links": 6,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -16,
+    "data": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     -16
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "itemType": "Body Armour",
+   "chaosValue": 4.2,
+   "exaltedValue": 0.3,
+   "count": 98,
+   "detailsId": "tabula-rasa-simple-robe-6l",
+   "listingCount": 837
+  },
+  {
+   "id": 575,
+   "name": "Goldrim",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQXJtb3Vycy9IZWxtZXRzL0hlbG1ldERleFVuaXF1ZTIiLCJ3IjoyLCJoIjoyLCJzY2FsZSI6MX1d/7f4908ef2f/HelmetDexUnique2.png",
+   "baseType": "Leather Cap",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -75,
+    "data": [
+     0,
+     -25,
+     -25,
+     -50,
+     -50,
+     -50,
+     -75
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "+(30-50) to Evasion Rating",
+     "optional": false
+    },
+    {
+     "text": "10% increased Rarity of Items found",
+     "optional": false
+    },
+    {
+     "text": "+(30-40)% to all Elemental Resistances",
+     "optional": false
+    },
+    {
+     "text": "Reflects 4 Physical Damage to Melee Attackers",
+     "optional": false
+    }
+   ],
+   "flavourText": "No metal slips as easily through the fingers as gold.",
+   "itemType": "Helmet",
+   "chaosValue": 1.0,
+   "exaltedValue": 0.07,
+   "count": 119,
+   "detailsId": "goldrim-leather-cap",
+   "listingCount": 778
+  }
+ ]
+}

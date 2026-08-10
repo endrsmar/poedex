@@ -1,0 +1,510 @@
+{
+ "lines": [
+  {
+   "id": 936,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZEFsdCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/680986c215/PillaroftheCagedGodAlt.png",
+   "levelRequired": 18,
+   "baseType": "Long Staff",
+   "links": 6,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 0,
+    "data": []
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(12-18)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    },
+    {
+     "text": "+12% Chance to Block Attack Damage",
+     "optional": false
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "(10-16)% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 718160,
+   "exaltedValue": 50468,
+   "divineValue": 800.0,
+   "count": 1,
+   "detailsId": "pillar-of-the-caged-god-long-staff-6l",
+   "listingCount": 1
+  },
+  {
+   "id": 935,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZEFsdCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/680986c215/PillaroftheCagedGodAlt.png",
+   "levelRequired": 18,
+   "baseType": "Long Staff",
+   "links": 5,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 0,
+    "data": []
+   },
+   "implicitModifiers": [
+    {
+     "text": "+12% Chance to Block Attack Damage",
+     "optional": false
+    },
+    {
+     "text": "+(12-20)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "16% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 627492,
+   "exaltedValue": 44096,
+   "divineValue": 699.0,
+   "count": 1,
+   "detailsId": "pillar-of-the-caged-god-long-staff-5l",
+   "listingCount": 4
+  },
+  {
+   "id": 21664,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/0451281624/PillaroftheCagedGod.png",
+   "levelRequired": 13,
+   "baseType": "Iron Staff",
+   "links": 6,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 0,
+    "data": []
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage",
+     "optional": false
+    },
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "(16-18)% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 2065,
+   "exaltedValue": 145.1,
+   "divineValue": 2.3,
+   "count": 2,
+   "detailsId": "pillar-of-the-caged-god-iron-staff-6l",
+   "listingCount": 14
+  },
+  {
+   "id": 1003,
+   "name": "Quill Rain",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9Cb3dzL0JvdzJ1bmlxdWUiLCJ3IjoyLCJoIjozLCJzY2FsZSI6MX1d/5c5cad82e8/Bow2unique.png",
+   "levelRequired": 5,
+   "baseType": "Short Bow",
+   "links": 6,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -49.03,
+    "data": [
+     0,
+     -4.38,
+     -4.55,
+     -1.7,
+     -9.41,
+     -53.19,
+     -49.03
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "+(10-20) to Dexterity",
+     "optional": false
+    },
+    {
+     "text": "100% increased Physical Damage",
+     "optional": true
+    },
+    {
+     "text": "(100-115)% increased Attack Speed",
+     "optional": false
+    },
+    {
+     "text": "+2 Mana gained for each Enemy hit by Attacks",
+     "optional": true
+    },
+    {
+     "text": "Gain 2 Mana per Enemy Hit with Attacks",
+     "optional": true
+    },
+    {
+     "text": "Grants 2 Mana per Enemy Hit",
+     "optional": true
+    },
+    {
+     "text": "(50-110)% increased Projectile Speed",
+     "optional": false
+    },
+    {
+     "text": "+(25-50) to Accuracy Rating",
+     "optional": false
+    },
+    {
+     "text": "(30-50)% less Damage",
+     "optional": false
+    }
+   ],
+   "flavourText": "\"The rain of a thousand quills that whittle\npresent into past, life into death.\"\n- Rigwald of the Ezomytes",
+   "itemType": "Bow",
+   "chaosValue": 1795,
+   "exaltedValue": 126.2,
+   "divineValue": 2.0,
+   "count": 14,
+   "detailsId": "quill-rain-short-bow-6l",
+   "listingCount": 49
+  },
+  {
+   "id": 934,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/0451281624/PillaroftheCagedGod.png",
+   "levelRequired": 18,
+   "baseType": "Long Staff",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -80.7,
+    "data": [
+     0,
+     -19.37,
+     -67.33,
+     -85.07,
+     -67.78,
+     -68.29,
+     -80.7
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(12-20)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    },
+    {
+     "text": "+(12-20)% Chance to Block Attack Damage",
+     "optional": false
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "(10-16)% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 339.3,
+   "exaltedValue": 23.84,
+   "divineValue": 0.38,
+   "count": 30,
+   "detailsId": "pillar-of-the-caged-god-long-staff",
+   "listingCount": 105
+  },
+  {
+   "id": 21709,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/0451281624/PillaroftheCagedGod.png",
+   "levelRequired": 13,
+   "baseType": "Iron Staff",
+   "links": 5,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 19,
+    "data": [
+     0,
+     0,
+     19,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage",
+     "optional": false
+    },
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "16% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 50.0,
+   "exaltedValue": 3.51,
+   "divineValue": 0.06,
+   "count": 1,
+   "detailsId": "pillar-of-the-caged-god-iron-staff-5l",
+   "listingCount": 18
+  },
+  {
+   "id": 1002,
+   "name": "Quill Rain",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9Cb3dzL0JvdzJ1bmlxdWUiLCJ3IjoyLCJoIjozLCJzY2FsZSI6MX1d/5c5cad82e8/Bow2unique.png",
+   "levelRequired": 5,
+   "baseType": "Short Bow",
+   "links": 5,
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -14.04,
+    "data": [
+     0,
+     -12.28,
+     -12.28,
+     -12.28,
+     -12.28,
+     -12.28,
+     -14.04
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "+(10-20) to Dexterity",
+     "optional": false
+    },
+    {
+     "text": "100% increased Physical Damage",
+     "optional": true
+    },
+    {
+     "text": "(100-115)% increased Attack Speed",
+     "optional": false
+    },
+    {
+     "text": "+2 Mana gained for each Enemy hit by Attacks",
+     "optional": true
+    },
+    {
+     "text": "Gain 2 Mana per Enemy Hit with Attacks",
+     "optional": true
+    },
+    {
+     "text": "Grants 2 Mana per Enemy Hit",
+     "optional": true
+    },
+    {
+     "text": "(50-105)% increased Projectile Speed",
+     "optional": false
+    },
+    {
+     "text": "+(25-50) to Accuracy Rating",
+     "optional": false
+    },
+    {
+     "text": "(30-50)% less Damage",
+     "optional": false
+    }
+   ],
+   "flavourText": "\"The rain of a thousand quills that whittle\npresent into past, life into death.\"\n- Rigwald of the Ezomytes",
+   "itemType": "Bow",
+   "chaosValue": 24.5,
+   "exaltedValue": 1.72,
+   "divineValue": 0.03,
+   "count": 10,
+   "detailsId": "quill-rain-short-bow-5l",
+   "listingCount": 56
+  },
+  {
+   "id": 1001,
+   "name": "Quill Rain",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9Cb3dzL0JvdzJ1bmlxdWUiLCJ3IjoyLCJoIjozLCJzY2FsZSI6MX1d/5c5cad82e8/Bow2unique.png",
+   "levelRequired": 5,
+   "baseType": "Short Bow",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -11.89,
+    "data": [
+     0,
+     -6.61,
+     -11.89,
+     -11.89,
+     -11.89,
+     -11.89,
+     -11.89
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "+(10-20) to Dexterity",
+     "optional": false
+    },
+    {
+     "text": "(100-115)% increased Physical Damage",
+     "optional": true
+    },
+    {
+     "text": "(100-115)% increased Attack Speed",
+     "optional": false
+    },
+    {
+     "text": "+2 Mana gained for each Enemy hit by Attacks",
+     "optional": true
+    },
+    {
+     "text": "Gain 2 Mana per Enemy Hit with Attacks",
+     "optional": true
+    },
+    {
+     "text": "Grants 2 Mana per Enemy Hit",
+     "optional": true
+    },
+    {
+     "text": "(50-110)% increased Projectile Speed",
+     "optional": false
+    },
+    {
+     "text": "+(25-50) to Accuracy Rating",
+     "optional": false
+    },
+    {
+     "text": "(30-50)% less Damage",
+     "optional": false
+    }
+   ],
+   "flavourText": "\"The rain of a thousand quills that whittle\npresent into past, life into death.\"\n- Rigwald of the Ezomytes",
+   "itemType": "Bow",
+   "chaosValue": 2.0,
+   "exaltedValue": 0.14,
+   "count": 93,
+   "detailsId": "quill-rain-short-bow",
+   "listingCount": 411
+  },
+  {
+   "id": 21514,
+   "name": "Pillar of the Caged God",
+   "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9ucy9Ud29IYW5kV2VhcG9ucy9TdGF2ZXMvUGlsbGFyb2Z0aGVDYWdlZEdvZCIsInciOjIsImgiOjQsInNjYWxlIjoxfV0/0451281624/PillaroftheCagedGod.png",
+   "levelRequired": 13,
+   "baseType": "Iron Staff",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": -4,
+    "data": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     -4
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage while wielding a Staff",
+     "optional": true
+    },
+    {
+     "text": "+(18-20)% Chance to Block Attack Damage",
+     "optional": false
+    },
+    {
+     "text": "Item sells for much more to vendors",
+     "optional": true
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "1% increased Area of Effect per 20 Intelligence",
+     "optional": false
+    },
+    {
+     "text": "1% increased Attack Speed per 10 Dexterity",
+     "optional": false
+    },
+    {
+     "text": "16% increased Physical Weapon Damage per 10 Strength",
+     "optional": false
+    }
+   ],
+   "flavourText": "Forged to rule the waves and tide\nDestined to serve the monkey's paw\nStrong as a tower of iron\nDeft as the needle doubt",
+   "itemType": "Staff",
+   "chaosValue": 0.96,
+   "exaltedValue": 0.07,
+   "count": 56,
+   "detailsId": "pillar-of-the-caged-god-iron-staff",
+   "listingCount": 469
+  }
+ ]
+}

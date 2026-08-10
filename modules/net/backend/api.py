@@ -118,6 +118,24 @@ class Response:
     def text(self) -> str:
         return self.content.decode("utf-8", errors="replace")
 
+    @property
+    def not_modified(self) -> bool:
+        """``304``: the caller's ``If-None-Match`` matched and there is no body.
+
+        A success, not an error — which is why it is a property here rather than an
+        exception. A conditional request that costs nothing is the whole point of
+        holding an ETag, and a caller that cannot tell "unchanged" from "failed"
+        would throw its cached copy away every half hour.
+        """
+        return self.status == 304
+
+    @property
+    def etag(self) -> str | None:
+        for key, value in self.headers.items():
+            if key.lower() == "etag" and value:
+                return value
+        return None
+
     def json(self) -> Any:
         import json as _json
 
@@ -167,23 +185,49 @@ class NetApi(Protocol):
         """The exact ``User-Agent`` sent. GGG requires contact details in it."""
         ...
 
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        json: Any = None,
+        headers: Mapping[str, str] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Response:
+        """Send one request, or raise :class:`RateLimited` rather than queue.
+
+        ``path`` may be an **absolute URL**, which is how a module reaches a host
+        other than the PoE API — poe.ninja, say. Two guarantees hold for those:
+
+        * the session credential is **never** attached to a foreign host, whatever
+          ``authenticated`` says (SPEC §8 — POESESSID is a full-account credential);
+        * a foreign host gets rate-limit buckets of its own, keyed by hostname, so
+          it can never spend GGG's budget or be blocked by GGG's restrictions.
+
+        ``route`` names the rate-limit route this request belongs to; it defaults to
+        ``path``. Two paths that the server governs with the same policy converge on
+        the same buckets automatically once the policy name has been learned, so the
+        only thing ``route`` does is decide which budget applies *before* the first
+        response teaches us anything.
+
+        A ``304`` is returned, not raised: see :attr:`Response.not_modified`.
+        """
+        ...
+
     async def get(
         self,
         path: str,
         *,
         params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
         authenticated: bool = True,
         route: str | None = None,
         timeout: float | None = None,
     ) -> Response:
-        """Perform a GET, or raise :class:`RateLimited` rather than queue.
-
-        ``route`` names the rate-limit route this request belongs to; it defaults to
-        ``path``. Two paths that the server governs with the same policy converge on
-        the same buckets automatically once the policy name has been learned, so the
-        only thing ``route`` does is decide which seed budget applies *before* the
-        first response teaches us anything.
-        """
+        """:meth:`request` with ``GET``."""
         ...
 
     async def get_json(
@@ -196,6 +240,24 @@ class NetApi(Protocol):
         timeout: float | None = None,
     ) -> Any:
         """:meth:`get`, decoded. Raises :class:`NetError` if the body is not JSON."""
+        ...
+
+    async def post_json(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: Mapping[str, Any] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        """POST a JSON body and decode the JSON answer.
+
+        Exists for exactly one caller shape: the official trade search, which is a
+        POST (SPEC §5.3). Kept as narrow as that — there is no general-purpose body
+        or content-type parameter.
+        """
         ...
 
     def limits(self) -> list[LimitSnapshot]:

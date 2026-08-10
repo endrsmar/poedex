@@ -1,0 +1,107 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "dawn",
+   "primaryValue": 1.8,
+   "volumePrimaryValue": 299.2,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 500,
+   "sparkline": {
+    "totalChange": -46.0,
+    "data": [
+     0,
+     0,
+     8.0,
+     8.0,
+     2.96,
+     8.0,
+     -46.0
+    ]
+   }
+  },
+  {
+   "id": "dusk",
+   "primaryValue": 1.8,
+   "volumePrimaryValue": 448.8,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 499.3,
+   "sparkline": {
+    "totalChange": -49.93,
+    "data": [
+     0,
+     0,
+     1.21,
+     1.82,
+     16.32,
+     23.15,
+     -49.93
+    ]
+   }
+  },
+  {
+   "id": "divine-vessel",
+   "primaryValue": 1,
+   "volumePrimaryValue": 1.67,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 1,
+   "sparkline": {
+    "totalChange": -45.45,
+    "data": [
+     0,
+     -44.81,
+     -57.58,
+     -51.52,
+     -55.45,
+     -50.67,
+     -45.45
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "dawn",
+   "name": "Sacrifice at Dawn",
+   "image": "/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9WYWFsMDIiLCJzY2FsZSI6MX1d/3516d95235/Vaal02.png",
+   "category": "Fragments",
+   "detailsId": "sacrifice-at-dawn"
+  },
+  {
+   "id": "dusk",
+   "name": "Sacrifice at Dusk",
+   "image": "/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9WYWFsMDQiLCJzY2FsZSI6MX1d/3be8311430/Vaal04.png",
+   "category": "Fragments",
+   "detailsId": "sacrifice-at-dusk"
+  },
+  {
+   "id": "divine-vessel",
+   "name": "Divine Vessel",
+   "image": "/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9TaW5GbGFza0VtcHR5Iiwic2NhbGUiOjF9XQ/3a2d49608a/SinFlaskEmpty.png",
+   "category": "Fragments",
+   "detailsId": "divine-vessel"
+  }
+ ]
+}

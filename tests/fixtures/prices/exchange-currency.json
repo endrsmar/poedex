@@ -1,0 +1,263 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "divine",
+   "primaryValue": 897.7,
+   "volumePrimaryValue": 99342,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 0.001114,
+   "sparkline": {
+    "totalChange": -8.54,
+    "data": [
+     -8.99,
+     -14.91,
+     -12.72,
+     -11.87,
+     -14.22,
+     -15.32,
+     -8.54
+    ]
+   }
+  },
+  {
+   "id": "chaos",
+   "primaryValue": 1,
+   "volumePrimaryValue": 99342,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 897.7,
+   "sparkline": {
+    "totalChange": 9.32,
+    "data": [
+     9.91,
+     17.52,
+     14.72,
+     13.51,
+     16.78,
+     18.14,
+     9.32
+    ]
+   }
+  },
+  {
+   "id": "vaal",
+   "primaryValue": 3.02,
+   "volumePrimaryValue": 3142,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 297.6,
+   "sparkline": {
+    "totalChange": -8.81,
+    "data": [
+     -9.27,
+     -12.32,
+     44.32,
+     43.88,
+     18.03,
+     -19.11,
+     -8.81
+    ]
+   }
+  },
+  {
+   "id": "alch",
+   "primaryValue": 0.0025,
+   "volumePrimaryValue": 0.5,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 400,
+   "sparkline": {
+    "totalChange": 240.1,
+    "data": [
+     45340,
+     51.16,
+     144.9,
+     345.0,
+     262.2,
+     229.0,
+     240.1
+    ]
+   }
+  },
+  {
+   "id": "stacked-deck",
+   "primaryValue": 21.32,
+   "volumePrimaryValue": 104728,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 42.11,
+   "sparkline": {
+    "totalChange": 1.23,
+    "data": [
+     2.99,
+     2.53,
+     3.72,
+     1.25,
+     1.0,
+     0.46,
+     1.23
+    ]
+   }
+  },
+  {
+   "id": "mirror",
+   "primaryValue": 1387737,
+   "volumePrimaryValue": 10176737,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 0.0006469,
+   "sparkline": {
+    "totalChange": -2.02,
+    "data": [
+     -1.2,
+     0.22,
+     -0.62,
+     -0.75,
+     -0.43,
+     -0.54,
+     -2.02
+    ]
+   }
+  },
+  {
+   "id": "fusing",
+   "primaryValue": 0.8153,
+   "volumePrimaryValue": 1047,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 1101,
+   "sparkline": {
+    "totalChange": 11.64,
+    "data": [
+     13.27,
+     -15.84,
+     -3.5,
+     -8.04,
+     -15.57,
+     -18.36,
+     11.64
+    ]
+   }
+  },
+  {
+   "id": "jewellers",
+   "primaryValue": 0.01025,
+   "volumePrimaryValue": 24.0,
+   "maxVolumeCurrency": "chaos",
+   "maxVolumeRate": 97.54,
+   "sparkline": {
+    "totalChange": -84.17,
+    "data": [
+     -35.77,
+     16.73,
+     -26.09,
+     -35.65,
+     -7.57,
+     -28.81,
+     -84.17
+    ]
+   }
+  },
+  {
+   "id": "exalted",
+   "primaryValue": 14.23,
+   "volumePrimaryValue": 10922,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 63.1,
+   "sparkline": {
+    "totalChange": 30.41,
+    "data": [
+     -2.82,
+     4.46,
+     1.57,
+     1.41,
+     12.8,
+     23.79,
+     30.41
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "divine",
+   "name": "Divine Orb",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+   "category": "Currency",
+   "detailsId": "divine-orb"
+  },
+  {
+   "id": "chaos",
+   "name": "Chaos Orb",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+   "category": "Currency",
+   "detailsId": "chaos-orb"
+  },
+  {
+   "id": "vaal",
+   "name": "Vaal Orb",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lWYWFsIiwic2NhbGUiOjF9XQ/593fe2e22e/CurrencyVaal.png",
+   "category": "Currency",
+   "detailsId": "vaal-orb"
+  },
+  {
+   "id": "alch",
+   "name": "Orb of Alchemy",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lVcGdyYWRlVG9SYXJlIiwic2NhbGUiOjF9XQ/0c72cd1d44/CurrencyUpgradeToRare.png",
+   "category": "Currency",
+   "detailsId": "orb-of-alchemy"
+  },
+  {
+   "id": "stacked-deck",
+   "name": "Stacked Deck",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5hdGlvbi9EZWNrIiwic2NhbGUiOjF9XQ/8e83aea79a/Deck.png",
+   "category": "Currency",
+   "detailsId": "stacked-deck"
+  },
+  {
+   "id": "mirror",
+   "name": "Mirror of Kalandra",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lEdXBsaWNhdGUiLCJzY2FsZSI6MX1d/8d7fea29d1/CurrencyDuplicate.png",
+   "category": "Currency",
+   "detailsId": "mirror-of-kalandra"
+  },
+  {
+   "id": "fusing",
+   "name": "Orb of Fusing",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxTb2NrZXRMaW5rcyIsInNjYWxlIjoxfV0/c5e1959880/CurrencyRerollSocketLinks.png",
+   "category": "Currency",
+   "detailsId": "orb-of-fusing"
+  },
+  {
+   "id": "jewellers",
+   "name": "Jeweller's Orb",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxTb2NrZXROdW1iZXJzIiwic2NhbGUiOjF9XQ/ba411ff58a/CurrencyRerollSocketNumbers.png",
+   "category": "Currency",
+   "detailsId": "jewellers-orb"
+  },
+  {
+   "id": "exalted",
+   "name": "Exalted Orb",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lBZGRNb2RUb1JhcmUiLCJzY2FsZSI6MX1d/33f2656aea/CurrencyAddModToRare.png",
+   "category": "Currency",
+   "detailsId": "exalted-orb"
+  }
+ ]
+}

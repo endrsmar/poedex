@@ -1,0 +1,104 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "house-of-mirrors",
+   "primaryValue": 186900,
+   "volumePrimaryValue": 2429694,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 0.004803,
+   "sparkline": {
+    "totalChange": -8.33,
+    "data": [
+     -3.91,
+     -5.64,
+     -3.94,
+     -3.26,
+     -3.53,
+     -7.51,
+     -8.33
+    ]
+   }
+  },
+  {
+   "id": "the-apothecary",
+   "primaryValue": 38749,
+   "volumePrimaryValue": 38749,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 0.02317,
+   "sparkline": {
+    "totalChange": 9.35,
+    "data": [
+     1.06,
+     -12.31,
+     -2.43,
+     -2.05,
+     -0.99,
+     4.05,
+     9.35
+    ]
+   }
+  },
+  {
+   "id": "choking-guilt",
+   "primaryValue": 9874,
+   "volumePrimaryValue": 1646,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 0.09091,
+   "sparkline": {
+    "totalChange": 120,
+    "data": [
+     0,
+     0,
+     null,
+     -10.0,
+     null,
+     null,
+     120
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "house-of-mirrors",
+   "name": "House of Mirrors",
+   "category": "Cards",
+   "detailsId": "house-of-mirrors"
+  },
+  {
+   "id": "the-apothecary",
+   "name": "The Apothecary",
+   "category": "Cards",
+   "detailsId": "the-apothecary"
+  },
+  {
+   "id": "choking-guilt",
+   "name": "Choking Guilt",
+   "category": "Cards",
+   "detailsId": "choking-guilt"
+  }
+ ]
+}

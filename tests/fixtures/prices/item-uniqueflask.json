@@ -1,0 +1,183 @@
+{
+ "lines": [
+  {
+   "id": 20932,
+   "name": "Bottled Faith",
+   "icon": "https://web.poecdn.com/gen/image/WzksMTQseyJmIjoiMkRJdGVtcy9GbGFza3MvQm90dGxlZFB1cml0eSIsInciOjEsImgiOjIsInNjYWxlIjoxLCJsZXZlbCI6MSwicmVsaWMiOjd9XQ/6ab33411b9/BottledPurity.png",
+   "levelRequired": 27,
+   "baseType": "Sulphur Flask",
+   "itemClass": 10,
+   "sparkLine": {
+    "totalChange": 1.93,
+    "data": [
+     0,
+     -4.38,
+     -4.55,
+     -1.7,
+     -6.05,
+     -6.3,
+     1.93
+    ]
+   },
+   "implicitModifiers": [
+    {
+     "text": "Creates Consecrated Ground on Use",
+     "optional": false
+    }
+   ],
+   "explicitModifiers": [
+    {
+     "text": "(20-50)% increased Duration",
+     "optional": true
+    },
+    {
+     "text": "(15-30)% reduced Duration",
+     "optional": true
+    },
+    {
+     "text": "Consecrated Ground created by this Flask has Tripled Radius",
+     "optional": false
+    },
+    {
+     "text": "+(1-2)% to Critical Strike Chance against Enemies on Consecrated Ground during Effect",
+     "optional": true
+    },
+    {
+     "text": "Consecrated Ground created during Effect applies (7-10)% increased Damage taken to Enemies",
+     "optional": false
+    },
+    {
+     "text": "(100-150)% increased Critical Strike Chance against Enemies on Consecrated Ground during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "(100-150)% increased Critical Strike Chance against Enemies on Consecrated Ground during Effect",
+     "optional": true
+    }
+   ],
+   "flavourText": "A tourniquet for the soul, squeezing ethereal into physical.",
+   "itemType": "Utility Flask",
+   "chaosValue": 1795,
+   "exaltedValue": 126.2,
+   "divineValue": 2.0,
+   "count": 213,
+   "detailsId": "bottled-faith",
+   "listingCount": 2225
+  },
+  {
+   "id": 1073,
+   "name": "Rumi's Concoction",
+   "icon": "https://web.poecdn.com/gen/image/WzksMTQseyJmIjoiMkRJdGVtcy9GbGFza3MvQmxvY2tGbGFzayIsInciOjEsImgiOjIsInNjYWxlIjoxLCJsZXZlbCI6MX1d/3bc27f19d5/BlockFlask.png",
+   "levelRequired": 68,
+   "baseType": "Granite Flask",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 3.33,
+    "data": [
+     0,
+     -33.33,
+     -33.33,
+     -33.33,
+     0,
+     -3.33,
+     3.33
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "+(8-40)% Chance to Block Attack Damage during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "+(8-40)% Chance to Block Attack Damage during Effect",
+     "optional": false
+    },
+    {
+     "text": "+(4-20)% Chance to Block Spell Damage during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "+(4-20)% Chance to Block Spell Damage during Effect",
+     "optional": false
+    }
+   ],
+   "flavourText": "\"Yesterday I was clever, so I wanted to change the world.\nToday I am wise, so I am changing myself.\"\n-Rumi of the Vaal",
+   "itemType": "Utility Flask",
+   "chaosValue": 15.5,
+   "exaltedValue": 1.09,
+   "divineValue": 0.02,
+   "count": 224,
+   "detailsId": "rumis-concoction",
+   "listingCount": 1605
+  },
+  {
+   "id": 424,
+   "name": "Divination Distillate",
+   "icon": "https://web.poecdn.com/gen/image/WzksMTQseyJmIjoiMkRJdGVtcy9GbGFza3MveUZsYXNrczE3IiwidyI6MSwiaCI6Miwic2NhbGUiOjEsImxldmVsIjoxfV0/df28fc612b/yFlasks17.png",
+   "levelRequired": 30,
+   "baseType": "Large Hybrid Flask",
+   "itemClass": 3,
+   "sparkLine": {
+    "totalChange": 0,
+    "data": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "explicitModifiers": [
+    {
+     "text": "+(4-6)% to all maximum Elemental Resistances during Effect",
+     "optional": true
+    },
+    {
+     "text": "(8-25)% increased Quantity of Items found during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "(8-25)% increased Quantity of Items found during Effect",
+     "optional": true
+    },
+    {
+     "text": "(20-60)% increased Rarity of Items found during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "(20-60)% increased Rarity of Items found during Effect",
+     "optional": false
+    },
+    {
+     "text": "+50% to Elemental Resistances during Flask Effect",
+     "optional": true
+    },
+    {
+     "text": "+(4-6)% to all maximum Elemental Resistances during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "25% increased Light Radius during Flask effect",
+     "optional": true
+    },
+    {
+     "text": "25% increased Light Radius during Effect",
+     "optional": false
+    },
+    {
+     "text": "+(10-50)% to Elemental Resistances during Effect",
+     "optional": true
+    }
+   ],
+   "flavourText": "Knowledge is fermented in pain and loss\nDistilled with reflection\nTo quench the thirst of those\nwho dream of enlightenment",
+   "itemType": "Hybrid Flask",
+   "chaosValue": 1.0,
+   "exaltedValue": 0.07,
+   "count": 220,
+   "detailsId": "divination-distillate",
+   "listingCount": 2061
+  }
+ ]
+}

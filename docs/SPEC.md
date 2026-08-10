@@ -264,18 +264,45 @@ Free with every fetch. Use as a value fallback *and* as a comparison signal (§6
 
 ### 5.1 Tier 1 — bulk price table
 
-poe.ninja. **The legacy `/api/data/currencyoverview` paths now 404** — current routes are
-`/{poe1|poe2}/api/economy/{exchange|stash}/current/...`.
+poe.ninja. **The legacy `/api/data/currencyoverview` paths now 404.** Routes measured
+2026-08-10 and cross-checked against poe.ninja's own API reference (`/docs/api`) — the league
+and category are **query parameters**, and the path ends in `/overview`:
+
+| Purpose | Route |
+|---|---|
+| Economy leagues | `GET /poe1/api/economy/leagues` |
+| Exchange overview | `GET /poe1/api/economy/exchange/current/overview?league={l}&type={t}` |
+| Stash item overview | `GET /poe1/api/economy/stash/current/item/overview?league={l}&type={t}` |
 
 Covers currency, fragments, scarabs, fossils, essences, oils, delirium orbs, incubators, maps,
 divination cards, uniques. Lookup by name (+ tier/corruption for maps, links/variant for uniques).
+Divination cards are on the **exchange** overview, not the item one.
 
-Cache 30 min with ETag conditional requests — poe.ninja serves `max-age=1800` and refreshes
-roughly every 15 min. Prefetch at plugin load, never on a button press. Costs zero GGG budget.
+**Two shapes, one unit.** Exchange lines are keyed by an opaque `id` — which is also the trade id
+a `~price N divine` note uses — with names in a sibling `items[]` array and values in
+`core.primary`, i.e. chaos. Item lines carry `name`/`baseType`/`chaosValue` inline. A third
+endpoint, the *stash currency* overview, quotes a materially different `chaosEquivalent`
+(Divine Orb 618c against the exchange's 898c on the same day) and is **not used**: the item
+overviews' `chaosValue/divineValue` ratio matches the exchange rate exactly, so the exchange is
+the unit everything else is denominated in. See research-notes §9.2.
+
+Cache 30 min with ETag conditional requests — poe.ninja serves `max-age=1800` (confirmed on the
+wire; their docs page's "roughly 5 minutes" is wrong) and refreshes roughly every 15 min. The
+ETag is weak and unquoted (`W/<hex>`) and must be echoed verbatim. Prefetch at plugin load, never
+on a button press. Costs zero GGG budget — a different host gets its own rate-limit bucket.
 
 **Sum by quantity, not by item.** `Jeweller's Orb ×2615` and `Divine Orb ×5` are both one row.
 
 **Deduplicate before pricing.** Twenty identical flasks are one price lookup fanned out.
+
+**One name is often many lines.** `Map (Tier 16)` is listed once per map series (13 lines, 1c to
+898c) and `Pillar of the Caged God` once per base type × link count (6 lines, 0.96c to 718,160c).
+Match on base type, links and corruption; break ties on **listing count**, because liquidity
+picks the current series without the code needing to know what a series is.
+
+⚠️ poe.ninja asks that desktop apps proxy these calls through their own backend. PoEDex has none
+and cannot comply; the mitigations behind that request — caching, conditional requests, a
+contactable User-Agent, controlled volume — are all in place. research-notes §9.4.
 
 ### 5.2 Tier 2 — local heuristic gate, strictness-parameterized
 
@@ -306,7 +333,13 @@ per-item `pricing…` state that never gates the grid; display the bag total as 
 tier-3 items are outstanding.
 
 Trade limits are separate from the item bucket: `trade-search-request-limit`
-`5:10:60, 15:60:300, 30:300:1800, 600:21600:3600`.
+`5:10:60, 15:60:300, 30:300:1800, 600:21600:3600`. Both trade policies are **Ip-ruled only**,
+with no Account rule — the endpoints need no credential, and sending one would tie a public
+query to the account for nothing. Re-measured 2026-08-10, unchanged. `/api/trade/data/stats`
+carries no rate-limit headers at all and a `max-age=1799`.
+
+⚠️ Listings carry third-party PII: `account.name`, `lastCharacterName`, and a `whisper` string
+containing the seller's character name. Never log a raw listing.
 
 ### 5.4 Verdict model
 

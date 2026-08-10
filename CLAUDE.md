@@ -14,10 +14,12 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2 and 6 done.** `runtime/` (registry, context, events, storage, settings, methods,
+**Phases 1, 2, 3 and 6 done.** `runtime/` (registry, context, events, storage, settings, methods,
 redacting log); core modules `credentials`, `net` (header-driven limiter + httpx), `poeapi`
-(endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); a `poedex` CLI; and the
-boundary tests. Next action is **Phase 3** (`prices`, the first feature module).
+(endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); the first **feature**
+module `prices` (poe.ninja bulk tables, tier-0 notes, an on-demand trade client); a `poedex` CLI;
+and the boundary tests, which from Phase 3 have a real feature module to enforce the core→feature
+rule against. Next action is **Phase 4** (`appraisal`).
 
 **Nothing here has run against the live API, a real Client.txt, or a Deck.** Two things need a
 human and would close most of the open risk:
@@ -36,6 +38,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/pytest        # everything offline
 .venv/bin/ruff check .
 poedex sync             # normalized bag; spends real rate-limit budget
+poedex value            # the bag, priced. one GGG request; poe.ninja is free
 poedex limits           # what the limiter has learned
 ```
 
@@ -75,7 +78,12 @@ sustained rate-limit violations.
 - **One item-endpoint request per 18 seconds, sustained.** `get-items` and `get-stash-items`
   share that bucket; trade endpoints do not. Never poll on a timer.
 - **Never hardcode rate limits.** Parse `X-Rate-Limit-*`; policies differ between authenticated
-  and anonymous on the same endpoint.
+  and anonymous on the same endpoint. A host that sends none — poe.ninja — gets a fixed courtesy
+  budget keyed by hostname, pinned so no response header can merge it into GGG's buckets.
+- **poe.ninja's routes moved and will move again.** They are measured in research-notes §9, not
+  guessed, and the operator states there is no stability guarantee. Re-measure before debugging.
+- **`unpriceable` is never zero.** A removed item absent from the price index is a hole in the
+  total, and reporting it as worthless understates the bag badly (SPEC §5.4).
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.

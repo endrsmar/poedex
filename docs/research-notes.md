@@ -3,7 +3,8 @@
 Evidence behind [`SPEC.md`](SPEC.md), kept so the reasoning does not have to be rediscovered and
 so rejected approaches stay rejected for stated reasons.
 
-Sessions: feasibility 2026-08-09; five parallel research streams 2026-08-09/10.
+Sessions: feasibility 2026-08-09; five parallel research streams 2026-08-09/10;
+poe.ninja and trade endpoints measured 2026-08-10 (§9, §10).
 
 ---
 
@@ -329,3 +330,178 @@ is representative rather than fetched. Bag contents, verdict model, and grid pos
 Note: the mockup's Option B assumed the web app is summoned via the Steam overlay browser.
 `SteamClient.Overlay` turns out to be observe-only, so that entry path was never real. Moot —
 the UI is the Decky panel, and the local renderer is now only a dev harness.
+
+---
+
+## 9. poe.ninja — measured, and the spec was half right
+
+**Measured 2026-08-10** by request, against the live site, and cross-checked against
+poe.ninja's own published API reference at <https://poe.ninja/docs/api> — which exists,
+is linked from the site footer, and nobody in this project had found before.
+
+### 9.1 The routes
+
+SPEC §5.1 said the legacy paths 404 and that current routes look like
+`/{poe1|poe2}/api/economy/{exchange|stash}/current/...`. The 404 is confirmed
+(`/api/data/currencyoverview` and `/api/data/itemoverview` both return `404` with a
+nine-byte `text/plain` body). The shape of the replacement was close but not usable as
+written: the real paths end in `/overview`, and the league and category are **query
+parameters**, not path segments.
+
+| Purpose | Route |
+|---|---|
+| Economy leagues | `GET /poe1/api/economy/leagues` |
+| Exchange overview | `GET /poe1/api/economy/exchange/current/overview?league={l}&type={t}` |
+| Stash item overview | `GET /poe1/api/economy/stash/current/item/overview?league={l}&type={t}` |
+| Stash currency overview | `GET /poe1/api/economy/stash/current/currency/overview?league={l}&type={t}` |
+
+`/poe1/api/economy/exchange/current/Standard/Currency` — the spec's implied form —
+returns `404` with an empty body. SPEC §5.1 has been corrected.
+
+The league list is `[{id, name}]`, current challenge league first:
+`Allflame`, `Hardcore Allflame`, `Standard`, `Hardcore`.
+
+### 9.2 Two shapes, and only one of them agrees with the other
+
+**Exchange overview** — currency-exchange pricing. `lines[]` carry an opaque `id`, a
+`primaryValue`, and a volume; names live in a sibling top-level `items[]` array, and
+`core.primary` names the unit (`chaos` for PoE 1). Types accepted (all verified 200):
+`Currency Fragment Runegraft AllflameEmber Tattoo Omen DjinnCoin Ducat
+EnshroudingCrystal DivinationCard Artifact Oil DeliriumOrb Scarab Astrolabe Fossil
+Resonator Essence`.
+
+**Stash item overview** — `lines[]` with `name`, `baseType`, `chaosValue`,
+`divineValue`, and, where relevant, `links`, `variant`, `corrupted`. Types accepted:
+`Wombgift Incubator UniqueWeapon UniqueArmour UniqueAccessory UniqueFlask UniqueJewel
+ForbiddenJewel ShrineBelt UniqueTincture UniqueRelic SkillGem ImbuedGem ClusterJewel
+Map BlightedMap BlightRavagedMap UniqueMap ValdoMap Invitation Memory IncursionTemple
+BaseType Flask Beast Vial`. Note that `DivinationCard` is **not** one of them — cards
+moved to the exchange overview, and asking the item overview for them is a 404.
+
+**Stash currency overview** — the legacy shape, `currencyTypeName` +
+`chaosEquivalent`. `Currency` and `Fragment` are documented; `Scarab` also answers 200
+undocumented.
+
+**They disagree, and the disagreement matters.** Standard, same minute:
+
+| | exchange `primaryValue` | stash currency `chaosEquivalent` |
+|---|---|---|
+| Divine Orb | 897.7 | 618.2 |
+| Exalted Orb | 14.23 | 29.15 |
+| Mirror of Kalandra | 1,387,737 | 919,819 |
+| Jeweller's Orb | 0.01025 | 0.11 |
+
+Which is canonical is decidable rather than a matter of taste: **every** stash item
+line's `chaosValue / divineValue` equals the *exchange* Divine Orb rate. Standard
+897.7 (n=531 lines, median ratio 897.7); Allflame 209.0 against an exchange rate of
+209.0 and a stash-currency rate of 196.6. So the item overviews are denominated in
+exchange chaos, and mixing in the stash currency overview would put two different
+chaoses in one total. `prices` uses the exchange overview for everything the exchange
+covers and ignores the stash currency overview entirely.
+
+### 9.3 Caching — the spec's number is right, the docs' is not
+
+Live response headers on every overview:
+
+```
+cache-control: public, max-age=1800, stale-while-revalidate=300, stale-if-error=86400
+etag: W/59c2bf736b708b3d773c5985cdb3375e
+```
+
+SPEC §5.1's `max-age=1800` is confirmed. poe.ninja's own docs page says "roughly 5
+minutes", which the wire contradicts; the docs also say PoE 1 overviews refresh about
+every 15 minutes, which is consistent with a 30-minute TTL being generous rather than
+stale. Conditional requests work: `If-None-Match` with the weak ETag returns `304` and
+zero bytes. Note the ETag is `W/<hex>` — weak, and **without quotes**, which is not
+what RFC 9110 specifies. It has to be echoed back verbatim rather than re-quoted.
+
+### 9.4 What poe.ninja asks for, and where we do not comply
+
+From the docs page, verbatim-ish:
+
+- "Responses are HTTP-cached (roughly 5 minutes, ETag-based). Use conditional requests
+  and respect the cache headers; do not bypass caching." — done.
+- "Polling faster than a few minutes wastes bandwidth for no fresher data." — done;
+  30-minute TTL, prefetch at start, never on a user action.
+- "Send a descriptive User-Agent that identifies your app and a contact." — done; the
+  same `net` User-Agent GGG requires.
+- "Be reasonable with concurrency and volume." — one connection, serialised through
+  the limiter, 16 requests per refresh.
+- ⚠️ **"Desktop apps and other clients should proxy these requests through their own
+  backend rather than calling the endpoints directly from end-user machines."** — we
+  do **not** comply, and cannot: PoEDex has no backend, by design. This is a stated
+  preference rather than a prohibition ("should"), and the mitigations they give the
+  reason for — caching, a proper User-Agent, controlled volume — are all in place. But
+  it is a real divergence from what the operator asked for, and if this project ever
+  grows a hosted component the tables belong behind it.
+- The **builds / profiles API is explicitly closed** to third parties, with AI-assisted
+  development named as a reason the request volume has risen. We use none of it. Do not
+  add a build-import feature on the back of these endpoints.
+
+There is no stability guarantee: "This API exists to run the poe.ninja website, not as
+a product… breaking changes can happen without notice." The 404 that opened this
+section is that promise being kept. Expect to re-measure.
+
+### 9.5 Consequences for the pricing model
+
+- **Category is not a lookup key.** Scarabs, fossils, essences, oils, delirium orbs and
+  incubators are all `frameType: 5` and all sit under `2DItems/Currency`, so
+  `normalize.py` calls all of them `currency`. Routing has to be an *ordered
+  preference* with a fall-through to every table, not a dictionary.
+- **Maps are indexed by tier, not by name.** poe.ninja lists ordinary maps as
+  `Map (Tier 16)` and names only special ones (`Drox Map (Tier 16)`). The item's
+  `Map Tier` property is therefore load-bearing, which is why `NormalizedItem` gained a
+  `map_tier` field in this phase.
+- **`mapTier` and `corrupted` are documented but mostly absent.** No map line in either
+  league carries `mapTier`; no unique-weapon line carries `corrupted`. Skill gems do
+  carry `corrupted` (4,663 of 7,509 Allflame lines). Both are read when present.
+- **One name, many lines.** `Map (Tier 16)` appears 13 times in Standard, once per map
+  series, spanning 1c to 898c; `Pillar of the Caged God` appears 6 times (two base
+  types × three link counts) spanning 0.96c to 718,160c. Picking wrong is a
+  750,000-fold error. `prices` scores on base type, links and corruption, then breaks
+  ties on **listing count** — liquidity selects the current map series without anything
+  in the code knowing what a map series is.
+- **Skill gems are not prefetched.** One 360 kB table, 7,509 lines, and correct pricing
+  needs level/quality/corruption matching this phase does not do. An unpriced gem is
+  honest; a gem priced as the wrong variant is not.
+
+---
+
+## 10. Official trade API — measured
+
+**Measured 2026-08-10**, anonymous, no credential needed.
+
+`GET /api/trade/data/stats` → `{result: [14 groups]}`
+(`pseudo explicit implicit imbued fractured enchant scourge crafted mercenary veiled
+delve ultimatum sanctum crucible`), 409 kB, `cache-control: public, max-age=1799`, and
+**no `X-Rate-Limit-*` headers at all**. Entries are `{id, text, type}` with ids like
+`pseudo.pseudo_total_cold_resistance`. Item mod text has to be normalized to the
+document's form (numbers → `#`) before it will match.
+
+`POST /api/trade/search/{league}` → `{id, complexity, result: [hash…], total}`.
+Headers, verbatim:
+
+```
+x-rate-limit-policy: trade-search-request-limit
+x-rate-limit-rules:  Ip
+x-rate-limit-ip:     5:10:60,15:60:300,30:300:1800,600:21600:3600
+```
+
+`GET /api/trade/fetch/{ids}?query={id}` → `{result: [{id, listing, item}]}`, max 10 ids.
+
+```
+x-rate-limit-policy: trade-fetch-request-limit
+x-rate-limit-ip:     12:4:10,16:12:300,50:300:300,1000:21600:1800
+```
+
+Both match SPEC §5.3 and research-notes §3 exactly, and both are **Ip-ruled only** —
+no Account rule, consistent with them needing no credential. Confirms the structural
+claim that trade and the item endpoints cannot starve each other.
+
+`listing.account.online` is present only for online sellers, and the search's own
+`status: online` filter is not sufficient — sellers go offline between the index and
+the fetch, so the filter is applied again after fetching.
+
+⚠️ **Listings carry third-party PII**: `account.name`, `lastCharacterName`, `language`,
+and a `whisper` string containing the seller's character name. The recorded fixture is
+scrubbed; anything that logs a raw listing would not be.

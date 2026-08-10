@@ -303,10 +303,22 @@ Run the **60-second freshness self-test** (SPEC §4.3); record results and the v
 
 **Done:** `poedex sync` prints the normalized bag. All tests run offline.
 
-### Phase 3 — `prices`
-poe.ninja bulk tables on the current `/poe1/api/economy/...` routes, ETag conditional requests,
-30-minute cache, prefetched at start. Trade client wired against its own bucket, not called
-eagerly. `PricesApi` published.
+### Phase 3 — `prices` — **done**
+poe.ninja bulk tables on the routes measured in research-notes §9 (`/poe1/api/economy/
+{exchange|stash}/current/.../overview?league=&type=`), ETag conditional requests, 30-minute
+cache, prefetched at start. Trade client wired against its own bucket, not called eagerly.
+`PricesApi` published.
+
+The first `kind: "feature"` module, which is what makes the core→feature rule falsifiable: the
+boundary tests now run the static checker over a copy of the real tree with `poeapi` edited to
+depend on `prices`, and assemble the real registry with a core module that requires it.
+
+`requires` is `["net", "poeapi"]`, not the `["poeapi"]` of §1.3's diagram. The diagram describes
+data flow; poe.ninja and the trade endpoints are not account endpoints, so `poeapi` neither
+fetches nor should fetch them, and §4 forbids a module opening its own socket. `net` grew what
+that needs: absolute URLs, POST, request headers, `304` as a success, a per-hostname courtesy
+budget for hosts that publish no rate-limit headers, and a hard rule that the account credential
+never leaves the PoE API host.
 
 **Done:** `poedex value` prints per-item values and a total.
 
@@ -363,6 +375,9 @@ navigation.
 | `full` profile before `compact` | Reaches a usable surface sooner; contracts designed for both up front |
 | No module versioning yet | Ids only. Add semver if third-party modules ever land |
 | Standard league, 20c threshold, port 7331 | Configurable; 7331 avoids Decky's 1337 |
+| `prices` requires `net` as well as `poeapi` | It fetches two non-account hosts; §4 forbids opening a socket outside `net`, and a passthrough on `PoeApi` would be a hole in the rule that protects the account |
+| Third-party hosts get a per-hostname bucket in `net` | Structural rather than requested: a feature module cannot accidentally spend GGG's budget, and it needs no configuration call to avoid doing so |
+| Chaos is the only unit inside `prices` | poe.ninja's item overviews are denominated in exchange chaos (measured); carrying two denominations makes every sum a conversion bug waiting to happen |
 | Stash deferred | Prototype is bag-only; the digest reuses `prices` and the strict gate |
 
 ---

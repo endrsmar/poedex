@@ -34,7 +34,12 @@ from modules.net.backend.api import (
     RateLimited,
     Response,
 )
-from modules.net.backend.ratelimit import Decision, RateLimiter
+from modules.net.backend.ratelimit import (
+    DEFAULT_COURTESY_MAX_HITS,
+    DEFAULT_COURTESY_PERIOD,
+    Decision,
+    RateLimiter,
+)
 from runtime.log import get_logger, install_redaction, silence_noisy_loggers
 from runtime.secrets import redact, register_secret
 
@@ -101,12 +106,17 @@ class NetClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         transport: httpx.AsyncBaseTransport | None = None,
+        foreign_max_hits: int = DEFAULT_COURTESY_MAX_HITS,
+        foreign_period: int = DEFAULT_COURTESY_PERIOD,
     ) -> None:
         self._limiter = limiter
         self._user_agent = user_agent
         self._credentials = credentials
         self._base_url = base_url.rstrip("/")
+        self._host = httpx.URL(self._base_url).host
         self._timeout = timeout
+        self._foreign_max_hits = foreign_max_hits
+        self._foreign_period = foreign_period
         # A single connection is plenty: the limiter refuses concurrency long before
         # the pool would, and one connection keeps our footprint honest.
         self._client = httpx.AsyncClient(
@@ -144,22 +154,42 @@ class NetClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def get(
+    async def request(
         self,
+        method: str,
         path: str,
         *,
         params: Mapping[str, Any] | None = None,
+        json: Any = None,
+        headers: Mapping[str, str] | None = None,
         authenticated: bool = True,
         route: str | None = None,
         timeout: float | None = None,
     ) -> Response:
         route = route or path
-        headers = {}
-        if authenticated:
+        foreign_host = self._foreign_host(path)
+        request_headers = {str(k): str(v) for k, v in (headers or {}).items()}
+        if authenticated and foreign_host is None:
             cookie = await self._cookie()
             if cookie is None:
                 raise AuthRejected(401, path, "no credential stored")
-            headers["Cookie"] = cookie
+            request_headers["Cookie"] = cookie
+        elif authenticated:
+            # Not an error, and deliberately not silent either: a caller that asked
+            # for authentication against another host has a bug, and the useful
+            # outcome is the request going out *without* the account credential.
+            _log.warning(
+                "dropping the session credential: %s is not %s", foreign_host, self._host
+            )
+        if foreign_host is not None:
+            # Its own policy, keyed by hostname. Nothing this host does can move a
+            # GGG bucket, and nothing GGG does can hold this host back.
+            self._limiter.declare_budget(
+                f"host:{foreign_host}",
+                [route],
+                max_hits=self._foreign_max_hits,
+                period=self._foreign_period,
+            )
 
         async with self._lock:
             decision = self._limiter.check(route)
@@ -174,14 +204,16 @@ class NetClient:
             self._limiter.record_request(route)
             started = time.monotonic()
             try:
-                raw = await self._client.get(
+                raw = await self._client.request(
+                    method.upper(),
                     path,
                     params=dict(params) if params else None,
-                    headers=headers,
+                    json=json,
+                    headers=request_headers,
                     timeout=timeout if timeout is not None else self._timeout,
                 )
             except httpx.HTTPError as exc:
-                # The request is left counted: it may well have reached GGG.
+                # The request is left counted: it may well have reached the server.
                 raise NetworkError(f"{path}: {type(exc).__name__}: {redact(str(exc))}") from None
             elapsed = time.monotonic() - started
             self._limiter.observe(route, raw.status_code, raw.headers)
@@ -189,8 +221,28 @@ class NetClient:
             # after a 429 the block may live on the policy or on the route.
             after = self._limiter.check(route)
 
-        _log.info("GET %s -> %s in %.0f ms", path, raw.status_code, elapsed * 1000)
+        _log.info("%s %s -> %s in %.0f ms", method.upper(), path, raw.status_code, elapsed * 1000)
         return self._interpret(path, route, raw, elapsed, after)
+
+    async def get(
+        self,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Response:
+        return await self.request(
+            "GET",
+            path,
+            params=params,
+            headers=headers,
+            authenticated=authenticated,
+            route=route,
+            timeout=timeout,
+        )
 
     async def get_json(
         self,
@@ -208,14 +260,56 @@ class NetClient:
             route=route,
             timeout=timeout,
         )
+        return self._decode(response)
+
+    async def post_json(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: Mapping[str, Any] | None = None,
+        authenticated: bool = True,
+        route: str | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        response = await self.request(
+            "POST",
+            path,
+            params=params,
+            json=json,
+            authenticated=authenticated,
+            route=route,
+            timeout=timeout,
+        )
+        return self._decode(response)
+
+    # -- internals -------------------------------------------------------------
+
+    @staticmethod
+    def _decode(response: Response) -> Any:
         try:
             return response.json()
         except ValueError:
             raise NetError(
-                f"{path}: expected JSON, got {response.headers.get('content-type', 'nothing')}"
+                f"{response.path}: expected JSON, got "
+                f"{response.headers.get('content-type', 'nothing')}"
             ) from None
 
-    # -- internals -------------------------------------------------------------
+    def _foreign_host(self, path: str) -> str | None:
+        """The hostname, when ``path`` points somewhere other than ``base_url``.
+
+        ``None`` means "this is the PoE API host", which is the only host allowed to
+        see the credential.
+
+        Matched on the scheme prefix rather than on a substring: a *relative* path
+        whose query string happens to contain ``://`` must not be mistaken for an
+        absolute URL, because the consequence of that mistake is silently dropping
+        the credential from a request that needed it.
+        """
+        if not path.startswith(("http://", "https://")):
+            return None
+        host = httpx.URL(path).host
+        return None if host == self._host else host
 
     async def _cookie(self) -> str | None:
         if self._credentials is None:
@@ -249,6 +343,19 @@ class NetClient:
             raise AuthRejected(reported, path, "session rejected")
         if status >= 400:
             raise HttpStatusError(status, path, self._excerpt(raw))
+        if status == 304:
+            # "Your copy is current." A success with no body, and the only reason
+            # conditional requests are worth making.
+            return Response(
+                status=304,
+                path=path,
+                headers={
+                    key: value
+                    for key, value in raw.headers.items()
+                    if key.lower() != "set-cookie"
+                },
+                elapsed=elapsed,
+            )
         if 300 <= status < 400:
             raise HttpStatusError(
                 status, path, f"unexpected redirect to {raw.headers.get('location', '?')}"

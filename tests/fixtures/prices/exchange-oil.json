@@ -1,0 +1,107 @@
+{
+ "core": {
+  "items": [
+   {
+    "id": "chaos",
+    "name": "Chaos Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png",
+    "category": "Currency",
+    "detailsId": "chaos-orb"
+   },
+   {
+    "id": "divine",
+    "name": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png",
+    "category": "Currency",
+    "detailsId": "divine-orb"
+   }
+  ],
+  "rates": {
+   "divine": 0.001114
+  },
+  "primary": "chaos",
+  "secondary": "divine"
+ },
+ "lines": [
+  {
+   "id": "black-oil",
+   "primaryValue": 89.77,
+   "volumePrimaryValue": 149.6,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 10,
+   "sparkline": {
+    "totalChange": -40.0,
+    "data": [
+     0,
+     4.17,
+     -1.33,
+     -33.33,
+     -35.09,
+     -39.31,
+     -40.0
+    ]
+   }
+  },
+  {
+   "id": "silver-oil",
+   "primaryValue": 448.8,
+   "volumePrimaryValue": 748.1,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 2,
+   "sparkline": {
+    "totalChange": 28.57,
+    "data": [
+     19.68,
+     16.77,
+     21.6,
+     15.33,
+     10.69,
+     11.37,
+     28.57
+    ]
+   }
+  },
+  {
+   "id": "golden-oil",
+   "primaryValue": 425.2,
+   "volumePrimaryValue": 1347,
+   "maxVolumeCurrency": "divine",
+   "maxVolumeRate": 2.11,
+   "sparkline": {
+    "totalChange": 2.67,
+    "data": [
+     0.11,
+     -2.13,
+     0.77,
+     5.09,
+     4.86,
+     1.52,
+     2.67
+    ]
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "black-oil",
+   "name": "Black Oil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvT2lscy9CbGFja09pbCIsInNjYWxlIjoxfV0/ce6830b309/BlackOil.png",
+   "category": "Oils",
+   "detailsId": "black-oil"
+  },
+  {
+   "id": "silver-oil",
+   "name": "Silver Oil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvT2lscy9TaWx2ZXJPaWwiLCJzY2FsZSI6MX1d/d6ad829c2f/SilverOil.png",
+   "category": "Oils",
+   "detailsId": "silver-oil"
+  },
+  {
+   "id": "golden-oil",
+   "name": "Golden Oil",
+   "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvT2lscy9Hb2xkZW5PaWwiLCJzY2FsZSI6MX1d/263a5d73da/GoldenOil.png",
+   "category": "Oils",
+   "detailsId": "golden-oil"
+  }
+ ]
+}
