@@ -72,6 +72,10 @@ def test_provenance_records_what_it_was_built_from(artifact: dict[str, Any]) -> 
         "mods.min.json",
         "base_items.min.json",
         "stat_translations.min.json",
+        # Phase 9b's fourth source. GGG's own filter list is the only published place
+        # the local stat ids exist, and without it a body armour's `#% increased
+        # Armour` goes out as the global id and matches nothing.
+        "trade_stats.json",
     }
     for record in source["files"].values():
         # The digest is what makes "is this artifact current?" answerable without
@@ -122,7 +126,8 @@ def test_the_vocabularies_are_consistent(artifact: dict[str, Any]) -> None:
     spawn, mods = artifact["spawn"], artifact["mods"]
     assert len(vocab["influences"]) == len(vocab["influence_tags"]) == 6
     for record in mods:
-        group, affix, level, domain, vector, mask, essence, lines = record
+        group, affix, level, domain, vector, mask, essence, lines, local = record
+        assert local >= 0
         assert 0 <= group < len(groups)
         assert affix in (0, 1)
         assert 0 <= level <= 100

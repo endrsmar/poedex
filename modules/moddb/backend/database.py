@@ -48,7 +48,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -72,7 +72,12 @@ __all__ = ["DATA_FILE", "ModDatabase", "load"]
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "moddb.json"
 
-SCHEMA = 1
+SCHEMA = 2
+"""Phase 9b. Schema 1 put the **global** trade stat id on local mods — a body armour's
+``#% increased Armour`` searched as ``explicit.stat_2866361420`` matched 0 listings
+live where the local id matched 10 000+ — so a schema-1 artifact is not read at all.
+Refusing it is deliberate: the old one does not fail, it answers with a query that
+quietly returns nothing, which is the failure this project keeps having to unpick."""
 
 # Which RePoE domain a line of each origin may have come from. This is the cheapest
 # and most reliable disambiguator in the whole module, and it costs nothing: the item
@@ -121,6 +126,15 @@ class _Mod:
     influence: int
     essence: bool
     lines: tuple[tuple[int, tuple[tuple[float, float], ...]], ...]
+    local: int = 0
+    """Bitmask over :attr:`lines`: does this line want the *local* trade stat id?
+
+    A property of the mod, never of the sentence. ``+# to maximum Energy Shield`` is
+    ``local_energy_shield`` on a chest and ``energy_shield`` on a ring, and the trade
+    site numbers those differently, so the sentence alone cannot answer it."""
+
+    def is_local(self, position: int) -> bool:
+        return bool(self.local & (1 << position))
 
     @property
     def pool(self) -> tuple[int, bool]:
@@ -209,6 +223,14 @@ class ModDatabase:
         self._trade: dict[int, tuple[int, tuple[str, ...]]] = {
             int(key): (int(value[0]), tuple(str(v) for v in value[1:]))
             for key, value in document["trade"].items()
+        }
+        # The 22 sentences GGG publishes twice, in the local reading. Consulted only
+        # for a line whose mod said it is local; nothing falls back into it by
+        # accident, because a global mod searched by a local id is the same bug
+        # pointing the other way.
+        self._trade_local: dict[int, tuple[int, tuple[str, ...]]] = {
+            int(key): (int(value[0]), tuple(str(v) for v in value[1:]))
+            for key, value in document.get("trade_local", {}).items()
         }
         self._trade_origins = ("explicit", "implicit", "crafted", "fractured", "enchant")
         self._game_stats: dict[int, tuple[str, ...]] = {
@@ -326,6 +348,14 @@ class ModDatabase:
 
         survivors: list[int] = []
         loose: list[int] = []
+        # Which mods could put this sentence here *at all* — text, origin and base,
+        # and nothing about the roll. Locality is read off this set rather than off
+        # the survivors on purpose: which id to search does not depend on how well the
+        # mod rolled, and an unattributable line is still a line the player can tick.
+        # Attribution fails on about one affix line in five; letting that failure also
+        # lose the local/global choice would put the wrong id on exactly the lines
+        # nobody can check.
+        spawnable: list[int] = []
         rejected_by_value = 0
         for index in self._by_text.get(text_index, ()):
             mod = self._mods[index]
@@ -333,6 +363,7 @@ class ModDatabase:
                 continue
             if base is not None and not self._spawns(mod, base):
                 continue
+            spawnable.append(index)
             if ilvl and mod.level > ilvl and self._domains[mod.domain] not in _UNGATED_DOMAINS:
                 # `required_level` on a bench craft is not an item-level gate the way
                 # it is on a dropped affix, and the fixtures prove it: a live ilvl-69
@@ -347,13 +378,15 @@ class ModDatabase:
             if alongside is None or {t for t, _s in mod.lines} <= alongside:
                 survivors.append(index)
 
+        local = self._locality(spawnable, text_index)
+
         if not loose:
             reason = (
                 "the rolled value is outside every tier's range"
                 if rejected_by_value
                 else "nothing that can spawn here produces this text"
             )
-            return _with_note(blank, reason), ()
+            return _with_note(replace(blank, local=local), reason), ()
 
         if not survivors:
             # Context narrows; it never eliminates. If every candidate writes a line
@@ -362,12 +395,12 @@ class ModDatabase:
             # unfiltered answer is given back rather than an "unknown" that is more
             # confident about its own ignorance than the evidence supports.
             return _with_note(
-                self._decide(blank, loose, base, text_index),
+                self._decide(blank, loose, base, text_index, local),
                 "every candidate also writes a line this item does not show; "
                 "attributed without that check",
             ), tuple(loose)
 
-        return self._decide(blank, survivors, base, text_index), tuple(survivors)
+        return self._decide(blank, survivors, base, text_index, local), tuple(survivors)
 
     def report(self, item: ItemMods) -> ModReport:
         base = self.base(item.base_type)
@@ -427,11 +460,25 @@ class ModDatabase:
             text, base_type=base_type, ilvl=ilvl, influences=influences
         ).ceiling
 
-    def trade_stat_id(self, text: str, *, origin: Origin = Origin.EXPLICIT) -> str | None:
+    def trade_stat_id(
+        self,
+        text: str,
+        *,
+        origin: Origin = Origin.EXPLICIT,
+        local: bool | None = None,
+    ) -> str | None:
         index = self._lookup(denominate(text)[0])
         if index is None:
             return None
-        found = self._trade.get(index)
+        found = self._trade_local.get(index) if local else self._trade.get(index)
+        if found is None and local is None:
+            # `local=None` is "nobody asked the mod" — a bare text lookup from the CLI,
+            # or an item with no `moddb` report. The local table is then a fallback and
+            # not a preference: six common sentences (`98% increased Energy Shield`
+            # and the defence hybrids) exist **only** in the local reading, and
+            # answering "no id" for those is how they were silently dropped from
+            # queries before.
+            found = self._trade_local.get(index)
         if found is None:
             return None
         mask, ids = found
@@ -599,6 +646,7 @@ class ModDatabase:
         survivors: Sequence[int],
         base: _Base | None,
         text_index: int,
+        local: bool | None = None,
     ) -> ModMatch:
         """Turn the surviving mods into a claim, or into a refusal to make one.
 
@@ -629,6 +677,7 @@ class ModDatabase:
                 origin=blank.origin,
                 attribution=Attribution.AMBIGUOUS,
                 candidates=candidates,
+                local=local,
                 note=reason,
             )
 
@@ -646,9 +695,34 @@ class ModDatabase:
             origin=blank.origin,
             attribution=attribution,
             candidates=candidates,
+            local=local,
             ceiling=self._ceiling(exemplars[0], base, text_index),
             note=note,
         )
+
+    def _locality(self, candidates: Sequence[int], text_index: int) -> bool | None:
+        """Whether this line wants the local trade stat id, when every candidate agrees.
+
+        ``candidates`` is everything the text, the origin and the base allow — *not*
+        the attribution survivors. The roll has no bearing on which stat id the
+        sentence belongs to, and about one affix line in five never gets attributed
+        at all; making the id depend on that would lose the choice on exactly the
+        lines nobody can double-check.
+
+        Unanimity is the bar for the same reason it is everywhere else in this file:
+        two mods that disagree here are two different stats, and picking one puts a
+        filter on the query that matches a mod the item does not have. Disagreement is
+        ``None``, which sends the caller to the global id — what Phase 9 did — so an
+        unforeseen case is no worse than before rather than newly wrong.
+        """
+        seen: set[bool] = set()
+        for index in candidates:
+            mod = self._mods[index]
+            for position, (line, _slots) in enumerate(mod.lines):
+                if line == text_index:
+                    seen.add(mod.is_local(position))
+                    break
+        return seen.pop() if len(seen) == 1 else None
 
     def _lookup(self, normalized: str) -> int | None:
         """The text's index, with a case-insensitive fallback.
@@ -785,6 +859,7 @@ def _read_mod(record: Sequence[Any], arity: Sequence[int]) -> _Mod:
         influence=int(record[5]),
         essence=bool(record[6]),
         lines=tuple(lines),
+        local=int(record[8]) if len(record) > 8 else 0,
     )
 
 
@@ -811,16 +886,7 @@ def _fits(mod: _Mod, text_index: int, values: Sequence[tuple[float, float]]) -> 
 
 
 def _with_note(match: ModMatch, note: str) -> ModMatch:
-    return ModMatch(
-        text=match.text,
-        normalized=match.normalized,
-        values=match.values,
-        origin=match.origin,
-        attribution=match.attribution,
-        candidates=match.candidates,
-        ceiling=match.ceiling,
-        note=note,
-    )
+    return replace(match, note=note)
 
 
 def _parse_time(value: Any) -> datetime:

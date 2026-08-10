@@ -133,8 +133,14 @@ class ModDbModule:
             text, base_type=base_type, ilvl=ilvl, influences=influences
         )
 
-    def trade_stat_id(self, text: str, *, origin: Origin = Origin.EXPLICIT) -> str | None:
-        return self._database().trade_stat_id(text, origin=origin)
+    def trade_stat_id(
+        self,
+        text: str,
+        *,
+        origin: Origin = Origin.EXPLICIT,
+        local: bool | None = None,
+    ) -> str | None:
+        return self._database().trade_stat_id(text, origin=origin, local=local)
 
     def game_stat_ids(self, text: str) -> tuple[str, ...]:
         return self._database().game_stat_ids(text)

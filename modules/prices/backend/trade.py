@@ -118,10 +118,34 @@ STATS_TTL = 86400.0
 not with the hour, and it is 400 kB."""
 
 STATS_CACHE_KEY = "trade-stats.json"
-STATS_CACHE_VERSION = 2
-"""Bumped in Phase 9. A version-1 cache is a flat ``text -> id`` map built by the
-first-group-wins rule that put ``pseudo`` ids on explicit mods; it is discarded
-rather than migrated, because the ids in it are the bug."""
+STATS_CACHE_VERSION = 3
+"""Bumped in Phase 9, and again in Phase 9b. A version-1 cache is a flat
+``text -> id`` map built by the first-group-wins rule that put ``pseudo`` ids on
+explicit mods; a version-2 cache threw the ``(Local)`` entries away, so every local
+defence and weapon mod either resolved to the global id or to nothing. Both are
+discarded rather than migrated, because the ids in them are the bug."""
+
+LOCAL_SUFFIXES = (" (Local)", " (Shields)", " (Staves)")
+"""GGG's markers for the on-the-item reading of a sentence it publishes twice.
+
+``#% increased Armour`` is what a ring grants; ``#% increased Armour (Local)`` is what
+a body armour rolls, and they are different ids. Before Phase 9b these suffixes were
+left on the key, so the local entries were filed under sentences no item ever writes
+and the global id won by default. Measured live: on rare body armours the global id
+matched **0** listings and the local id matched 10 000+.
+
+The other two suffixes GGG uses are deliberately absent. ``(Maps)`` scopes a stat to
+the map device rather than to the item, and ``(Legacy)`` marks an id kept alive for
+items that can no longer drop; either one folded in here would answer a filter
+question with a sentence that does not mean the same thing."""
+
+
+def strip_local(text: str) -> tuple[str, bool]:
+    """``("#% increased Armour", True)`` for ``"#% increased Armour (Local)"``."""
+    for suffix in LOCAL_SUFFIXES:
+        if text.endswith(suffix):
+            return text[: -len(suffix)], True
+    return text, False
 
 STAT_GROUP_PRIORITY: tuple[str, ...] = (
     "explicit",
@@ -189,10 +213,21 @@ class StatIndex:
     :data:`STAT_GROUP_PRIORITY`.
     """
 
-    def __init__(self, entries: Mapping[str, Mapping[str, str]], fetched_at: float) -> None:
+    def __init__(
+        self,
+        entries: Mapping[str, Mapping[str, str]],
+        fetched_at: float,
+        local: Mapping[str, Mapping[str, str]] | None = None,
+    ) -> None:
         self._entries: dict[str, dict[str, str]] = {
             str(text): {str(group): str(sid) for group, sid in ids.items()}
             for text, ids in entries.items()
+        }
+        # The same shape for the sentences GGG publishes twice, keyed by the sentence
+        # *without* its ``(Local)`` suffix — which is how an item writes it.
+        self._local: dict[str, dict[str, str]] = {
+            str(text): {str(group): str(sid) for group, sid in ids.items()}
+            for text, ids in (local or {}).items()
         }
         self.fetched_at = fetched_at
 
@@ -202,16 +237,20 @@ class StatIndex:
     def age(self, now: float) -> float:
         return max(0.0, now - self.fetched_at)
 
-    def stat_ids(self, text: str) -> Mapping[str, str]:
+    def stat_ids(self, text: str, *, local: bool = False) -> Mapping[str, str]:
         """Every id this sentence has, keyed by group. Empty when it has none.
 
         Exposed so the pseudo-shadowing fix is falsifiable from outside: a test can
         assert that ``Adds # to # Physical Damage`` has *both* an explicit and a
-        pseudo id and that :meth:`stat_id` returns the explicit one.
+        pseudo id and that :meth:`stat_id` returns the explicit one — and, with
+        ``local=True``, that it has a third id again that neither of those is.
         """
-        return dict(self._entries.get(normalize_stat_text(text), {}))
+        table = self._local if local else self._entries
+        return dict(table.get(normalize_stat_text(text), {}))
 
-    def stat_id(self, text: str, *, origin: str = "explicit") -> str | None:
+    def stat_id(
+        self, text: str, *, origin: str = "explicit", local: bool | None = None
+    ) -> str | None:
         """The id a filter for ``text`` should use.
 
         ``origin`` is where the line sits on the item — ``explicit``, ``crafted``,
@@ -219,8 +258,23 @@ class StatIndex:
         exact group it wins, because a crafted ``+# to maximum Life`` searched as an
         explicit one excludes every item whose life *is* the bench craft. Otherwise
         :data:`STAT_GROUP_PRIORITY` decides, and ``pseudo`` is last in every case.
+
+        ``local`` is the other axis, and it is the one this document cannot answer for
+        itself. Twenty-two sentences exist in both readings and mean different stats;
+        `moddb` knows which one a given mod is (:attr:`ModMatch.local`) and passes it
+        down through :attr:`ModFocus.local`. ``None`` means nobody knew: the global
+        reading wins, except where there is no global reading at all — six common
+        sentences including ``#% increased Energy Shield`` exist only locally, and
+        answering ``None`` for those is how they were dropped from queries before.
         """
-        ids = self._entries.get(normalize_stat_text(text))
+        plain = self._entries.get(normalize_stat_text(text))
+        localised = self._local.get(normalize_stat_text(text))
+        if local is True:
+            ids = localised or plain
+        elif local is False:
+            ids = plain
+        else:
+            ids = plain or localised
         if not ids:
             return None
         if origin in ids:
@@ -233,6 +287,7 @@ class StatIndex:
             "version": STATS_CACHE_VERSION,
             "fetched_at": self.fetched_at,
             "entries": self._entries,
+            "local": self._local,
         }
 
     @classmethod
@@ -248,7 +303,14 @@ class StatIndex:
             if not isinstance(ids, Mapping):
                 return None
             rebuilt[str(text)] = {str(group): str(sid) for group, sid in ids.items()}
-        return cls(rebuilt, float(fetched_at))
+        local_raw = data.get("local")
+        local: dict[str, dict[str, str]] = {}
+        if isinstance(local_raw, Mapping):
+            for text, ids in local_raw.items():
+                if not isinstance(ids, Mapping):
+                    return None
+                local[str(text)] = {str(group): str(sid) for group, sid in ids.items()}
+        return cls(rebuilt, float(fetched_at), local)
 
     @classmethod
     def from_payload(cls, payload: Any, fetched_at: float) -> StatIndex:
@@ -259,6 +321,7 @@ class StatIndex:
         the caller's ``origin`` is known.
         """
         entries: dict[str, dict[str, str]] = {}
+        local: dict[str, dict[str, str]] = {}
         groups = payload.get("result") if isinstance(payload, Mapping) else None
         if not isinstance(groups, Sequence) or isinstance(groups, (str, bytes)):
             raise TradeUnavailable("the trade stats document had no result array")
@@ -286,10 +349,16 @@ class StatIndex:
                     if isinstance(group_id, str) and group_id
                     else stat_id.split(".", 1)[0]
                 )
-                entries.setdefault(normalize_stat_text(text), {}).setdefault(name, stat_id)
+                # ``#% increased Armour (Local)`` is the same sentence an item writes
+                # as ``#% increased Armour``; the suffix is GGG's way of saying which
+                # stat it means, not part of the text to match against. Left on the
+                # key it filed 22 entries under sentences nothing ever writes.
+                key, is_local = strip_local(text)
+                table = local if is_local else entries
+                table.setdefault(normalize_stat_text(key), {}).setdefault(name, stat_id)
         if not entries:
             raise TradeUnavailable("the trade stats document was empty")
-        return cls(entries, fetched_at)
+        return cls(entries, fetched_at, local)
 
 
 def normalize_stat_text(text: str) -> str:
@@ -415,7 +484,7 @@ def _resolve(
     if stats is None:
         return resolved, [focus.text for focus in mods]
     for entry in mods:
-        stat_id = stats.stat_id(entry.text, origin=entry.origin)
+        stat_id = stats.stat_id(entry.text, origin=entry.origin, local=entry.local)
         if stat_id is None:
             # Dropped rather than guessed: a wrong id returns nothing, which reads
             # as "worthless", and that is the one wrong answer this tier must not
@@ -496,7 +565,13 @@ def build_plan(
     # The broadening: one filter, no floor. Same shape as step 1 so a reader can see
     # what was given up rather than diffing two hand-built dicts.
     widest, widest_stat_id = resolved[0]
-    loose = ModFocus(text=widest.text, minimum=None, label=widest.label, origin=widest.origin)
+    loose = ModFocus(
+        text=widest.text,
+        minimum=None,
+        label=widest.label,
+        origin=widest.origin,
+        local=widest.local,
+    )
     entry, phrase = _stat_filter(loose, widest_stat_id)
     step2 = QueryStep(
         _query_body(item, [entry]),

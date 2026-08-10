@@ -1,0 +1,1125 @@
+{
+ "source": "pathofexile.com/api/trade \u2014 public listings, Allflame, 2026-08-10",
+ "game_version": "3.29.2.1",
+ "note": "Twenty real identified rares, scrubbed of everything that identifies a seller or a sale. `ggg` carries GGG's own answer for each line \u2014 the stat id its filter list uses, its own tier label, and how many affixes the game summed into that one displayed line \u2014 so `moddb` can be checked against the authority rather than against itself.",
+ "items": [
+  {
+   "base_type": "Harpyskin Boots",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "67% increased Evasion Rating",
+     "14% increased Rarity of Items found",
+     "+41% to Lightning Resistance",
+     "28% increased Stun and Block Recovery"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "67% increased Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_124859000",
+     "tier": "P4",
+     "affixes": 1
+    },
+    {
+     "text": "14% increased Rarity of Items found",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3917489142",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+41% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "28% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Dire Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "20% increased Global Accuracy Rating",
+     "+82 to maximum Life",
+     "24% increased Rarity of Items found",
+     "+48% to Lightning Resistance",
+     "25% increased Stun and Block Recovery",
+     "15% increased Light Radius"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "20% increased Global Accuracy Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_624954515",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+82 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "24% increased Rarity of Items found",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3917489142",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+48% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "25% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "15% increased Light Radius",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1263695895",
+     "tier": "S1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Grizzly Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+14% chance to Suppress Spell Damage",
+     "+36 to Intelligence",
+     "+199 to Evasion Rating",
+     "Regenerate 89.3 Life per second"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+14% chance to Suppress Spell Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3680664274",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+36 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S5",
+     "affixes": 1
+    },
+    {
+     "text": "+199 to Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_53045048",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "Regenerate 89.3 Life per second",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3325883026",
+     "tier": "S2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Majestic Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+50 to Intelligence",
+     "+464 to Accuracy Rating",
+     "+99 to Evasion Rating",
+     "+41% to Lightning Resistance"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+50 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+464 to Accuracy Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_803737631",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "+99 to Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_53045048",
+     "tier": "P4",
+     "affixes": 1
+    },
+    {
+     "text": "+41% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S3",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Harpyskin Boots",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+113 to maximum Life",
+     "+29% to Fire Resistance",
+     "+29% to Lightning Resistance",
+     "28% increased Stun and Block Recovery"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+113 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+29% to Fire Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3372524247",
+     "tier": "S5",
+     "affixes": 1
+    },
+    {
+     "text": "+29% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S5",
+     "affixes": 1
+    },
+    {
+     "text": "28% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Dire Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+125 to maximum Life",
+     "+45% to Fire Resistance",
+     "+35% to Lightning Resistance",
+     "25% increased Stun and Block Recovery"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+125 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+45% to Fire Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3372524247",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "+35% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S4",
+     "affixes": 1
+    },
+    {
+     "text": "25% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Majestic Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+149 to Evasion Rating",
+     "+69 to maximum Life",
+     "Regenerate 60.8 Life per second",
+     "+35% to Cold Resistance"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+149 to Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_53045048",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+69 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P6",
+     "affixes": 1
+    },
+    {
+     "text": "Regenerate 60.8 Life per second",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3325883026",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+35% to Cold Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4220027924",
+     "tier": "S4",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Grizzly Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+49 to Dexterity",
+     "+37 to Intelligence",
+     "+45% to Lightning Resistance",
+     "Reflects 10 Physical Damage to Melee Attackers"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+49 to Dexterity",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3261801346",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "+37 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S5",
+     "affixes": 1
+    },
+    {
+     "text": "+45% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "Reflects 10 Physical Damage to Melee Attackers",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3767873853",
+     "tier": "P1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Grizzly Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+10% chance to Suppress Spell Damage",
+     "+60 to Intelligence",
+     "+161 to Evasion Rating",
+     "+28 to maximum Life"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+10% chance to Suppress Spell Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3680664274",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+60 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+161 to Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_53045048",
+     "tier": "P2",
+     "affixes": 2
+    },
+    {
+     "text": "+28 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Grizzly Pelt",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+41 to Evasion Rating",
+     "+28 to maximum Life",
+     "+48% to Fire Resistance",
+     "+41% to Lightning Resistance",
+     "28% increased Stun and Block Recovery"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+41 to Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_53045048",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+28 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+48% to Fire Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3372524247",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+41% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "28% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Soldier Gloves",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "Adds 4 to 9 Physical Damage to Attacks",
+     "16% increased Attack Speed",
+     "96% increased Armour and Energy Shield",
+     "+111 to maximum Life",
+     "Regenerate 73.9 Life per second",
+     "+45% to Cold Resistance"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "Adds 4 to 9 Physical Damage to Attacks",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3032590688",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "16% increased Attack Speed",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_681332047",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "96% increased Armour and Energy Shield",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3321629045",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+111 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "Regenerate 73.9 Life per second",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3325883026",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+45% to Cold Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4220027924",
+     "tier": "S2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Grizzly Pelt",
+   "ilvl": 87,
+   "rarity": "rare",
+   "influences": [
+    "warlord"
+   ],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+13% chance to Suppress Spell Damage",
+     "+13% to Global Critical Strike Multiplier",
+     "14% increased Evasion Rating",
+     "30% increased Stun and Block Recovery",
+     "8% of Physical Damage from Hits taken as Fire Damage"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+13% chance to Suppress Spell Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3680664274",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+13% to Global Critical Strike Multiplier",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3556824919",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "14% increased Evasion Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_124859000",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "30% increased Stun and Block Recovery",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2511217560",
+     "tier": "S3",
+     "affixes": 2
+    },
+    {
+     "text": "8% of Physical Damage from Hits taken as Fire Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3342989455",
+     "tier": "P1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Onyx Amulet",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "implicit": [
+     "+15 to all Attributes"
+    ],
+    "explicit": [
+     "+41 to Dexterity",
+     "+44 to Intelligence",
+     "23% increased Spell Damage",
+     "Adds 10 to 19 Fire Damage to Attacks",
+     "+1 to Level of all Skill Gems"
+    ],
+    "crafted": [
+     "+16% to Cold and Lightning Resistances"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+15 to all Attributes",
+     "origin": "implicit",
+     "trade_stat_id": "implicit.stat_1379411836",
+     "tier": null,
+     "affixes": 1
+    },
+    {
+     "text": "+41 to Dexterity",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3261801346",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+44 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "23% increased Spell Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2974417149",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "Adds 10 to 19 Fire Damage to Attacks",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1573130764",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "+1 to Level of all Skill Gems",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4283407333",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+16% to Cold and Lightning Resistances",
+     "origin": "crafted",
+     "trade_stat_id": "crafted.stat_4277795662",
+     "tier": "R2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Two-Stone Ring",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "implicit": [
+     "+16% to Fire and Cold Resistances"
+    ],
+    "explicit": [
+     "+51 to Intelligence",
+     "+45 to maximum Energy Shield",
+     "+36% to Lightning Resistance",
+     "+35% to Chaos Resistance"
+    ],
+    "crafted": [
+     "+41 to maximum Life"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+16% to Fire and Cold Resistances",
+     "origin": "implicit",
+     "trade_stat_id": "implicit.stat_2915988346",
+     "tier": null,
+     "affixes": 1
+    },
+    {
+     "text": "+51 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+45 to maximum Energy Shield",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3489782002",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+36% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+35% to Chaos Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2923486259",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+41 to maximum Life",
+     "origin": "crafted",
+     "trade_stat_id": "crafted.stat_3299347043",
+     "tier": "R3",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Titanium Spirit Shield",
+   "ilvl": 86,
+   "rarity": "rare",
+   "influences": [
+    "shaper"
+   ],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+89 to maximum Energy Shield",
+     "+159 to maximum Life",
+     "+16% to all Elemental Resistances",
+     "+41% to Fire Resistance",
+     "Gain an Endurance, Frenzy or Power charge when you Block"
+    ],
+    "crafted": [
+     "48% increased Chance to Block"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+89 to maximum Energy Shield",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4052037485",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+159 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+16% to all Elemental Resistances",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2901986750",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "+41% to Fire Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3372524247",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "Gain an Endurance, Frenzy or Power charge when you Block",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2199099676",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "48% increased Chance to Block",
+     "origin": "crafted",
+     "trade_stat_id": "crafted.stat_2481353198",
+     "tier": "R2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Platinum Kris",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "implicit": [
+     "60% increased Global Critical Strike Chance"
+    ],
+    "explicit": [
+     "+29 to Intelligence",
+     "42% increased Spell Damage",
+     "Adds 2 to 78 Lightning Damage to Spells",
+     "31% increased Cast Speed",
+     "95% increased Spell Critical Strike Chance",
+     "+1 to Level of all Lightning Spell Skill Gems"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "60% increased Global Critical Strike Chance",
+     "origin": "implicit",
+     "trade_stat_id": "implicit.stat_587431675",
+     "tier": null,
+     "affixes": 1
+    },
+    {
+     "text": "+29 to Intelligence",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_328541901",
+     "tier": "S5",
+     "affixes": 1
+    },
+    {
+     "text": "42% increased Spell Damage",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2974417149",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "Adds 2 to 78 Lightning Damage to Spells",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2831165374",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "31% increased Cast Speed",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2891184298",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "95% increased Spell Critical Strike Chance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_737908626",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+1 to Level of all Lightning Spell Skill Gems",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1545858329",
+     "tier": "P1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Hydrascale Gauntlets",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "explicit": [
+     "+54 to Dexterity",
+     "Adds 3 to 40 Lightning Damage to Attacks",
+     "71% increased Armour and Evasion",
+     "+115 to maximum Life",
+     "+40% to Cold Resistance",
+     "+45% to Lightning Resistance"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+54 to Dexterity",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3261801346",
+     "tier": "S2",
+     "affixes": 1
+    },
+    {
+     "text": "Adds 3 to 40 Lightning Damage to Attacks",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1754445556",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "71% increased Armour and Evasion",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2451402625",
+     "tier": "P3",
+     "affixes": 1
+    },
+    {
+     "text": "+115 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+40% to Cold Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4220027924",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+45% to Lightning Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1671376347",
+     "tier": "S2",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Demon's Horn",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "implicit": [
+     "31% increased Spell Damage"
+    ],
+    "explicit": [
+     "Adds 48 to 89 Cold Damage to Spells",
+     "32% increased Cast Speed",
+     "62% increased Spell Critical Strike Chance",
+     "+139 to maximum Mana",
+     "+1 to Level of all Cold Spell Skill Gems"
+    ],
+    "crafted": [
+     "+28% to Global Critical Strike Multiplier"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "31% increased Spell Damage",
+     "origin": "implicit",
+     "trade_stat_id": "implicit.stat_2974417149",
+     "tier": null,
+     "affixes": 1
+    },
+    {
+     "text": "Adds 48 to 89 Cold Damage to Spells",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2469416729",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "32% increased Cast Speed",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2891184298",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "62% increased Spell Critical Strike Chance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_737908626",
+     "tier": "S4",
+     "affixes": 1
+    },
+    {
+     "text": "+139 to maximum Mana",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_1050105434",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+1 to Level of all Cold Spell Skill Gems",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_2254480358",
+     "tier": "P1",
+     "affixes": 1
+    },
+    {
+     "text": "+28% to Global Critical Strike Multiplier",
+     "origin": "crafted",
+     "trade_stat_id": "crafted.stat_3556824919",
+     "tier": "R3",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Samnite Helmet",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": true,
+   "mods": {
+    "explicit": [
+     "+68 to Armour",
+     "11% increased Rarity of Items found",
+     "+30% to Cold Resistance"
+    ],
+    "fractured": [
+     "Regenerate 96.5 Life per second"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+68 to Armour",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3484657501",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "11% increased Rarity of Items found",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3917489142",
+     "tier": "S3",
+     "affixes": 1
+    },
+    {
+     "text": "+30% to Cold Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4220027924",
+     "tier": "S4",
+     "affixes": 1
+    },
+    {
+     "text": "Regenerate 96.5 Life per second",
+     "origin": "fractured",
+     "trade_stat_id": "fractured.stat_3325883026",
+     "tier": "S1",
+     "affixes": 1
+    }
+   ]
+  },
+  {
+   "base_type": "Amethyst Ring",
+   "ilvl": 85,
+   "rarity": "rare",
+   "influences": [],
+   "fractured": false,
+   "mods": {
+    "implicit": [
+     "+21% to Chaos Resistance"
+    ],
+    "explicit": [
+     "Adds 5 to 9 Physical Damage to Attacks",
+     "+433 to Accuracy Rating",
+     "+26 to maximum Energy Shield",
+     "+85 to maximum Life",
+     "+33% to Cold Resistance"
+    ],
+    "crafted": [
+     "+11% to Fire and Chaos Resistances"
+    ]
+   },
+   "ggg": [
+    {
+     "text": "+21% to Chaos Resistance",
+     "origin": "implicit",
+     "trade_stat_id": "implicit.stat_2923486259",
+     "tier": null,
+     "affixes": 1
+    },
+    {
+     "text": "Adds 5 to 9 Physical Damage to Attacks",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3032590688",
+     "tier": "P3",
+     "affixes": 1
+    },
+    {
+     "text": "+433 to Accuracy Rating",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_803737631",
+     "tier": "S1",
+     "affixes": 1
+    },
+    {
+     "text": "+26 to maximum Energy Shield",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3489782002",
+     "tier": "P5",
+     "affixes": 1
+    },
+    {
+     "text": "+85 to maximum Life",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_3299347043",
+     "tier": "P2",
+     "affixes": 1
+    },
+    {
+     "text": "+33% to Cold Resistance",
+     "origin": "explicit",
+     "trade_stat_id": "explicit.stat_4220027924",
+     "tier": "S4",
+     "affixes": 1
+    },
+    {
+     "text": "+11% to Fire and Chaos Resistances",
+     "origin": "crafted",
+     "trade_stat_id": "crafted.stat_378817135",
+     "tier": "S0",
+     "affixes": 1
+    }
+   ]
+  }
+ ]
+}

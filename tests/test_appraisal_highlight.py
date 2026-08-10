@@ -149,32 +149,65 @@ def test_the_open_affix_counts_come_with_their_own_confidence(db):
 
 
 def test_a_line_the_offline_bridge_cannot_name_is_annotated_not_disabled(db):
-    """The bridge has real holes, so it may annotate and must not veto.
+    """The bridge still has holes, so it may annotate and must not veto.
 
-    ``98% increased Energy Shield`` is a common mod with no entry in the trimmed
-    artifact. Greying its checkbox out would silently narrow what the player is
-    allowed to ask — the same failure as building the query for them, in the other
-    direction — so the live stat document decides and ``build_plan`` reports whatever
-    it could not resolve.
+    Phase 9 used ``98% increased Energy Shield`` as the example here. Phase 9b closed
+    that one — it was the *local* reading of a sentence GGG publishes twice, not a
+    missing sentence — so the example had to move to a hole that is real:
+    ``Projectiles Pierce an additional Target`` is a live quiver suffix and GGG's
+    filter list carries only ``Arrows Pierce an additional Target``, which is a
+    different stat.
+
+    Greying the row out would silently narrow what the player is allowed to ask — the
+    same failure as building the query for them, in the other direction — so the live
+    stat document decides and ``build_plan`` reports whatever it could not resolve.
     """
     subject = item(
-        base_type="Vaal Regalia",
-        category="armour",
-        subcategory="body_armour",
+        base_type="Penetrating Arrow Quiver",
+        category="accessory",
+        subcategory="quiver",
         ilvl=84,
-        explicit=["+112 to maximum Energy Shield", "98% increased Energy Shield"],
+        explicit=["+120 to maximum Life", "Projectiles Pierce an additional Target"],
     )
-    flat, percent = highlight_for(subject, db).mods
-    assert flat.tradeable is True
-    assert percent.tradeable is False, "the artifact's bridge really is missing this"
+    life, pierce = highlight_for(subject, db).mods
+    assert life.tradeable is True
+    assert pierce.tradeable is False, "GGG's own filter list really has no entry"
 
     # ...and it still reaches the query, where the live index gets the last word.
     proposal = highlight_for(subject, db)
     spec = Selection(uid=subject.uid, mods=(0, 1)).spec(proposal)
     assert [focus.text for focus in spec.mods] == [
-        "+112 to maximum Energy Shield",
-        "98% increased Energy Shield",
+        "+120 to maximum Life",
+        "Projectiles Pierce an additional Target",
     ]
+
+
+def test_the_local_reading_of_a_sentence_is_what_reaches_the_query(db):
+    """Phase 9b's finding, end to end: a local mod is not the global stat.
+
+    ``#% increased Armour`` is two different stats. On a ring it is
+    ``explicit.stat_2866361420``; on a body armour it is
+    ``explicit.stat_1062208444``, and the two are not near-misses — measured against
+    the live trade API, the global id matched **0** rare body armours and the local id
+    matched 10 000+. `moddb` decides which reading a line is from the mod's own game
+    stat, and :class:`Selection` carries that down rather than letting `prices`
+    re-derive it from text it cannot disambiguate.
+    """
+    chest = item(
+        base_type="Vaal Regalia",
+        category="armour",
+        subcategory="body_armour",
+        ilvl=84,
+        explicit=["98% increased Energy Shield", "+112 to maximum Life"],
+    )
+    proposal = highlight_for(chest, db)
+    percent, life = proposal.mods
+    assert percent.local is True
+    assert percent.tradeable is True, "Phase 9's canonical hole is closed"
+    assert life.local is False
+
+    spec = Selection(uid=chest.uid, mods=(0, 1)).spec(proposal)
+    assert [focus.local for focus in spec.mods] == [True, False]
 
 
 def test_without_a_database_the_lines_survive_untiered(db):

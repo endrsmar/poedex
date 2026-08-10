@@ -74,8 +74,11 @@ async def cmd_moddb(
             print(f"ceiling:    {match.ceiling:g} on this base")
         if match.influences:
             print(f"influence:  {', '.join(sorted(i.value for i in match.influences))}")
-        trade = moddb.trade_stat_id(mod, origin=Origin(origin))
-        print(f"trade id:   {trade or '-'}")
+        # `match.local` and not a bare lookup: the same sentence has two ids, and
+        # which one is right is a fact about the mod on this base. Printing the other
+        # one here would put the wrong id in front of whoever is checking a query.
+        trade = moddb.trade_stat_id(mod, origin=Origin(origin), local=match.local)
+        print(f"trade id:   {trade or '-'}{' (local)' if match.local else ''}")
         print(f"game stats: {', '.join(moddb.game_stat_ids(mod)) or '-'}")
         if match.note:
             print(f"note:       {match.note}")
