@@ -182,7 +182,14 @@ def build(
         max_suffixes=report.max_suffixes if report is not None else 3,
         counts_are_certain=report.counts_are_certain if report is not None else False,
         top_affix_level=base.top_affix_level if base is not None else None,
-        note=describe_report(report),
+        note=(
+            # describe_report only sees the report, so a None one makes it blame the
+            # database. For an unidentified item the database is fine and there is
+            # simply nothing to read, which is a different thing to tell the player.
+            "unidentified — no mods to read until it is identified"
+            if not item.identified
+            else describe_report(report)
+        ),
     )
 
 

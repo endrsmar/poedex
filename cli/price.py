@@ -62,8 +62,7 @@ def render_option(option: ModOption, *, ticked: bool) -> str:
     # out a filter that would have worked narrows what the player may ask.
     bridge = "" if option.tradeable else " (?)"
     return (
-        f"  {box} {option.index:>2}  {tier:<12} {affix:<7} {roll:<14} "
-        f"{option.text}{pools}{bridge}"
+        f"  {box} {option.index:>2}  {tier:<12} {affix:<7} {roll:<14} {option.text}{pools}{bridge}"
     )
 
 
@@ -73,8 +72,7 @@ def render_highlight(highlight: ItemHighlight, selection: Selection) -> str:
     lines = [
         f"item:       {highlight.name} · {highlight.base_type}"
         + (f" · ilvl {highlight.ilvl}" if highlight.ilvl else ""),
-        "highlight:  "
-        + (highlight.gate.summary if highlight.highlighted else "not highlighted"),
+        "highlight:  " + (highlight.gate.summary if highlight.highlighted else "not highlighted"),
         f"database:   {highlight.note}",
     ]
     if highlight.counts_are_certain:
@@ -85,9 +83,7 @@ def render_highlight(highlight: ItemHighlight, selection: Selection) -> str:
     else:
         # A filter built on "1 open prefix" that is actually zero returns nothing and
         # looks like a dead search. The uncertainty has to reach whoever builds it.
-        lines.append(
-            "open:       affix counts uncertain — an open-affix filter may be wrong"
-        )
+        lines.append("open:       affix counts uncertain — an open-affix filter may be wrong")
     lines.append("")
     lines.append(f"  {'':<3} {'#':>2}  {'tier':<12} {'affix':<7} {'roll':<14} mod")
     lines.extend(render_option(option, ticked=option.index in ticked) for option in highlight.mods)
@@ -159,9 +155,17 @@ async def cmd_price(
     league: str | None = None,
 ) -> int:
     bag = await poeapi.get_items(character)
-    item = _find(bag.items, uid)
+    try:
+        item = _find(bag.items, uid)
+    except AmbiguousItem as clash:
+        print(f"error: {uid!r} matches {len(clash.matches)} items:", file=sys.stderr)
+        for match in clash.matches[:8]:
+            print(f"         {match.uid[:10]}  {match.name}", file=sys.stderr)
+        print("       use a longer name, or one of the uid prefixes above", file=sys.stderr)
+        return 2
     if item is None:
-        print(f"error: no item {uid!r} in the current bag", file=sys.stderr)
+        print(f"error: no item matching {uid!r} in the current bag", file=sys.stderr)
+        print("       'poedex appraise' lists what is there", file=sys.stderr)
         return 2
 
     choice = await prepare_league(prices, bag.league, override=league)
@@ -188,8 +192,47 @@ async def cmd_price(
     return 0 if result.priced else 1
 
 
-def _find(items: list[NormalizedItem], uid: str) -> NormalizedItem | None:
+class AmbiguousItem(Exception):
+    """More than one item answered to what was typed."""
+
+    def __init__(self, needle: str, matches: list[NormalizedItem]) -> None:
+        self.needle = needle
+        self.matches = matches
+        super().__init__(f"{needle!r} matches {len(matches)} items")
+
+
+def _find(items: list[NormalizedItem], needle: str) -> NormalizedItem | None:
+    """Resolve what the player typed to one item.
+
+    A uid is 64 hex characters. Requiring one made the price check unreachable from
+    the terminal — ``appraise`` never printed a uid, and the flag its help pointed at
+    did not exist — and unreachable *entirely* on a Deck, where there is no keyboard
+    to paste one with. So three ways in, narrowest first:
+
+    exact uid, then an unambiguous uid prefix, then an unambiguous case-insensitive
+    substring of the name. Ambiguity raises rather than guessing: picking the first
+    of several matches would price the wrong item and say nothing about it.
+    """
+    needle = needle.strip()
+    if not needle:
+        return None
     for item in items:
-        if item.uid == uid:
+        if item.uid == needle:
             return item
+
+    lowered = needle.casefold()
+    prefix = [i for i in items if i.uid.startswith(needle)] if len(needle) >= 6 else []
+    if len(prefix) == 1:
+        return prefix[0]
+    if len(prefix) > 1:
+        raise AmbiguousItem(needle, prefix)
+
+    named = [i for i in items if lowered in i.name.casefold()]
+    if len(named) == 1:
+        return named[0]
+    if len(named) > 1:
+        exact = [i for i in named if i.name.casefold() == lowered]
+        if len(exact) == 1:
+            return exact[0]
+        raise AmbiguousItem(needle, named)
     return None

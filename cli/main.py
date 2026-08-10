@@ -239,7 +239,9 @@ def build_parser() -> argparse.ArgumentParser:
             "broadening: 'nothing matched what you ticked' is an answer."
         ),
     )
-    price.add_argument("uid", help="the item's uid, as 'poedex appraise --json' prints it")
+    price.add_argument(
+        "uid", help="which item: a name, a uid, or enough of either to be unambiguous"
+    )
     price.add_argument("--character", help="character name (default: most recently played)")
     price.add_argument(
         "--mods",
