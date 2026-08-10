@@ -76,6 +76,7 @@ from modules.prices.backend.api import (
     PricesApi,
     PricesError,
     PriceSource,
+    QuerySpec,
     TableStatus,
     TradeQuote,
     TradeUnavailable,
@@ -783,20 +784,31 @@ class PricesModule:
         *,
         sample: int = 0,
         league: str | None = None,
-        focus: Sequence[ModFocus] | None = None,
+        spec: QuerySpec | Sequence[ModFocus] | None = None,
     ) -> TradeQuote:
-        """Tier 3. On demand only — never reached from a valuation pass."""
+        """Tier 3. On demand only — never reached from a valuation pass.
+
+        Whether an empty result is retried more loosely is the **spec's** decision
+        when a spec was given, and the setting's only when it was not. A manual check
+        that asked about six ticked mods must never come back holding the price of a
+        different, wider search.
+        """
         trade = self._require_trade()
         choice = self.league_choice(league)
         index = self.index(choice.league)
+        retry = (
+            spec.broaden
+            if isinstance(spec, QuerySpec)
+            else bool(self._setting("broaden_on_no_matches", True))
+        )
         try:
             return await trade.quote(
                 item,
                 choice.league,
                 chaos_of=index.chaos_for_trade_id,
                 sample=sample or int(self._setting("trade_sample", DEFAULT_TRADE_SAMPLE)),
-                focus=focus,
-                retry_on_empty=bool(self._setting("broaden_on_no_matches", True)),
+                spec=spec,
+                retry_on_empty=retry,
             )
         except RateLimited as exc:
             raise TradeUnavailable(
@@ -843,7 +855,7 @@ class PricesModule:
         async def one(item: NormalizedItem) -> None:
             try:
                 quote = await self.quote(
-                    item, sample=sample, league=league, focus=wanted.get(item.uid)
+                    item, sample=sample, league=league, spec=wanted.get(item.uid)
                 )
             except (TradeUnavailable, PricesError, LeagueUnknownError) as exc:
                 self._log().info("no tier-3 quote for %s: %s", item.name, exc)

@@ -1,0 +1,104 @@
+{
+  "uid": "u-helm",
+  "name": "Corpse Ward",
+  "base_type": "Siege Helmet",
+  "rarity": "rare",
+  "ilvl": 86,
+  "highlighted": true,
+  "gate": {
+    "passed": true,
+    "considered": true,
+    "strictness": "generous",
+    "signals": [
+      {
+        "name": "tier:0",
+        "detail": "T1 of 10 \u00b7 +130 to maximum Life",
+        "hard": true,
+        "mods": [
+          "+130 to maximum Life"
+        ],
+        "value": 130.0
+      }
+    ]
+  },
+  "mods": [
+    {
+      "index": 0,
+      "text": "+130 to maximum Life",
+      "origin": "explicit",
+      "affix": "prefix",
+      "tier": 1,
+      "tiers": 10,
+      "tier_label": "T1 of 10",
+      "attribution": "exact",
+      "top_tier": true,
+      "value": 130.0,
+      "ceiling": 144.0,
+      "influences": [],
+      "preticked": true,
+      "tradeable": true,
+      "suggested_minimum": 104.0
+    },
+    {
+      "index": 1,
+      "text": "+12% to Fire Resistance",
+      "origin": "explicit",
+      "affix": "suffix",
+      "tier": 7,
+      "tiers": 8,
+      "tier_label": "T7 of 8",
+      "attribution": "exact",
+      "top_tier": false,
+      "value": 12.0,
+      "ceiling": 48.0,
+      "influences": [],
+      "preticked": false,
+      "tradeable": true,
+      "suggested_minimum": 9.0
+    },
+    {
+      "index": 2,
+      "text": "10% increased Rarity of Items found",
+      "origin": "explicit",
+      "affix": null,
+      "tier": null,
+      "tiers": null,
+      "tier_label": "unknown",
+      "attribution": "ambiguous",
+      "top_tier": false,
+      "value": 10.0,
+      "ceiling": null,
+      "influences": [],
+      "preticked": false,
+      "tradeable": true,
+      "suggested_minimum": 8.0
+    },
+    {
+      "index": 3,
+      "text": "+15 to maximum Mana",
+      "origin": "crafted",
+      "affix": "prefix",
+      "tier": 12,
+      "tiers": 12,
+      "tier_label": "T12 of 12",
+      "attribution": "exact",
+      "top_tier": false,
+      "value": 15.0,
+      "ceiling": 45.0,
+      "influences": [],
+      "preticked": false,
+      "tradeable": true,
+      "suggested_minimum": 12.0
+    }
+  ],
+  "preticked": [
+    0
+  ],
+  "open_prefixes": 0,
+  "open_suffixes": 1,
+  "max_prefixes": 3,
+  "max_suffixes": 3,
+  "counts_are_certain": false,
+  "top_affix_level": 85,
+  "note": "3/4 lines attributed, open-affix counts uncertain"
+}

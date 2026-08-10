@@ -11,6 +11,7 @@ Commands:
     poedex sync                        fetch the bag and print the normalized model
     poedex value                       price the bag: per-item values and a total
     poedex appraise                    the bag, judged: keep/check/trash/unpriceable
+    poedex price UID [--mods ...]      ask the market about one item, your query
     poedex limits                      print what the rate limiter currently knows
     poedex moddb                       the mod database: how old, and what it says
     poedex serve                       the web surface on http://127.0.0.1:7331
@@ -34,6 +35,7 @@ from pathlib import Path
 
 from cli.appraise import cmd_appraise
 from cli.moddb import cmd_moddb
+from cli.price import cmd_price
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
 from cli.serve import DEFAULT_PORT, cmd_serve
 from cli.sync import cmd_sync, render_limits
@@ -191,9 +193,9 @@ def build_parser() -> argparse.ArgumentParser:
             "Prices the backpack and turns each price into a verdict. Four states, "
             "and 'unpriceable' is one of them: an item the price index does not "
             "carry is excluded from the total and counted separately, never folded "
-            "into 'trash' and never summed as zero. Costs the same one account "
-            "request 'value' does; gate-flagged rares are also priced against the "
-            "trade API, which is a separate budget — see --no-escalate."
+            "into 'trash' and never summed as zero. Costs exactly one account "
+            "request and no trade requests at all: a rare is *highlighted*, never "
+            "auto-priced. 'poedex price' is how you ask about one."
         ),
     )
     appraise.add_argument("--character", help="character name (default: most recently played)")
@@ -223,19 +225,45 @@ def build_parser() -> argparse.ArgumentParser:
     appraise.add_argument(
         "--all", action="store_true", help="list the trash rows instead of collapsing them"
     )
-    appraise.add_argument(
-        "--no-escalate",
-        dest="escalate",
-        action="store_false",
-        default=None,
-        help=(
-            "do not price the gate's rares against the trade API. The default is to "
-            "price up to four of them — a rare has no bulk price and never will, so "
-            "without it they come back with an opinion and no number. Ignored at "
-            "--strictness strict, which is never escalated"
+    _add_league_argument(appraise)
+
+    price = sub.add_parser(
+        "price",
+        help="ask the market about one item, with the mods you choose",
+        description=(
+            "Prints the item's mods with their real tier on this base, then runs a "
+            "trade search built from the ones you picked. Without --mods it asks "
+            "about the pre-ticked set — the rolls the mod database says are top tier "
+            "here — and --dry-run prints the list and the query without spending a "
+            "request. Two trade requests per real check, and no automatic "
+            "broadening: 'nothing matched what you ticked' is an answer."
         ),
     )
-    _add_league_argument(appraise)
+    price.add_argument("uid", help="the item's uid, as 'poedex appraise --json' prints it")
+    price.add_argument("--character", help="character name (default: most recently played)")
+    price.add_argument(
+        "--mods",
+        default=None,
+        help=(
+            "comma-separated mod indexes to filter on, as listed by --dry-run. "
+            "Omitted, the pre-ticked set is used; '' asks about none of them"
+        ),
+    )
+    price.add_argument(
+        "--open-prefixes",
+        type=int,
+        default=None,
+        help="require at least N free prefix slots — a real filter, and real crafting value",
+    )
+    price.add_argument(
+        "--open-suffixes", type=int, default=None, help="require at least N free suffix slots"
+    )
+    price.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the mod list and the query that would run, and spend nothing",
+    )
+    _add_league_argument(price)
 
     sub.add_parser("limits", help="print the rate limiter's current view")
 
@@ -525,7 +553,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 threshold=args.threshold,
                 show_all=args.all,
                 league=args.league,
-                escalate=args.escalate,
+            )
+
+    elif args.command == "price":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_price(
+                registry.api(AppraisalApi),
+                registry.api(PoeApi),
+                registry.api(PricesApi),
+                uid=args.uid,
+                character=args.character,
+                mods=args.mods,
+                open_prefixes=args.open_prefixes,
+                open_suffixes=args.open_suffixes,
+                dry_run=args.dry_run,
+                league=args.league,
             )
 
     elif args.command == "limits":

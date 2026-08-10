@@ -10,11 +10,15 @@
 
 import type {
   BagAppraisalPayload,
+  ItemHighlightPayload,
   ItemVerdictPayload,
+  ModOptionPayload,
+  PriceCheckPayload,
   PricePayload,
 } from '@poedex/core'
 import type {
   BarModel,
+  CheckOptionModel,
   DetailModel,
   GridCellModel,
   ItemRowModel,
@@ -22,6 +26,7 @@ import type {
   Rarity,
   RowMark,
   TallyEntry,
+  Tone,
   Verdict,
 } from '@poedex/ui'
 import { PROVENANCE_LABEL, VERDICT_HEADLINE, formatChaos, formatDivine } from '@poedex/ui'
@@ -382,4 +387,81 @@ export function floorNote(bag: BagAppraisalPayload): string | null {
   }
   if (parts.length === 0) return null
   return `${parts.join('; ')}. This is a floor, not a value.`
+}
+
+/* -- Phase 9: the checkbox list ---------------------------------------------- */
+
+/**
+ * One mod line as a tickable row.
+ *
+ * `badge` is `tier_label` **verbatim** — `T4 of 10`, or the word `unknown`. It is
+ * never recomposed from `tier`/`tiers` here: `moddb` withholds a tier for roughly
+ * one affix line in five, and any formatter that built the string itself would have
+ * to invent something for those. The refusal travels intact from the database to the
+ * pixel.
+ */
+export function optionsOf(highlight: ItemHighlightPayload): CheckOptionModel[] {
+  return highlight.mods.map((mod) => ({
+    id: String(mod.index),
+    label: mod.text,
+    badge: mod.tier_label,
+    meta: metaOf(mod),
+    tone: toneOf(mod),
+  }))
+}
+
+function metaOf(mod: ModOptionPayload): string | undefined {
+  const parts: string[] = []
+  // Annotated, never disabled. `moddb`'s offline bridge is a trimmed artifact with
+  // real holes (`98% increased Energy Shield` is one), and greying out a filter that
+  // would have worked narrows what the player is allowed to ask. The live document
+  // decides, and the query description reports whatever it could not resolve.
+  if (!mod.tradeable) parts.push('no offline trade id')
+  if (mod.affix) parts.push(mod.affix)
+  if (mod.origin !== 'explicit') parts.push(mod.origin)
+  if (mod.value !== null && mod.ceiling !== null) {
+    // "130 of 144" is what turns "is 130 life good?" into a question with an answer,
+    // and it is a per-base number: the same roll is 130 of 189 on a body armour.
+    parts.push(`${mod.value} of ${mod.ceiling}`)
+  }
+  if (mod.influences.length > 0) parts.push(mod.influences.join('/'))
+  if (mod.suggested_minimum !== null) parts.push(`searches ≥ ${mod.suggested_minimum}`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+/**
+ * The colour of a tier badge.
+ *
+ * `unknown` is **quiet**, not a warning. It is the normal state of about a fifth of
+ * every list, and an alarm colour on a fifth of every list is an alarm colour the
+ * eye stops seeing.
+ */
+function toneOf(mod: ModOptionPayload): Tone {
+  if (mod.influences.length > 0) return 'accent'
+  if (mod.top_tier) return 'good'
+  if (mod.tier === null) return 'quiet'
+  return 'neutral'
+}
+
+/** The pre-ticked ids: top-tier rolls and influence mods, as the backend decided. */
+export function ticksOf(highlight: ItemHighlightPayload): string[] {
+  return highlight.preticked.map(String)
+}
+
+/** The big number, or a dash. Never a zero — an unchecked item is not worthless. */
+export function priceLine(result: PriceCheckPayload): string {
+  return result.chaos === null ? '—' : formatChaos(result.chaos)
+}
+
+/**
+ * The sentence under the number, and it is not optional.
+ *
+ * `10.0c` over one listing and `10.0c` over 438 are different claims wearing the
+ * same number, and the first live appraisal printed the first as though it were the
+ * second. The backend already writes the honest sentence; this only appends what it
+ * cost.
+ */
+export function checkNote(result: PriceCheckPayload): string {
+  const spent = `${result.spent} trade request${result.spent === 1 ? '' : 's'}`
+  return `${result.reason} · ${spent}`
 }

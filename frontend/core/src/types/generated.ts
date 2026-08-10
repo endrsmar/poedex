@@ -141,7 +141,8 @@ export interface ItemVerdictPayload {
   pricing: boolean
   no_listings: boolean
   tier3: "none" | "pending" | "no_listings" | "failed" | "priced"
-  escalate: boolean
+  highlighted: boolean
+  unchecked: boolean
   reason: string
   gate: GatePayload
   valuation: ValuationPayload
@@ -192,7 +193,8 @@ export interface BagAppraisalPayload {
   divine_rate: number | null
   unpriceable_count: number
   unpriceable_stack: number
-  escalation_candidates: number
+  highlighted_count: number
+  unchecked_count: number
   pricing_count: number
   no_listings_count: number
   total_is_floor: boolean
@@ -201,6 +203,101 @@ export interface BagAppraisalPayload {
   table: TableStatusPayload | null
   character?: string | null
   stale?: boolean
+}
+
+/**
+ * One line of an item as a tickable row. Mirrors ``appraisal.api.ModOption``.
+ * ``tier_label`` is the only thing a surface should print, and it is
+ * :meth:`ModMatch.describe`'s own wording or the word ``unknown``. ``tier`` is
+ * populated only where `moddb` committed to a number; a screen that
+ * reconstructed a label from ``tier``/``tiers`` would eventually print one the
+ * database refused.
+ */
+export interface ModOptionPayload {
+  index: number
+  text: string
+  origin: string
+  affix: "prefix" | "suffix" | null
+  tier: number | null
+  tiers: number | null
+  tier_label: string
+  attribution: "exact" | "group" | "ambiguous" | "unknown"
+  top_tier: boolean
+  value: number | null
+  ceiling: number | null
+  influences: string[]
+  preticked: boolean
+  tradeable: boolean
+  suggested_minimum: number | null
+}
+
+/**
+ * The checkbox list, and **no price at all**. Mirrors ``ItemHighlight``.
+ */
+export interface ItemHighlightPayload {
+  uid: string
+  name: string
+  base_type: string
+  rarity: string
+  ilvl: number
+  highlighted: boolean
+  gate: GatePayload
+  mods: ModOptionPayload[]
+  preticked: number[]
+  open_prefixes: number
+  open_suffixes: number
+  max_prefixes: number
+  max_suffixes: number
+  counts_are_certain: boolean
+  top_affix_level: number | null
+  note: string
+}
+
+/**
+ * What the player ticked — indexes, never mod text.
+ */
+export interface SelectionPayload {
+  uid: string
+  mods: number[]
+  open_prefixes: number | null
+  open_suffixes: number | null
+  widen: number
+}
+
+/**
+ * Mirrors ``prices.api.TradeQuote.to_json``.
+ */
+export interface TradeQuotePayload {
+  chaos: number | null
+  considered: number
+  online: number
+  total: number
+  listings: number[]
+  query_url: string | null
+  query: string
+  attempts: number
+  unavailable: string | null
+}
+
+/**
+ * The answer to a manual check. Mirrors ``appraisal.api.PriceCheck``.
+ * ``comparables`` sits beside ``chaos`` rather than behind a detail pane,
+ * because a median over one listing is one stranger's asking price and the
+ * first live appraisal printed exactly that with nothing to say so.
+ */
+export interface PriceCheckPayload {
+  uid: string
+  name: string
+  league: string
+  chaos: number | null
+  divine: number | null
+  priced: boolean
+  thin: boolean
+  comparables: number
+  reason: string
+  spent: number
+  selection: SelectionPayload
+  quote: TradeQuotePayload | null
 }
 
 /**

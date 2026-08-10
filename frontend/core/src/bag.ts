@@ -63,7 +63,7 @@ const INITIAL_SYNC: BagSync = {
 }
 
 export interface BagStore extends ReadableStore<BagState> {
-  refresh(options?: { escalate?: boolean | null }): Promise<void>
+  refresh(): Promise<void>
   /** Start listening for backend events. Returns the teardown. */
   listen(): Unsubscribe
 }
@@ -75,7 +75,7 @@ export function createBagStore(options: BagStoreOptions): BagStore {
   let signature: string | null = null
   let inFlight: Promise<void> | null = null
 
-  async function refresh(refreshOptions: { escalate?: boolean | null } = {}): Promise<void> {
+  async function refresh(): Promise<void> {
     if (inFlight) return inFlight
     const previous = store.get()
     store.set({
@@ -88,10 +88,9 @@ export function createBagStore(options: BagStoreOptions): BagStore {
 
     inFlight = (async () => {
       try {
-        const bag = await client.appraisal.bag({
-          character: options.character ?? null,
-          escalate: refreshOptions.escalate ?? null,
-        })
+        // No `escalate`: a refresh costs one account request and no trade
+        // requests. Rares come back highlighted, and the player asks.
+        const bag = await client.appraisal.bag({ character: options.character ?? null })
         const stamp = now().toISOString()
         const next = signatureOf(bag)
         const changed = next !== signature

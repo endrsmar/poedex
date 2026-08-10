@@ -34,6 +34,8 @@ export {
   ValueBar,
   VerdictPill,
   Action,
+  CheckList,
+  Stepper,
   Focus,
   Detail,
   Pending,

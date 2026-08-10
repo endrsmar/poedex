@@ -98,6 +98,33 @@ export interface RowMark {
   detail?: string
 }
 
+/**
+ * One tickable row of a `CheckList` — a mod the player may put into a query.
+ *
+ * `badge` is the tier and it is a **string the caller already decided**, never
+ * `tier`/`tiers` for the kit to format. `moddb` refuses to name a tier for roughly
+ * one affix line in five, and a kit that composed `T${tier} of ${tiers}` would have
+ * to invent something for those. The caller passes `unknown`, or whatever its own
+ * database said, and the kit prints it.
+ */
+export interface CheckOptionModel {
+  id: string
+  /** The mod line as the player sees it in game. Wraps; never truncated. */
+  label: string
+  /** `T2 of 8`, `unknown`. Short — it shares a line with the label at `full`. */
+  badge?: string
+  /** `prefix · 130 of 144`. The first thing `compact` drops. */
+  meta?: string
+  tone?: Tone
+  /** A row that cannot be searched on. Rendered visibly off, not hidden. */
+  disabled?: boolean
+  /** Why it is off, for a tooltip and for assistive tech. */
+  disabledReason?: string
+}
+
+/** Optional parts of a `CheckList` row, in the order they are drawn. */
+export type CheckField = 'badge' | 'meta'
+
 /** One bar of a `ValueBar`. */
 export interface BarModel {
   id: string

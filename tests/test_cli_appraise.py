@@ -101,24 +101,22 @@ async def test_the_most_valuable_item_is_the_first_row_of_the_keep_block(
 ):
     _, out = await run(appraised_stack, capsys)
     rows = block(out, Verdict.KEEP)
-    assert "Choking Guilt" in rows[1], rows[:3]  # 2 x 9,874c, the biggest line
-    assert "19,748" in rows[1]
+    # rows[0] since Phase 9: nothing in `keep` is highlighted any more, so the
+    # gate-hits-first tie-break no longer floats an unpriced row above the money.
+    assert "Choking Guilt" in rows[0], rows[:3]  # 2 x 9,874c, the biggest line
+    assert "19,748" in rows[0]
 
 
-async def test_gate_flagged_rares_sort_above_priced_rows_inside_check(
+async def test_highlighted_rares_sort_above_priced_rows_inside_check(
     appraised_stack, capsys
 ):
-    """A `check` block mixes "worth 6 chaos" with "the gate says look at this". The
-    second is the one the player cannot work out alone, so it goes first.
-
-    Read off the result rather than sniffed out of the text: since Phase 4b a
-    gate-flagged rare usually *has* a number too — a trade one — so "no number" is no
-    longer a proxy for "flagged"."""
+    """A `check` block mixes "worth 6 chaos" with "worth asking about". The second is
+    the one the player cannot work out alone, so it goes first."""
     _, out = await run(appraised_stack, capsys)
     result = await appraised(appraised_stack)
     rows = [item for item in result.ranked() if item.verdict is Verdict.CHECK]
-    flagged = [i for i, item in enumerate(rows) if item.escalate]
-    plain = [i for i, item in enumerate(rows) if not item.escalate]
+    flagged = [i for i, item in enumerate(rows) if item.highlighted]
+    plain = [i for i, item in enumerate(rows) if not item.highlighted]
     assert flagged and plain
     assert max(flagged) < min(plain)
     # ...and the rendering preserves that order.
@@ -202,6 +200,8 @@ async def test_the_printed_total_is_the_sum_of_the_printed_blocks(appraised_stac
         .split(":")[1]
         .split("chaos")[0]
         .strip()
+        # `≥`, because a highlighted rare has no price and nobody has asked yet.
+        .lstrip("≥ ")
         .replace(",", "")
     )
     assert printed == pytest.approx(subtotals, rel=1e-3)
@@ -235,9 +235,11 @@ async def test_strictness_changes_the_printed_verdicts(appraised_stack, capsys):
     _, strict = await run(appraised_stack, capsys, strictness="strict", show_all=True)
 
     assert "generous (bag)" in generous and "strict (stash)" in strict
-    # `Loath Grip` is the divergence: good resistances, worthless base.
-    assert any("Loath Grip" in row for row in block(generous, Verdict.CHECK))
-    assert any("Loath Grip" in row for row in block(strict, Verdict.TRASH))
+    # `Soul Bind` is the divergence: T2 of 10 life on a Siege Helmet. Near the top
+    # of a long ladder, which is a generous-only signal and could not be expressed
+    # at all while one threshold per mod group was the only tool.
+    assert any("Soul Bind" in row for row in block(generous, Verdict.CHECK))
+    assert any("Soul Bind" in row for row in block(strict, Verdict.TRASH))
 
 
 async def test_the_threshold_flag_changes_the_headline_and_the_blocks(
@@ -260,30 +262,27 @@ def _count(out: str, verdict: Verdict) -> int:
 # -- honest failure ------------------------------------------------------------
 
 
-async def test_it_reports_what_tier_3_actually_cost(appraised_stack, server, capsys):
-    """The line used to read "0 request(s) — tier 3 is on demand only". It now has a
-    number that can be non-zero, so it has to be the *real* number: a request budget
-    the output under-reports is worse than one it does not mention."""
+async def test_it_reports_that_it_spent_nothing_and_says_how_to_ask(
+    appraised_stack, server, capsys
+):
+    """The line used to carry a number that could be non-zero. It cannot any more —
+    an appraise makes no trade request at all — so the line's job is now to say that
+    and to point at the command that does."""
     _, out = await run(appraised_stack, capsys)
-    tier3 = [r for r in server.trade_requests() if _is_tier3(r.url.path)]
-    searches = [r for r in tier3 if "/api/trade/search/" in r.url.path]
-    fetches = [r for r in tier3 if "/api/trade/fetch/" in r.url.path]
-    # One stat document, then a search and a fetch per rare. The stat document is a
-    # trade request and is counted as one — a budget the output rounds in its own
-    # favour is a budget nobody can check.
-    assert f"trade:      {len(tier3)} request(s)" in out
-    assert searches and len(fetches) == len(searches)
-    assert len(tier3) == len(searches) + len(fetches) + 1
-    assert "eager tier 3 for this bag" in out
-
-
-async def test_a_no_escalate_run_spends_nothing_and_says_so(appraised_stack, server, capsys):
-    """``--no-escalate``. The tier-1b bulk-exchange lookup below is not tier 3 and is
-    not switched off by this flag; nothing that searches for an *item* runs."""
-    _, out = await run(appraised_stack, capsys, escalate=False)
     assert "trade:      0 request(s)" in out
-    assert "escalation is off for this run" in out
+    assert "poedex price <uid>" in out
     assert not [r for r in server.trade_requests() if _is_tier3(r.url.path)]
+
+
+async def test_the_summary_names_the_rows_the_total_leaves_out(appraised_stack, capsys):
+    """The honest replacement for the eager pass. The old output made this hole small
+    by spending requests on it; the new one says the hole is there."""
+    _, out = await run(appraised_stack, capsys)
+    result = await appraised(appraised_stack)
+    assert result.unchecked
+    assert f"highlighted:{len(result.unchecked):>3} item(s) worth asking about" in out
+    assert "unknown, not zero" in out
+    assert "bag total:  ≥" in out
 
 
 def _is_tier3(path: str) -> bool:
@@ -296,11 +295,14 @@ async def test_without_price_tables_it_says_so_and_still_prints_the_bag(
     stack_factory, registry, server, cache_clock, capsys
 ):
     from modules.appraisal.backend.module import AppraisalModule
+    from modules.moddb.backend.module import ModDbModule
     from modules.prices.backend.module import PricesModule
 
     server.bag_fixture = "loot-bag.json"
     server.ninja_status = 503
-    await stack_factory(PricesModule(clock=cache_clock, prefetch=False), AppraisalModule())
+    await stack_factory(
+        PricesModule(clock=cache_clock, prefetch=False), ModDbModule(), AppraisalModule()
+    )
     try:
         code = await cmd_appraise(
             registry.api(AppraisalApi),
@@ -359,64 +361,42 @@ def _row(out: str, name: str) -> str:
     return next(line for line in out.splitlines() if name in line)
 
 
-async def test_bug2_a_finished_empty_search_is_drawn_as_terminal_not_as_pricing(
-    appraised_stack, server, capsys
-):
-    """The live symptom, exactly: rows reading ``⋯ · pricing…`` beside searches that
-    had already come back with zero results.
+async def test_bug2_the_three_ways_of_having_no_number_still_render_apart(capsys):
+    """The renderer half of bug 2, now that no appraise produces these states itself.
 
-    Asserted off the rendered text alone. Re-appraising to get an object to compare
-    against would spend the fake limiter's remaining budget and change the answer,
-    which is a decent illustration of why the rendered output is the deliverable.
+    A tier-3 query can still be outstanding (``⋯``), finished-and-empty (``∅``) or
+    simply never asked (``—``), because a manual check writes one of them onto a
+    valuation. Collapsing them is what drew ``pricing…`` forever beside two searches
+    that had already come back with nothing, so the distinction is asserted directly
+    on the row renderer rather than through a path that can no longer reach it.
     """
-    server.trade_search_empty = True
-    _code, out = await run(appraised_stack, capsys, show_all=True)
+    from cli.appraise import render_row
+    from modules.appraisal.backend.api import GateResult, ItemVerdict
+    from modules.prices.backend.api import Tier3, Valuation
 
-    # Rows, not the footnote — the footnote says the same words on purpose.
-    settled = [line for line in out.splitlines() if "no matching listings ·" in line]
-    assert settled, "nothing was escalated, so nothing came back empty"
-    for line in settled:
-        assert "pricing…" not in line, line
-        # ...and a different glyph from the one that means "a number is coming".
-        assert "∅" in line, line
-        assert "⋯" not in line, line
-        # Still no number, and never a zero: uncompared is not worthless.
-        assert " 0c" not in line, line
+    def row(tier3: Tier3) -> str:
+        valuation = Valuation(uid="u", name="Rare Thing", base_type="Coral Ring",
+                              category="accessory", stack_size=1, price=None)
+        valuation.tier3 = tier3
+        return render_row(
+            ItemVerdict(
+                uid="u",
+                name="Rare Thing",
+                base_type="Coral Ring",
+                category="accessory",
+                rarity="rare",
+                verdict=Verdict.CHECK,
+                valuation=valuation,
+                gate=GateResult(),
+                reason="worth asking about",
+            ),
+            colour=False,
+        )
 
-
-async def test_bug2_the_footer_does_not_call_a_finished_search_still_pricing(
-    appraised_stack, server, capsys
-):
-    """The bag-total footnote said "2 item(s) still pricing" about items that had
-    finished. The two counts are now two sentences, and the wrong one is absent."""
-    server.trade_search_empty = True
-    _code, out = await run(appraised_stack, capsys, show_all=True)
-
-    assert "still pricing" not in out
-    footnote = next(
-        line for line in out.splitlines() if "searched and found no matching listings" in line
-    )
-    # The number in the footnote is the number of rows that say so, not a guess.
-    counted = len([line for line in out.splitlines() if "no matching listings ·" in line])
-    assert re.search(r"(\d+) item\(s\) searched", footnote).group(1) == str(counted)
-    # Nothing is outstanding, so the total does not wear a `≥` it cannot justify.
-    assert "bag total:  ≥" not in out
-
-
-async def test_bug2_an_outstanding_query_still_prints_pricing(appraised_stack, capsys, monkeypatch):
-    """The true case must survive the fix."""
-    import asyncio
-
-    prices = appraised_stack.get("prices")
-
-    async def never(*_args, **_kwargs):
-        await asyncio.sleep(3600)
-
-    monkeypatch.setattr(prices, "quote", never)
-    appraised_stack.settings.set("appraisal", "eager_timeout_seconds", 0.1)
-    _code, out = await run(appraised_stack, capsys, show_all=True)
-    assert "still pricing" in out
-    assert "⋯" in out
+    assert "⋯" in row(Tier3.PENDING)
+    assert "∅" in row(Tier3.NO_LISTINGS) and "⋯" not in row(Tier3.NO_LISTINGS)
+    assert "—" in row(Tier3.NONE) and "∅" not in row(Tier3.NONE)
+    assert " 0c" not in row(Tier3.NONE)
 
 
 async def test_bug3_a_quest_item_never_appears_under_an_instruction_to_sell_it(

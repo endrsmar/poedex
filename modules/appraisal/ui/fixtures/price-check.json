@@ -1,0 +1,37 @@
+{
+  "uid": "u-helm",
+  "name": "Corpse Ward",
+  "league": "Allflame",
+  "chaos": 62.0,
+  "divine": 0.2897,
+  "priced": true,
+  "thin": true,
+  "comparables": 4,
+  "reason": "median of 4 of 4 matching listing(s) \u2014 too few to trust as a market price",
+  "spent": 2,
+  "selection": {
+    "uid": "u-helm",
+    "mods": [
+      0
+    ],
+    "open_prefixes": null,
+    "open_suffixes": null,
+    "widen": 0.2
+  },
+  "quote": {
+    "chaos": 62.0,
+    "considered": 4,
+    "online": 4,
+    "total": 4,
+    "listings": [
+      48.0,
+      57.0,
+      67.0,
+      91.0
+    ],
+    "query_url": "https://www.pathofexile.com/trade/search/Allflame/EXAMPLE",
+    "query": "Siege Helmet \u00b7 rare \u00b7 +130 to maximum Life \u2265 104",
+    "attempts": 1,
+    "unavailable": null
+  }
+}

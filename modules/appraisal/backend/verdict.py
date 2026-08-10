@@ -102,7 +102,10 @@ def classify(
                 valuation.reason or "the trade search could not run", gate
             )
         if gate.passed:
-            return Verdict.CHECK, gate.summary
+            # The highlighter claims no number and this reason must not imply one.
+            # "worth asking about" is the whole of what it said, and the price check
+            # is the player's to run — IMPLEMENTATION-PLAN §5b.
+            return Verdict.CHECK, f"worth asking about: {gate.summary}"
         return Verdict.TRASH, _gate_miss_reason(gate)
 
     # The value column already prints the line total, so the reason says the two
@@ -174,10 +177,10 @@ def _unpriceable_reason(valuation: Valuation) -> str:
 
 def _gate_miss_reason(gate: GateResult) -> str:
     if not gate.considered:
-        return "no bulk price, and nothing the gate can read"
+        return "no bulk price, and nothing the highlighter can read"
     if gate.strictness is Strictness.STRICT:
-        return "no bulk price; no hard requirement met"
-    return "no bulk price; the gate found nothing"
+        return "no bulk price; no hard criterion met"
+    return "no bulk price; nothing worth asking about"
 
 
 def appraise_one(

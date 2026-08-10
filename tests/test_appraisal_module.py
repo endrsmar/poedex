@@ -19,8 +19,9 @@ from modules.appraisal.backend.api import (
     Verdict,
 )
 from modules.appraisal.backend.module import AppraisalModule
+from modules.moddb.backend.api import ModDbApi
 from modules.poeapi.backend.api import PoeApi, Source
-from modules.prices.backend.api import PricesApi, PriceSource
+from modules.prices.backend.api import PricesApi
 from runtime.errors import ModuleNotStartedError
 
 # -- declaration and wiring ----------------------------------------------------
@@ -30,16 +31,17 @@ def test_the_declaration_matches_the_plan_except_where_it_says_why():
     module = AppraisalModule()
     assert (module.id, module.kind) == ("appraisal", "feature")
     assert module.provides is AppraisalApi
-    # `prices` is the plan's dependency. `poeapi` is the documented addition, and
-    # this assertion is here so removing it is a deliberate act.
-    assert set(module.requires) == {"prices", "poeapi"}
+    # `prices` is the plan's dependency; `poeapi` is Phase 4's documented addition
+    # and `moddb` is Phase 9's. This assertion is here so removing one is deliberate.
+    assert set(module.requires) == {"prices", "poeapi", "moddb"}
     assert isinstance(module, AppraisalApi)
 
 
-def test_it_resolves_both_dependencies_at_start(appraised_stack):
+def test_it_resolves_every_dependency_at_start(appraised_stack):
     module = appraised_stack.get("appraisal")
     assert isinstance(module._prices, PricesApi)
     assert isinstance(module._poeapi, PoeApi)
+    assert isinstance(module._moddb, ModDbApi)
 
 
 async def test_an_unstarted_module_refuses_rather_than_returning_nonsense():
@@ -57,7 +59,13 @@ async def test_stopping_releases_the_dependencies(appraised_stack, loot):
 
 def test_the_methods_are_namespaced_and_awaitable(appraised_stack):
     names = appraised_stack.methods.for_module("appraisal")
-    assert names == ["appraisal.appraise_bag", "appraisal.gate", "appraisal.settings"]
+    assert names == [
+        "appraisal.appraise_bag",
+        "appraisal.gate",
+        "appraisal.highlight",
+        "appraisal.price_check",
+        "appraisal.settings",
+    ]
 
 
 # -- settings ------------------------------------------------------------------
@@ -107,11 +115,11 @@ def test_the_strictness_setting_is_read_and_a_bad_value_falls_back_loudly(apprai
     assert module.strictness() is Strictness.STRICT
 
 
-def test_extra_bases_extend_the_allowlist_rather_than_replacing_it(appraised_stack):
+def test_extra_bases_extend_the_opinion_list_rather_than_replacing_it(appraised_stack):
     module = appraised_stack.get("appraisal")
-    before = module.allowlist()
-    appraised_stack.settings.set("appraisal", "extra_high_value_bases", ["Sadist Garb"])
-    after = module.allowlist()
+    before = module.sought_bases()
+    appraised_stack.settings.set("appraisal", "extra_sought_after_bases", ["Sadist Garb"])
+    after = module.sought_bases()
     assert before < after
     assert "Sadist Garb" in after
 
@@ -125,20 +133,19 @@ async def test_every_verdict_path_is_reachable_on_one_bag(appraiser, loot):
 
 
 async def test_the_two_strictness_levels_disagree_on_the_same_bag(appraiser, loot):
-    """The two *gates*, with tier 3 held out of the comparison.
+    """The two highlighters, on one bag.
 
-    ``escalate=False`` on both sides deliberately: since Phase 4b the generous run
-    also *prices* what it flags, so a like-for-like comparison of the two gates has
-    to switch that off or it is comparing two different questions.
+    No escalation switch to hold out any more: neither run makes a trade request, so
+    the comparison is between two readings of the same items and nothing else.
     """
-    generous = await appraiser.appraise(loot, strictness=Strictness.GENEROUS, escalate=False)
-    strict = await appraiser.appraise(loot, strictness=Strictness.STRICT, escalate=False)
+    generous = await appraiser.appraise(loot, strictness=Strictness.GENEROUS)
+    strict = await appraiser.appraise(loot, strictness=Strictness.STRICT)
 
     assert generous.counts["check"] > strict.counts["check"]
     assert generous.counts["trash"] < strict.counts["trash"]
     # Everything the strict gate flags, the generous gate flags too.
-    strict_flagged = {i.uid for i in strict.escalation_candidates}
-    generous_flagged = {i.uid for i in generous.escalation_candidates}
+    strict_flagged = {i.uid for i in strict.highlighted}
+    generous_flagged = {i.uid for i in generous.highlighted}
     assert strict_flagged < generous_flagged
     # And no threshold moved, so the money is identical either way.
     assert generous.total_chaos == strict.total_chaos
@@ -190,52 +197,60 @@ def test_the_gate_is_reachable_without_pricing_anything(appraiser, loot):
 # -- the request budget --------------------------------------------------------
 
 
-async def test_a_stash_run_is_never_escalated_however_it_is_asked(
-    appraised_stack, server, loot
-):
-    """SPEC §5.3's rule, which survives Phase 4b in the place it was actually about.
+async def test_an_appraise_issues_zero_trade_requests(appraised_stack, server, loot):
+    """The claim Phase 9 makes, counted at the wire rather than read off the code.
 
-    A bag of five rares fits inside ``5:10:60``. A stash of 818 items does not, and
-    that is a property of the stash rather than of the caller's intent — so
-    ``escalate=True`` at strict strictness is refused, not obeyed."""
+    Not a setting, not a strictness, not a parameter: **there is no escalation path
+    left**. `appraisal` has no ``escalate`` argument, no eager budget and no timeout,
+    and the only thing that can reach the trade API from here is
+    :meth:`AppraisalApi.price_check`, which a player has to ask for.
+    """
     appraiser = appraised_stack.api(AppraisalApi)
-    before = len(server.requests)
-    result = await appraiser.appraise(loot, strictness=Strictness.STRICT, escalate=True)
+    for level in Strictness:
+        before = len(server.requests)
+        result = await appraiser.appraise(loot, strictness=level)
+        sent = [r.url.path for r in server.requests[before:]]
+        assert not any(p.startswith("/api/trade/search/") for p in sent), sent
+        assert not any(p.startswith("/api/trade/fetch/") for p in sent), sent
+        assert result.trade_requests == 0
+        # ...and it still says which rows it would have been about.
+        if level is Strictness.GENEROUS:
+            assert result.highlighted
 
-    sent = [r.url.path for r in server.requests[before:]]
-    assert not any(p.startswith("/api/trade/search/") for p in sent), sent
-    assert not any(p.startswith("/character-window/") for p in sent), sent
-    assert result.trade_requests == 0
-    # The gate still flagged what it would query, and still queried none of it.
-    assert result.escalation_candidates
+
+def test_the_appraise_signature_has_no_escalate_parameter():
+    """A deleted path that leaves its switch behind grows the path back.
+
+    `appraise` is the method a zone transition calls on every map, so an
+    ``escalate=True`` still sitting in the signature is one settings change away from
+    the behaviour §5b removed.
+    """
+    import inspect
+
+    assert "escalate" not in inspect.signature(AppraisalModule.appraise).parameters
+    assert "escalate" not in inspect.signature(AppraisalModule.appraise_bag_json).parameters
 
 
-async def test_a_bag_run_prices_the_gates_rares_and_stops_at_the_budget(
-    appraised_stack, server, loot
+async def test_a_highlighted_rare_is_left_without_a_price_and_the_total_says_so(
+    appraiser, loot
 ):
-    """The other half of the same rule: a *bag* is escalated, and bounded."""
-    appraised_stack.settings.set("appraisal", "max_eager_quotes", 2)
-    appraiser = appraised_stack.api(AppraisalApi)
-    result = await appraiser.appraise(loot, strictness=Strictness.GENEROUS)
+    """The honest replacement for the eager pass.
 
-    searches = [r for r in server.trade_requests() if "/api/trade/search/" in r.url.path]
-    assert len(searches) == 2, "the budget is a cap, not a suggestion"
-    assert len(result.escalation_candidates) > 2, "and there was more it could have asked"
-    priced = [
-        item
-        for item in result.items
-        if item.valuation.price is not None
-        and item.valuation.price.source is PriceSource.TRADE
-    ]
-    assert priced, "nothing came back with a trade price"
-    assert all(item.verdict is not Verdict.UNPRICEABLE for item in priced)
-
-
-async def test_escalation_is_off_when_the_budget_is_zero(appraised_stack, server, loot):
-    appraised_stack.settings.set("appraisal", "max_eager_quotes", 0)
-    result = await appraised_stack.api(AppraisalApi).appraise(loot)
-    assert result.trade_requests == 0
-    assert not any("/api/trade/search/" in r.url.path for r in server.trade_requests())
+    The old code made this hole small by spending requests on it, badly. Now the hole
+    is named: the rows are counted, the total is a floor, and nothing invents a
+    number for them.
+    """
+    result = await appraiser.appraise(loot)
+    unchecked = result.unchecked
+    assert unchecked, "no rare was highlighted at all"
+    for item in unchecked:
+        assert item.valuation.unpriceable
+        assert item.total_chaos == 0.0
+        assert item.valuation.price is None
+        assert item.verdict is Verdict.CHECK
+        assert "worth asking about" in item.reason
+    assert result.total_is_floor
+    assert not result.pricing, "nothing is outstanding; the floor is about the unasked"
 
 
 async def test_appraising_the_bag_end_to_end_spends_one_item_request(
@@ -272,12 +287,11 @@ async def test_appraise_bag_json_is_serializable_and_carries_every_count(
     assert json.loads(json.dumps(payload)) == payload
     assert set(payload["counts"]) == {"keep", "check", "trash", "unpriceable", "not_loot"}
     assert payload["unpriceable_stack"] > 0
-    # Three, not two: a search that matches nothing gets one broadening retry, so
-    # the worst case per item is search + retry + fetch.
-    assert payload["trade_requests"] <= payload["escalation_candidates"] * 3
+    assert payload["trade_requests"] == 0, "an appraise never asks the trade API"
     assert payload["character"]
-    assert payload["pricing_count"] >= 0
-    assert payload["total_is_floor"] is (payload["pricing_count"] > 0)
+    assert payload["pricing_count"] == 0
+    assert payload["highlighted_count"] >= payload["unchecked_count"] > 0
+    assert payload["total_is_floor"] is True
 
 
 async def test_appraise_bag_json_accepts_a_strictness_and_rejects_a_bad_one(
@@ -295,7 +309,9 @@ async def test_the_gate_method_takes_a_uid_not_an_item(appraised_stack, loot):
     uid = next(i.uid for i in loot if i.base_type == "Hubris Circlet")
     result = await appraised_stack.methods.call("appraisal.gate", uid)
     assert result["passed"] is True
-    assert {s["name"] for s in result["signals"]} >= {"ilvl_86", "high_value_base"}
+    # A Hubris Circlet tops out at affix level 85, so an ilvl-86 one is fully rolled
+    # and carries GGG's own top-tier tag. It is also unidentified in the fixture.
+    assert {s["name"] for s in result["signals"]} >= {"top_tier_base", "unidentified"}
     with pytest.raises(AppraisalError, match="no item"):
         await appraised_stack.methods.call("appraisal.gate", "not-a-real-uid")
 
@@ -306,7 +322,9 @@ async def test_the_settings_method_reports_what_the_verdicts_were_made_with(
     payload = await appraised_stack.methods.call("appraisal.settings")
     assert payload["keep_threshold_chaos"] == DEFAULT_KEEP_CHAOS
     assert payload["strictness"] == "generous"
-    assert "Hubris Circlet" in payload["high_value_bases"]
+    assert "Stygian Vise" in payload["sought_after_bases"]
+    # ...and, since every tier on the screen comes out of it, how old the database is.
+    assert "mod database for Path of Exile" in payload["moddb"]
 
 
 async def test_it_announces_a_completed_appraisal(appraised_stack):
@@ -330,20 +348,19 @@ async def test_with_no_price_tables_everything_is_a_gate_decision(
     indexable rows are honestly unpriceable, the rares still get a gate verdict, and
     tier 0 keeps working — a ``~b/o 40 chaos`` note needs no table, because chaos is
     the unit rather than a line in one."""
+    from modules.moddb.backend.module import ModDbModule
     from modules.prices.backend.module import PricesModule
 
     server.bag_fixture = "loot-bag.json"
     server.ninja_status = 503
-    await stack_factory(PricesModule(clock=cache_clock, prefetch=False), AppraisalModule())
+    await stack_factory(
+        PricesModule(clock=cache_clock, prefetch=False), ModDbModule(), AppraisalModule()
+    )
     try:
         bag = await registry.api(PoeApi).get_items()
-        # `escalate=False`: with no tables at all, tier 3 would be the *only* thing
-        # pricing anything, and this test is about what survives when it is not.
-        result = await registry.api(AppraisalApi).appraise(
-            bag.by_source(Source.BAG), escalate=False
-        )
+        result = await registry.api(AppraisalApi).appraise(bag.by_source(Source.BAG))
         assert result.counts["unpriceable"] > 5, "every indexable row is now a hole"
-        assert result.counts["check"] > 0, "the gate still works without prices"
+        assert result.counts["check"] > 0, "the highlighter still works without prices"
         kept = result.of(Verdict.KEEP)
         assert [i.name for i in kept] == ["Brood Locket"], "only the player's own note survives"
         assert result.total_chaos == pytest.approx(40.0)
@@ -360,155 +377,3 @@ async def test_an_empty_bag_appraises_to_all_zeroes(appraiser):
     assert result.ranked() == []
 
 
-# -- tier 3 that does not answer -------------------------------------------------
-
-
-async def test_a_rare_nobody_is_selling_stays_unpriceable_and_is_never_zero(
-    appraised_stack, server, loot
-):
-    """The whole point of the four-state model, met by the newest tier.
-
-    A search that finds nothing is a real answer and a different one from "worth
-    nothing". The row keeps no price and contributes nothing to the total.
-
-    It is also a different answer from *"we are still looking"*, which is what this
-    test used to assert. The first live appraisal rendered ``pricing…`` beside two
-    rares whose searches had already come back with zero results, so the reader
-    waited for numbers that were never coming. A zero-result search is terminal.
-    """
-    server.trade_search_empty = True
-    result = await appraised_stack.api(AppraisalApi).appraise(loot)
-
-    answered = result.no_listings
-    assert answered, "nothing was escalated at all"
-    for item in answered:
-        assert item.valuation.unpriceable
-        assert item.total_chaos == 0.0
-        assert item.verdict is Verdict.CHECK
-        assert "no matching listings" in item.reason
-        assert "pricing…" not in item.reason
-        assert not item.pricing, "a finished search must not read as outstanding"
-
-    # Nothing is outstanding, so the total will not move and does not claim it might.
-    assert not result.pricing
-    assert not result.total_is_floor
-    # ...and the money is still only what we actually know.
-    assert result.total_chaos == pytest.approx(
-        sum(i.total_chaos for i in result.items if not i.valuation.unpriceable)
-    )
-
-
-async def test_a_slow_quote_costs_a_number_never_the_output(
-    appraised_stack, loot, monkeypatch
-):
-    """SPEC §5.3: a per-item ``pricing…`` state that never gates the grid.
-
-    The quote is made to hang. The pass must still return, with every other verdict
-    intact and the hung rows marked — not blocked, and not silently dropped."""
-    import asyncio
-
-    prices = appraised_stack.get("prices")
-
-    async def never(*_args, **_kwargs):
-        await asyncio.sleep(3600)
-
-    monkeypatch.setattr(prices, "quote", never)
-    appraised_stack.settings.set("appraisal", "eager_timeout_seconds", 0.1)
-
-    result = await asyncio.wait_for(
-        appraised_stack.api(AppraisalApi).appraise(loot), timeout=10
-    )
-    assert result.pricing, "a hung quote left no trace"
-    assert result.counts["keep"] > 0, "the rest of the bag came through"
-    assert result.total_is_floor
-
-
-# -- bug 1: the gate's reasoning has to reach the trade query ---------------------
-
-
-def test_bug1_the_gate_hands_tier_3_the_mods_it_reacted_to():
-    """`prices` cannot ask the gate — that would be a dependency cycle — so the join
-    is this object. Without it the query was built from every mod on the item, and
-    two of the three rares in the first live appraisal matched nothing at all."""
-    from modules.appraisal.backend.gate import evaluate
-    from tests.test_appraisal_gate import item
-
-    ring = item(
-        base_type="Amethyst Ring",
-        explicit=[
-            "+30 to Strength",
-            "Adds 2 to 5 Physical Damage to Attacks",
-            "+103 to maximum Life",
-            "+33% to Fire Resistance",
-            "+38% to Lightning Resistance",
-        ],
-    )
-    result = evaluate(ring)
-    assert result.passed
-
-    focus = result.focus()
-    assert focus, "the gate flagged the item but named no mod to search on"
-    assert len(focus) <= 2, "a focus that names every mod is the bug again"
-    # The mod the gate actually reacted to, not the first one on the item.
-    assert focus[0].text == "+103 to maximum Life"
-    # ...and a widened floor rather than the exact roll.
-    assert focus[0].minimum is not None
-    assert focus[0].minimum < 103
-
-
-def test_bug1_a_mod_group_the_gate_only_saw_present_gets_no_roll_floor():
-    """The gate said "this group exists", not "it rolled well". A `min` invented from
-    a roll nobody vouched for would narrow the query on a claim nobody made."""
-    from modules.appraisal.backend.gate import evaluate
-    from tests.test_appraisal_gate import item
-
-    # +10 is far under the attributes threshold of 45, so this is a "present" hit.
-    jewel = item(
-        base_type="Searching Eye Jewel",
-        category="jewel",
-        subcategory=None,
-        explicit=["+10 to Strength and Dexterity"],
-    )
-    focus = evaluate(jewel).focus()
-    assert focus and focus[0].text == "+10 to Strength and Dexterity"
-    assert focus[0].minimum is None
-
-
-def test_bug1_a_summed_group_puts_a_floor_on_none_of_its_lines():
-    """Resistances are a sum across three or four mods. No single line carries the
-    roll, so no single line may inherit it as a minimum."""
-    from modules.appraisal.backend.gate import evaluate
-    from tests.test_appraisal_gate import item
-
-    ring = item(
-        explicit=[
-            "+40% to Fire Resistance",
-            "+38% to Cold Resistance",
-            "+37% to Lightning Resistance",
-        ]
-    )
-    focus = evaluate(ring).focus()
-    assert focus
-    assert all(entry.minimum is None for entry in focus)
-
-
-async def test_bug1_the_escalation_passes_that_focus_down_to_prices(
-    appraised_stack, loot, monkeypatch
-):
-    """End to end through the module: whatever the gate chose is what `quote_many`
-    is asked about."""
-    seen: dict = {}
-    prices = appraised_stack.get("prices")
-    real = prices.quote_many
-
-    async def spy(items, **kwargs):
-        seen.update(kwargs.get("focus") or {})
-        return await real(items, **kwargs)
-
-    monkeypatch.setattr(prices, "quote_many", spy)
-    await appraised_stack.api(AppraisalApi).appraise(loot)
-
-    assert seen, "no focus reached prices; the query is back to guessing"
-    for entries in seen.values():
-        assert len(entries) <= 2
-        assert all(entry.text for entry in entries)

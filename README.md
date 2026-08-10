@@ -93,7 +93,7 @@ and `eslint-plugin-poedex` checks what a module's UI may import.
 | M3 | Decky plugin shell: bag grid, D-pad navigation, push updates | yes |
 | M4 | LAN pairing — credential entry with zero characters typed on the Deck | yes |
 | M5 | Stash digest: what's it worth, what should I sell | yes |
-| M6 | Rare pricing: heuristic gate plus on-demand trade queries | yes |
+| M6 | Rare pricing: highlight the interesting ones, then an on-demand trade query the player composes | yes |
 | M7 | OAuth, once GGG reopens developer registration | yes |
 
 ## Installation

@@ -854,6 +854,27 @@
    "baseType": "Book of Skill",
    "descrText": "Right click to gain a passive skill point.",
    "frameType": 7
+  },
+  {
+   "verified": true,
+   "w": 2,
+   "h": 2,
+   "league": "Standard",
+   "id": "e794ccaf7ee5cc09291fd740b3f514b4be7dad09ad00ca8c7f8a9b6ba93422d6",
+   "identified": true,
+   "ilvl": 86,
+   "x": 9,
+   "y": 1,
+   "inventoryId": "MainInventory",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Armours/Helmets/HelmetStrInt3.png",
+   "name": "Soul Bind",
+   "typeLine": "Siege Helmet",
+   "baseType": "Siege Helmet",
+   "frameType": 2,
+   "explicitMods": [
+    "+120 to maximum Life",
+    "+30% to Fire Resistance"
+   ]
   }
  ],
  "character": {

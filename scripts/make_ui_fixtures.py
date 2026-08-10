@@ -74,7 +74,10 @@ from modules.prices.backend.api import (  # noqa: E402
 # slice (IMPLEMENTATION-PLAN §1.1) and this is an *appraisal* payload; putting it
 # under `frontend/` would also make the bag screen's own test reach outside its
 # module, which is the thing `poedex/module-ui-boundary` exists to refuse.
-OUTPUT = REPO_ROOT / "modules" / "appraisal" / "ui" / "fixtures" / "bag-appraisal.json"
+FIXTURES = REPO_ROOT / "modules" / "appraisal" / "ui" / "fixtures"
+OUTPUT = FIXTURES / "bag-appraisal.json"
+HIGHLIGHT_OUTPUT = FIXTURES / "item-highlight.json"
+CHECK_OUTPUT = FIXTURES / "price-check.json"
 
 LEAGUE = "Allflame"
 DIVINE_RATE = 214.0
@@ -478,28 +481,136 @@ def build() -> dict:
     return payload
 
 
+# -- Phase 9: the checkbox list ------------------------------------------------
+#
+# Built through the **real `moddb`**, not written out by hand. The point of the
+# fixture is that `unknown` appears in it because the database genuinely refuses to
+# attribute a line, rather than because somebody typed the word: a frontend test
+# asserting that the panel renders `unknown` is only worth anything if the payload
+# it renders came from the thing that decides.
+
+HIGHLIGHT_ITEM = NormalizedItem(
+    uid="u-helm",
+    name="Corpse Ward",
+    base_type="Siege Helmet",
+    category="armour",
+    subcategory="helmet",
+    rarity=Rarity.RARE,
+    ilvl=86,
+    grid=Grid(x=0, y=0, w=2, h=2),
+    sockets=Sockets(),
+    identified=True,
+    mods=Mods(
+        explicit=[
+            # T1 of 10 here, and T1 of 13 nowhere near this value on a body armour.
+            "+130 to maximum Life",
+            # T7 of 8 — a real tier, and a bad one.
+            "+12% to Fire Resistance",
+            # Ambiguous: several ladders reach it, so `moddb` names no tier at all
+            # and the panel must print `unknown`.
+            "10% increased Rarity of Items found",
+        ],
+        crafted=[
+            # The bench pool is not in the artifact, so this is `unknown` for a
+            # second and different reason. Both render the same way on purpose.
+            "+15 to maximum Mana",
+        ],
+    ),
+    location=Location(source=Source.BAG, slot="MainInventory"),
+)
+
+
+def build_highlight() -> dict:
+    from modules.appraisal.backend.gate import evaluate, report_for
+    from modules.appraisal.backend.highlight import build as build_item_highlight
+    from modules.moddb.backend.module import ModDbModule
+
+    db = ModDbModule()
+    report = report_for(HIGHLIGHT_ITEM, db)
+    result = evaluate(HIGHLIGHT_ITEM, moddb=db, report=report)
+    return build_item_highlight(HIGHLIGHT_ITEM, result, report, moddb=db).to_json()
+
+
+def build_check() -> dict:
+    """A finished check, with a **thin** sample — the shape that has to be labelled.
+
+    Four comparables is a real outcome for a specific rare and it is exactly the
+    case the first live appraisal got wrong: it reported the median of one listing
+    as though it were a market price. The count travels with the number.
+    """
+    from modules.appraisal.backend.api import ItemHighlight, PriceCheck, Selection
+    from modules.appraisal.backend.gate import evaluate, report_for
+    from modules.appraisal.backend.highlight import build as build_item_highlight
+    from modules.moddb.backend.module import ModDbModule
+    from modules.prices.backend.api import TradeQuote
+
+    db = ModDbModule()
+    report = report_for(HIGHLIGHT_ITEM, db)
+    result = evaluate(HIGHLIGHT_ITEM, moddb=db, report=report)
+    highlight: ItemHighlight = build_item_highlight(
+        HIGHLIGHT_ITEM, result, report, moddb=db
+    )
+    selection: Selection = highlight.selection()
+    quote = TradeQuote(
+        62.0,
+        considered=4,
+        online=4,
+        total=4,
+        listings=[48.0, 57.0, 67.0, 91.0],
+        query="Siege Helmet · rare · +130 to maximum Life ≥ 104",
+        attempts=1,
+        query_url="https://www.pathofexile.com/trade/search/Allflame/EXAMPLE",
+    )
+    return PriceCheck(
+        highlight=highlight,
+        selection=selection,
+        league=LEAGUE,
+        quote=quote,
+        spent=2,
+        divine_rate=DIVINE_RATE,
+    ).to_json()
+
+
 def render() -> str:
     return json.dumps(build(), indent=2, sort_keys=False) + "\n"
 
 
+def render_highlight() -> str:
+    return json.dumps(build_highlight(), indent=2, sort_keys=False) + "\n"
+
+
+def render_check() -> str:
+    return json.dumps(build_check(), indent=2, sort_keys=False) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="exit 1 if the file is stale")
+    parser.add_argument("--check", action="store_true", help="exit 1 if a file is stale")
     args = parser.parse_args(argv)
-    generated = render()
+    wanted = [
+        (OUTPUT, render()),
+        (HIGHLIGHT_OUTPUT, render_highlight()),
+        (CHECK_OUTPUT, render_check()),
+    ]
     if args.check:
-        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
-        if current == generated:
+        stale = [
+            target
+            for target, generated in wanted
+            if (target.read_text(encoding="utf-8") if target.exists() else "") != generated
+        ]
+        if not stale:
             return 0
-        print(
-            f"{OUTPUT.relative_to(REPO_ROOT)} is stale.\n"
-            "Run: python3 scripts/make_ui_fixtures.py",
-            file=sys.stderr,
-        )
+        for target in stale:
+            print(
+                f"{target.relative_to(REPO_ROOT)} is stale.\n"
+                "Run: python3 scripts/make_ui_fixtures.py",
+                file=sys.stderr,
+            )
         return 1
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(generated, encoding="utf-8")
-    print(f"wrote {OUTPUT.relative_to(REPO_ROOT)}")
+    for target, generated in wanted:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(generated, encoding="utf-8")
+        print(f"wrote {target.relative_to(REPO_ROOT)}")
     return 0
 
 

@@ -18,6 +18,21 @@
      "id": "pseudo.pseudo_adds_physical_damage",
      "text": "Adds # to # Physical Damage",
      "type": "pseudo"
+    },
+    {
+     "id": "pseudo.pseudo_number_of_empty_prefix_mods",
+     "text": "# Empty Prefix Modifiers",
+     "type": "pseudo"
+    },
+    {
+     "id": "pseudo.pseudo_number_of_empty_suffix_mods",
+     "text": "# Empty Suffix Modifiers",
+     "type": "pseudo"
+    },
+    {
+     "id": "pseudo.pseudo_increased_attack_speed",
+     "text": "#% increased Attack Speed",
+     "type": "pseudo"
     }
    ]
   },
@@ -38,6 +53,11 @@
     {
      "id": "explicit.stat_960081730",
      "text": "Adds # to # Physical Damage",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_681332047",
+     "text": "#% increased Attack Speed",
      "type": "explicit"
     }
    ]

@@ -71,10 +71,12 @@ async def stack_with_prices(stack_factory, registry, server, prices_module):
 
 
 @pytest.fixture
-async def full_stack(stack_factory, registry, server, prices_module, appraisal_module):
-    """`prices` and `appraisal`, no league configured, on the loot bag."""
+async def full_stack(
+    stack_factory, registry, server, prices_module, moddb_module, appraisal_module
+):
+    """`prices`, `moddb` and `appraisal`, no league configured, on the loot bag."""
     server.bag_fixture = "loot-bag.json"
-    result = await stack_factory(prices_module, appraisal_module)
+    result = await stack_factory(prices_module, moddb_module, appraisal_module)
     yield result
     await registry.stop_all()
 

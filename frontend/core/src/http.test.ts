@@ -19,14 +19,14 @@ describe('HttpTransport.call', () => {
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true, result: { total: 7 } }))
     const transport = new HttpTransport({ fetch: fetchMock as never })
 
-    await expect(transport.call('appraisal.appraise_bag', { escalate: false })).resolves.toEqual({
+    await expect(transport.call('appraisal.appraise_bag', { strictness: 'strict' })).resolves.toEqual({
       total: 7,
     })
 
     const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit]
     expect(url).toBe('/api/call/appraisal.appraise_bag')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body as string)).toEqual({ escalate: false })
+    expect(JSON.parse(init.body as string)).toEqual({ strictness: 'strict' })
   })
 
   it('turns a backend error into a TransportError with its kind', async () => {

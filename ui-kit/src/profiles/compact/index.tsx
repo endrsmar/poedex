@@ -33,6 +33,8 @@ import { Children, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type {
   ActionComponent,
+  CheckField,
+  CheckListComponent,
   DetailComponent,
   DetailField,
   EmptyComponent,
@@ -49,6 +51,7 @@ import type {
   StaleBannerComponent,
   StackComponent,
   StatComponent,
+  StepperComponent,
   TallyComponent,
   ValueBarComponent,
   VerdictPillComponent,
@@ -764,8 +767,213 @@ export const StaleBanner: StaleBannerComponent = ({
   )
 }
 
+
+/**
+ * The checkbox list at 300 px — **the design problem of Phase 9.**
+ *
+ * Six mods, each with a tier label, inside 268 usable pixels, navigated with a
+ * D-pad. It does not fit as a row of columns, and the resolution is that it stops
+ * being a row: a `compact` option is **two lines**, the mod text on the first and
+ * the tier under it, and the whole thing is a 30 px focus target rather than a 14 px
+ * checkbox somebody has to land on.
+ *
+ * Three things this deliberately does not do:
+ *
+ * * **It does not truncate.** Every other list in this kit takes a `limit` and
+ *   reports what it hid; a checkbox list may not, because a hidden row is a filter
+ *   the player cannot see and cannot switch off. Six affixes is the game's ceiling,
+ *   so the list is bounded by the item.
+ * * **It does not shorten the mod text.** `+120 to maximum Life` wraps to two lines
+ *   at this width and that is correct: the player is matching it against the tooltip
+ *   in game, and `+120 to maximu…` is not something they can match.
+ * * **It does not hide a disabled row.** A mod with no trade filter is still on the
+ *   item; it is drawn dimmed with an em-dash box, so the list still agrees with the
+ *   item.
+ *
+ * Phase 7 replaces the outer element with `<Focusable onActivate={...}>` and gets
+ * A-to-tick for free; the two-line layout and the 30 px target are what make that
+ * swap a swap rather than a redesign.
+ */
+export const CheckList: CheckListComponent = ({
+  options,
+  selected,
+  onToggle,
+  label: name = 'mods to search on',
+  fields,
+  emptyLabel = 'no readable mods',
+}) => {
+  const shown = new Set(resolveHint<CheckField[]>(fields, P, ['badge']))
+  const ticked = new Set(selected)
+  if (options.length === 0) {
+    return <div style={{ ...label, padding: 4 }}>{emptyLabel}</div>
+  }
+  return (
+    <div
+      role="group"
+      aria-label={name}
+      style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+    >
+      {options.map((option) => {
+        const on = ticked.has(option.id)
+        return (
+          // Phase 7: `<Focusable onActivate={() => onToggle(option.id)}>`.
+          <div
+            key={option.id}
+            data-check-id={option.id}
+            role="checkbox"
+            aria-checked={on}
+            aria-disabled={option.disabled ? true : undefined}
+            aria-label={
+              option.disabled && option.disabledReason
+                ? `${option.label} — ${option.disabledReason}`
+                : option.label
+            }
+            onClick={option.disabled ? undefined : () => onToggle(option.id)}
+            style={{
+              display: 'flex',
+              gap: 6,
+              alignItems: 'flex-start',
+              padding: '5px 6px',
+              minHeight: 30,
+              borderRadius: 4,
+              background: on ? C.panel3 : C.sunken,
+              border: `1px solid ${on ? C.accent : 'transparent'}`,
+              opacity: option.disabled ? 0.5 : 1,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                flex: 'none',
+                width: 13,
+                height: 13,
+                marginTop: 1,
+                borderRadius: 3,
+                border: `1px solid ${on ? C.accent : C.line}`,
+                background: on ? C.accent : 'transparent',
+                color: C.panel,
+                fontSize: 9,
+                lineHeight: '12px',
+                textAlign: 'center',
+              }}
+            >
+              {option.disabled ? '–' : on ? '✓' : ''}
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {/* Wraps. A mod line the player cannot read off against the game's
+                  own tooltip is a mod line they cannot tick with any confidence. */}
+              <span style={{ display: 'block', fontSize: 10.5, color: C.ink }}>
+                {option.label}
+              </span>
+              {/* The tier goes *under* the text, not beside it: at 268 px a
+                  right-hand column costs the mod line its last eight characters,
+                  and the mod line is the thing being identified. */}
+              {shown.has('badge') && option.badge ? (
+                <span
+                  style={{
+                    ...tnum,
+                    display: 'inline-block',
+                    fontSize: 8.5,
+                    color: BADGE_COLOUR[option.tone ?? 'neutral'] ?? C.ink2,
+                  }}
+                >
+                  {option.badge}
+                </span>
+              ) : null}
+              {shown.has('meta') && option.meta ? (
+                <span style={{ fontSize: 8.5, color: C.ink3 }}>
+                  {shown.has('badge') && option.badge ? ' · ' : ''}
+                  {option.meta}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const BADGE_COLOUR: Record<string, string> = {
+  neutral: C.ink2,
+  quiet: C.ink3,
+  good: C.keep,
+  warn: C.check,
+  bad: C.trash,
+  accent: C.accent,
+}
+
+/**
+ * A small integer with an off state, on one 300 px line.
+ *
+ * The two steps sit either side of the value so Steam's geometric focus resolves
+ * left/right onto them without anyone writing a key handler (SPEC §6.1).
+ */
+export const Stepper: StepperComponent = ({
+  label: name,
+  value,
+  onChange,
+  min = 0,
+  max = 3,
+  offLabel = 'any',
+  note,
+  clearable = true,
+}) => {
+  const step = (delta: number) => {
+    if (value === null) {
+      onChange(delta > 0 ? min : null)
+      return
+    }
+    const next = value + delta
+    if (next < min) {
+      onChange(clearable ? null : min)
+      return
+    }
+    onChange(Math.min(max, next))
+  }
+  const button = (glyph: string, delta: number, disabled: boolean, aria: string) => (
+    // Phase 7: `<Focusable onActivate={...}>`.
+    <span
+      role="button"
+      aria-label={aria}
+      aria-disabled={disabled}
+      onClick={disabled ? undefined : () => step(delta)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 20,
+        height: 20,
+        borderRadius: 3,
+        border: `1px solid ${C.line}`,
+        background: C.panel3,
+        color: C.ink,
+        fontSize: 11,
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      {glyph}
+    </span>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ ...label, flex: 1, minWidth: 0 }}>{name}</span>
+        {button('−', -1, value === null, `fewer ${name}`)}
+        <span style={{ ...tnum, fontSize: 10, minWidth: 34, textAlign: 'center' }}>
+          {value === null ? offLabel : `≥ ${value}`}
+        </span>
+        {button('+', 1, value !== null && value >= max, `more ${name}`)}
+      </div>
+      {note ? <span style={{ fontSize: 8.5, color: C.ink3 }}>{note}</span> : null}
+    </div>
+  )
+}
+
 const _implementation: KitImplementation = {
   Screen,
+  CheckList,
+  Stepper,
   Section,
   Stack,
   Row,
