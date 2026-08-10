@@ -16,12 +16,21 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { TransportError, clearClient, installClient } from '@poedex/core'
 import { VERDICT_HEADLINE } from '@poedex/ui'
-import type { BagAppraisalPayload, PoedexClient } from '@poedex/core'
+import type {
+  BagAppraisalPayload,
+  ItemHighlightPayload,
+  PoedexClient,
+  PriceCheckPayload,
+} from '@poedex/core'
 import { BagScreen } from './BagScreen'
 import { blocksOf, checkLane, copyFor, floorNote, glyphFor, tallyOf, toRow } from './model'
 import fixture from './fixtures/bag-appraisal.json'
+import highlightFixture from './fixtures/item-highlight.json'
+import checkFixture from './fixtures/price-check.json'
 
 const BAG = fixture as unknown as BagAppraisalPayload
+const HIGHLIGHT = highlightFixture as unknown as ItemHighlightPayload
+const CHECK = checkFixture as unknown as PriceCheckPayload
 
 interface Harness {
   client: PoedexClient
@@ -43,7 +52,13 @@ function harness(answer: () => Promise<BagAppraisalPayload> = async () => BAG): 
       close: () => {},
       onStateChange: () => () => {},
     },
-    appraisal: { bag: answer },
+    appraisal: {
+      bag: answer,
+      // The checkbox list and the check are separate calls on purpose: the first
+      // is local and free, the second is the only thing on this screen that spends.
+      highlight: vi.fn(async (uid: string) => ({ ...HIGHLIGHT, uid })),
+      priceCheck: vi.fn(async (uid: string) => ({ ...CHECK, uid })),
+    },
     prices: { refresh: vi.fn(async () => ({})) },
   } as unknown as PoedexClient
   return {
@@ -554,5 +569,174 @@ describe('bug 3: a quest item is not a loot decision', () => {
     expect(tallyOf({ ...BAG, counts: { ...BAG.counts, not_loot: 0 } }).map((r) => r.id)).toContain(
       'not_loot',
     )
+  })
+})
+
+// -- Phase 9: highlight, don't price -------------------------------------------
+//
+// Every assertion here runs through both profiles (`pnpm run test` and
+// `pnpm run test:compact`), which is what the 300 px design has to survive. Nothing
+// below names a profile or reaches for a class name.
+
+/** The name of the first highlighted, unpriced rare in the fixture bag. */
+const CHECKABLE = BAG.items.find((item) => item.highlighted && item.valuation.unpriceable)!
+
+const panel = () => screen.getByRole('group', { name: 'price check' })
+
+/** One tickable row, whichever element the profile drew it as. */
+const checkRow = (id: string) =>
+  panel().querySelector(`[data-check-id="${id}"]`) as HTMLElement
+
+/**
+ * Ticked, without caring how.
+ *
+ * `full` draws a native `<input type="checkbox">`; `compact` draws a `role="checkbox"`
+ * div, because at 300 px the whole two-line row is the focus target and a 13 px input
+ * is not something a D-pad lands on. Both are checkboxes to anything reading the
+ * accessibility tree, which is the level this test works at.
+ */
+const isTicked = (box: HTMLElement) =>
+  box.getAttribute('aria-checked') === 'true' || (box as HTMLInputElement).checked === true
+
+/** Render the bag and select the first row a price check is a real question for. */
+const openCheck = async () => {
+  const built = await show()
+  await inspect(CHECKABLE.name)
+  await waitFor(() => expect(screen.queryByText(/reading the mods/i)).toBeNull())
+  return built
+}
+
+describe('the checkbox list', () => {
+  it('offers a checkbox list only for a highlighted row with no price', async () => {
+    await show()
+    expect(screen.queryByRole('group', { name: 'price check' })).toBeNull()
+    await inspect(CHECKABLE.name)
+    await waitFor(() => expect(screen.queryByText(/reading the mods/i)).toBeNull())
+    expect(panel()).toBeTruthy()
+
+    // A bulk-priced row already has a better answer than a trade search would give,
+    // so the panel does not offer to spend two requests on it.
+    const priced = BAG.items.find((item) => !item.valuation.unpriceable)!
+    await inspect(priced.name)
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'price check' })).toBeNull())
+  })
+
+  it('shows every mod on the item and hides none of them', async () => {
+    await openCheck()
+    const list = within(panel()).getByRole('group', { name: /^mods on / })
+    for (const mod of HIGHLIGHT.mods) {
+      expect(within(list).getByText(mod.text)).toBeTruthy()
+    }
+    // A checkbox list may not truncate: a hidden row is a filter the player cannot
+    // see and cannot switch off. So there is no "N more" footer to find.
+    expect(list.textContent).not.toMatch(/more (rows|items)/)
+  })
+
+  it('shows the tier where moddb asserted one', async () => {
+    await openCheck()
+    const list = within(panel()).getByRole('group', { name: /^mods on / })
+    expect(within(list).getByText('T1 of 10')).toBeTruthy()
+    expect(within(list).getByText('T7 of 8')).toBeTruthy()
+  })
+
+  it('renders an ambiguous attribution as unknown, with no tier anywhere on the row', async () => {
+    await openCheck()
+    const ambiguous = HIGHLIGHT.mods.find((mod) => mod.attribution === 'ambiguous')!
+    const row = checkRow(String(ambiguous.index))
+    expect(row.textContent).toContain('unknown')
+    // The whole point: no number, not even a plausible one. `moddb` refused because
+    // several ladders reach this line, and "T2" here would be a lie the player acts
+    // on and cannot check.
+    expect(row.textContent).not.toMatch(/T\d/)
+  })
+
+  it('pre-ticks the top-tier rolls and nothing that could not be attributed', async () => {
+    await openCheck()
+    const list = within(panel()).getByRole('group', { name: /^mods on / })
+    const ticked = within(list).getAllByRole('checkbox').filter(isTicked)
+    expect(ticked).toHaveLength(HIGHLIGHT.preticked.length)
+    expect(ticked[0]!.getAttribute('aria-label')).toContain('+130 to maximum Life')
+
+    const ambiguous = HIGHLIGHT.mods.find((mod) => mod.attribution === 'ambiguous')!
+    expect(isTicked(within(list).getByRole('checkbox', { name: ambiguous.text }))).toBe(false)
+  })
+
+  it('sends the ticked indexes and nothing else when the player asks', async () => {
+    const built = await openCheck()
+    const list = within(panel()).getByRole('group', { name: /^mods on / })
+    await userEvent.click(within(list).getByRole('checkbox', { name: '+12% to Fire Resistance' }))
+    await userEvent.click(within(panel()).getByText('Check price'))
+
+    const spy = built.client.appraisal.priceCheck as unknown as ReturnType<typeof vi.fn>
+    await waitFor(() => expect(spy).toHaveBeenCalled())
+    const [, args] = spy.mock.calls.at(-1)!
+    // The query is the selection: the pre-ticked life roll plus the resistance the
+    // player just added. Not every mod, and not one loose one.
+    expect(args.mods).toEqual([0, 1])
+    expect(args.open_prefixes).toBeNull()
+  })
+
+  it('replaces the pending state with the answer, and never a bare number', async () => {
+    await openCheck()
+    await userEvent.click(within(panel()).getByText('Check price'))
+    await waitFor(() => expect(within(panel()).queryByText(/asking the trade API/)).toBeNull())
+
+    const text = panel().textContent ?? ''
+    expect(text).toContain('62')
+    // The comparable count travels with the number, always: `62c` over four
+    // listings and `62c` over 438 are different claims wearing the same figure.
+    expect(text).toContain('4')
+    expect(text).toMatch(/too few/)
+    expect(text).toContain('2 trade requests')
+  })
+
+  it('refuses to ask when nothing is ticked, and says why', async () => {
+    const built = await openCheck()
+    const list = within(panel()).getByRole('group', { name: /^mods on / })
+    for (const box of within(list).getAllByRole('checkbox')) {
+      if (isTicked(box)) await userEvent.click(box)
+    }
+    expect(panel().textContent).toContain('nothing selected')
+    await userEvent.click(within(panel()).getByText('Check price'))
+    const spy = built.client.appraisal.priceCheck as unknown as ReturnType<typeof vi.fn>
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('offers the open-affix filter with its own confidence', async () => {
+    await openCheck()
+    const text = panel().textContent ?? ''
+    expect(text).toContain('open prefixes')
+    expect(text).toContain('open suffixes')
+    // The fixture's counts are uncertain, and a filter built on a wrong count
+    // returns nothing and looks like a dead search.
+    expect(text).toContain('affix counts uncertain')
+  })
+
+  it('steps the open-affix filter off, on and up', async () => {
+    const built = await openCheck()
+    await userEvent.click(within(panel()).getByLabelText('more open prefixes'))
+    await userEvent.click(within(panel()).getByLabelText('more open prefixes'))
+    await userEvent.click(within(panel()).getByText('Check price'))
+
+    const spy = built.client.appraisal.priceCheck as unknown as ReturnType<typeof vi.fn>
+    await waitFor(() => expect(spy).toHaveBeenCalled())
+    expect(spy.mock.calls.at(-1)![1].open_prefixes).toBe(1)
+  })
+
+  it('says how much of the item the database could read', async () => {
+    await openCheck()
+    expect(panel().textContent).toContain(HIGHLIGHT.note)
+  })
+
+  it('starts a new item with a clean question', async () => {
+    await openCheck()
+    await userEvent.click(within(panel()).getByLabelText('more open prefixes'))
+    const other = BAG.items.filter((item) => item.highlighted && item.valuation.unpriceable)[1]
+    if (!other) return
+    await inspect(other.name)
+    await waitFor(() => expect(screen.queryByText(/reading the mods/i)).toBeNull())
+    // Carrying the previous item's filters over would put a question the player
+    // asked about something else into this query.
+    expect(panel().textContent).toContain('any')
   })
 })

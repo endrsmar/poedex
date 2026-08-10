@@ -33,6 +33,8 @@ import type { ReactElement, ReactNode } from 'react'
 import type { Hint } from '../profile'
 import type {
   BarModel,
+  CheckField,
+  CheckOptionModel,
   DetailField,
   DetailModel,
   GridCellModel,
@@ -222,6 +224,46 @@ export interface ActionProps {
   hint?: string
 }
 
+export interface CheckListProps {
+  options: CheckOptionModel[]
+  /** Ticked ids. Controlled: the kit owns no selection state. */
+  selected: string[]
+  onToggle: (id: string) => void
+  /** Accessible name for the group. */
+  label?: string
+  /**
+   * Which optional parts of a row to draw. `compact` keeps the badge — the tier is
+   * the whole reason the list is worth reading — and drops `meta`.
+   *
+   * There is deliberately **no `limit`**. Every other list in this kit truncates and
+   * reports (rule 5 in this file's docstring); a checkbox list may not, because a
+   * hidden row is a filter the player cannot switch off and cannot see. Six affixes
+   * is the game's own ceiling, so the list is bounded by the item rather than by us.
+   */
+  fields?: Hint<CheckField[]>
+  emptyLabel?: string
+}
+
+export interface StepperProps {
+  label: string
+  /**
+   * `null` means the question is **not being asked**, which is a different state
+   * from asking for zero: "at least 0 open prefixes" matches every item and is a
+   * filter that does nothing, while `null` leaves the filter out of the query.
+   */
+  value: number | null
+  onChange: (value: number | null) => void
+  min?: number
+  max?: number
+  /** Shown in place of the number when `value` is `null`. */
+  offLabel?: string
+  /** One line under the control — where "counts uncertain" goes. */
+  note?: string
+  tone?: Tone
+  /** Stepping below `min` clears to `null` when this is set. */
+  clearable?: boolean
+}
+
 export interface FocusProps {
   /**
    * A focus region.
@@ -307,6 +349,8 @@ export type ItemRowComponent = Component<ItemRowProps>
 export type ValueBarComponent = Component<ValueBarProps>
 export type VerdictPillComponent = Component<VerdictPillProps>
 export type ActionComponent = Component<ActionProps>
+export type CheckListComponent = Component<CheckListProps>
+export type StepperComponent = Component<StepperProps>
 export type FocusComponent = Component<FocusProps>
 export type DetailComponent = Component<DetailProps>
 export type PendingComponent = Component<PendingProps>
@@ -331,6 +375,8 @@ export interface KitImplementation {
   ValueBar: ValueBarComponent
   VerdictPill: VerdictPillComponent
   Action: ActionComponent
+  CheckList: CheckListComponent
+  Stepper: StepperComponent
   Focus: FocusComponent
   Detail: DetailComponent
   Pending: PendingComponent

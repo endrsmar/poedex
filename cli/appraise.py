@@ -18,9 +18,13 @@ So the output is organised by decision, not by value:
 * **A verdict glyph as well as a word.** SPEC §5.4 asks for shape *and* colour so
   the grid survives greyscale; a terminal that is not a TTY gets no colour, and the
   glyph and the word carry the whole meaning on their own.
-* **The gate's reasoning is printed.** "check — influenced, ilvl 86 base" is a
-  falsifiable claim the player can disagree with. "check" on its own is an oracle,
-  and an oracle nobody can argue with is one nobody trusts either.
+* **The highlighter's reasoning is printed.** "check — T1 of 8 · +95 to maximum
+  Life" is a falsifiable claim the player can disagree with. "check" on its own is
+  an oracle, and an oracle nobody can argue with is one nobody trusts either.
+* **A highlighted rare shows no number and is not given one.** IMPLEMENTATION-PLAN
+  §5b: automatic rare pricing is deleted. The block footer says how many rows are
+  waiting on a `poedex price` the player has not run, and the bag total is a floor
+  while any of them are.
 """
 
 from __future__ import annotations
@@ -215,6 +219,11 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
             f"            {len(result.pricing)} item(s) still pricing — their value "
             "is not in the figure above"
         )
+    if result.unchecked:
+        lines.append(
+            f"            {len(result.unchecked)} highlighted item(s) have no price "
+            "because nobody has asked yet — unknown, not zero"
+        )
     empty = result.no_listings
     if empty:
         lines.append(
@@ -222,16 +231,14 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
             "listings — unknown, not zero, and not still running"
         )
     lines.append("verdicts:   " + tally)
-    candidates = result.escalation_candidates
-    if candidates:
-        spent = result.trade_requests
+    unchecked = result.unchecked
+    if unchecked:
+        # Named rather than quietly folded into the total. The eager pass used to
+        # make this hole small by spending requests on it, badly; saying it is there
+        # and how to close it is the honest replacement.
         lines.append(
-            f"tier 3:     {len(candidates)} item(s) the gate flagged; "
-            + (
-                f"{spent} trade request(s) spent pricing them"
-                if spent
-                else "none priced — escalation is off for this run"
-            )
+            f"highlighted:{len(unchecked):>3} item(s) worth asking about, none priced — "
+            "run 'poedex price <uid>' to ask"
         )
     return "\n".join(lines)
 
@@ -262,7 +269,7 @@ def render_header(
             tables += f"\n            {table.note}"
     context = "bag" if result.strictness is Strictness.GENEROUS else "stash"
     gated = [item for item in result.items if item.gate.considered]
-    flagged = len(result.escalation_candidates)
+    flagged = len(result.highlighted)
     return "\n".join(
         [
             f"character:  {character or '-'}",
@@ -270,8 +277,8 @@ def render_header(
             f"keep at:    {format_chaos(result.threshold_chaos)} chaos",
             f"tables:     {tables}",
             f"items:      {rows} row(s), {result.lookups} price lookup(s)",
-            f"gate:       {result.strictness.value} ({context}) — "
-            f"{len(gated)} row(s) reached tier 2, {flagged} flagged",
+            f"highlight:  {result.strictness.value} ({context}) — "
+            f"{len(gated)} row(s) read, {flagged} worth asking about",
         ]
     )
 
@@ -289,7 +296,6 @@ async def cmd_appraise(
     show_all: bool = False,
     colour: bool | None = None,
     league: str | None = None,
-    escalate: bool | None = None,
 ) -> int:
     bag = await poeapi.get_items(character, refresh=refresh)
     choice = await prepare_league(prices, bag.league, override=league)
@@ -302,7 +308,6 @@ async def cmd_appraise(
         threshold_chaos=threshold,
         league=bag.league,
         override=league,
-        escalate=escalate,
     )
     painted = use_colour() if colour is None else colour
 
@@ -316,12 +321,8 @@ async def cmd_appraise(
     print()
     print(render_summary(result, colour=painted))
     print(
-        f"trade:      {result.trade_requests} request(s) — "
-        + (
-            "eager tier 3 for this bag's gated rares"
-            if result.strictness is Strictness.GENEROUS
-            else "a stash is never escalated eagerly"
-        )
+        f"trade:      {result.trade_requests} request(s) — an appraise never asks "
+        "the trade API; 'poedex price <uid>' is how you ask about one item"
     )
 
     if bag.meta.stale:

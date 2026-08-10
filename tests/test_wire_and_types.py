@@ -23,15 +23,39 @@ from pydantic import ValidationError
 
 from scripts import generate_types, make_ui_fixtures
 from transports.dispatch import server_meta
-from transports.wire import BagAppraisalPayload, ServerMeta
+from transports.wire import (
+    BagAppraisalPayload,
+    ItemHighlightPayload,
+    PriceCheckPayload,
+    ServerMeta,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = REPO_ROOT / "modules" / "appraisal" / "ui" / "fixtures" / "bag-appraisal.json"
+FIXTURES = REPO_ROOT / "modules" / "appraisal" / "ui" / "fixtures"
+FIXTURE = FIXTURES / "bag-appraisal.json"
 
 
 @pytest.fixture
 def bag_payload_json() -> dict:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+
+def test_the_checked_in_highlight_fixture_validates():
+    ItemHighlightPayload.model_validate(
+        json.loads((FIXTURES / "item-highlight.json").read_text(encoding="utf-8"))
+    )
+
+
+def test_the_checked_in_price_check_fixture_validates():
+    PriceCheckPayload.model_validate(
+        json.loads((FIXTURES / "price-check.json").read_text(encoding="utf-8"))
+    )
+
+
+def test_a_real_highlight_validates_against_the_wire_model(appraiser, loot):
+    """The live code path, over the fixture bag, as a browser would receive it."""
+    for row in loot:
+        ItemHighlightPayload.model_validate(appraiser.highlight(row).to_json())
 
 
 # -- the wire models describe what the backend actually emits --------------------

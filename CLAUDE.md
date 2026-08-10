@@ -14,21 +14,22 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6 and 8 done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6, 8 and 9 done.** `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
 httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
 `moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
 feature modules `prices` (poe.ninja bulk tables with per-league type discovery, tier-0 notes, a
-bulk exchange fallback, a trade client) and `appraisal` (the strictness-parameterized tier-2
-gate, four-state verdicts, eager tier 3 for a bag); a `poedex` CLI; and **the first usable
+bulk exchange fallback, a trade client) and `appraisal` (a `moddb`-backed **highlighter**,
+five-state verdicts, and a player-driven price check); a `poedex` CLI; and **the first usable
 surface** — `ui-kit/` (`@poedex/ui`, two profiles behind a build-time alias), `frontend/core/`
 (transports, stores, TS types generated from the pydantic models), `transports/http/` (FastAPI
 on 127.0.0.1 + SSE + the built SPA), `surfaces/web/` and `modules/appraisal/ui/`. Boundaries are
 enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`. Next
-action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel), and then
-rebuilding `appraisal` on `moddb` — see "The design pivot" below.
+action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel), then
+**Phase 10** (stash tabs).
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
+    poedex price UID  # one item's mods with real tiers, then the query you chose
     poedex moddb      # how old the mod database is, and what it says about a mod
     pnpm install && pnpm build && pnpm run check
 
@@ -41,11 +42,11 @@ knowledge.
 
 The model is Awakened PoE Trade's: the tool **highlights items that are potentially expensive**,
 shows their mods as a checkbox list with the significant ones pre-ticked, and the player triggers
-the price check. `moddb` (Phase 8) supplies the facts that make highlighting and pre-ticking
-correct rather than guessed — real tiers per base, prefix/suffix and open-affix counts, influence
-pools, and a per-base ceiling for "is this roll high *here*". `appraisal`'s gate has not been
-rebuilt on it yet; that is the next feature phase, and `gate.py`'s constants should be **deleted
-rather than tuned** when it is.
+the price check. `moddb` (Phase 8) supplies the facts; **Phase 9 rebuilt `gate.py` on them and
+deleted every constant** — `MOD_GROUPS`, `HIGH_VALUE_BASES`, `ILVL86_BASE_CATEGORIES`,
+`ILVL86_EXCLUDED_SUBCATEGORIES`. An appraise now makes one account request and **zero** trade
+requests; `AppraisalApi.price_check` is the only thing that spends, and it runs the player's
+selection.
 
 **Read Phase 4's validation finding before building UI on the bag screen**
 (IMPLEMENTATION-PLAN §5, Phase 4). The four-state verdict works and the totals are honest, but
@@ -76,8 +77,9 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/ruff check .
 poedex sync             # normalized bag; spends real rate-limit budget
 poedex value            # the bag, priced. one GGG request; poe.ninja is free
-poedex appraise         # the bag, judged. one account request; a few trade requests for rares
-poedex appraise --no-escalate   # ...or none at all
+poedex appraise         # the bag, judged. one account request, zero trade requests
+poedex price <uid> --dry-run    # an item's mods with real tiers; spends nothing
+poedex price <uid> --mods 0,3 --open-prefixes 1   # ...and the query you chose
 poedex limits           # what the limiter has learned
 ```
 
@@ -127,9 +129,11 @@ sustained rate-limit violations.
   sitemap slugs → derived type names → probe → per-league record. It must stay able to find a
   type nobody has typed into `CATALOGUE`; a discovery that only confirms known names is the same
   bug with more steps. There is no type-index endpoint — research-notes §9.6 has the 404s.
-- **Tier 3 is eager for a bag and never for a stash.** SPEC §5.3's original "never eager" was a
-  stash rule; a bag holds 3–5 rares and the search budget is `5:10:60`. The switch is the
-  existing `Strictness`, and `strict` cannot be overridden into escalating.
+- **Tier 3 is never automatic, for a bag or a stash.** Phase 4b's eager pass is deleted: it failed
+  twice against the live account, once by ANDing every mod and matching zero listings, once by
+  matching a single listing and reporting 10c for an item worth 1.00c across 438 comparables.
+  There is no `escalate` parameter and no code path one could switch on. A rare is highlighted;
+  `poedex price <uid>` or the panel's **Check price** is how a number is asked for.
 - **Batching the bulk exchange is not free.** The response caps at 100 rows sorted cheapest-first
   across the whole batch, so ten ids in one request returns everyone's floor. Starved wants are
   re-queried alone. research-notes §11 has the table.
@@ -137,12 +141,28 @@ sustained rate-limit violations.
   total, and reporting it as worthless understates the bag badly (SPEC §5.4). `appraisal` splits
   it further: an item the index *should* carry and does not is `unpriceable`; a rare, which no
   bulk table has ever priced, is a tier-2 question and not a gap.
-- **The tier-2 mod thresholds are not mod tiers, and now there is something that is.**
-  `modules/appraisal/backend/gate.py` scores mods with one regex and one number per group, with
-  no knowledge of base type, item class or item level. `moddb` answers all three: `+95 to maximum
-  Life` is T4 of 10 on a helmet and T7 of 13 on a body armour, with ceilings of 144 and 189. When
-  the gate is rebuilt on it, `MOD_GROUPS`, `HIGH_VALUE_BASES`, `ILVL86_BASE_CATEGORIES` and
-  `ILVL86_EXCLUDED_SUBCATEGORIES` are all obsolete — delete them rather than tuning them.
+- **There are no mod thresholds left in `gate.py`, and there must not be new ones.** Phase 9
+  deleted all four constants. `moddb` answers per base and per pool: `+95 to maximum Life` is
+  T4 of 10 on a helmet and T7 of 13 on a body armour, ceilings 144 and 189. Two of the deleted
+  constants were factually wrong — a **Hubris Circlet tops out at affix level 85**, so the old
+  `ilvl >= 86` was noise on a third of the gear it fired for, and flasks were excluded on the
+  grounds that their mods do not scale with item level when the top flask suffixes need 84–85.
+  Anything reintroducing a number to compare a roll against is reintroducing the bug.
+
+- **"Which mods make this item interesting" is a question, not a derivation.** The query is built
+  from `Selection` — the indexes the player ticked — and from nothing else. A ticked roll searches
+  `min = roll * 0.8`, never the exact value; a manual check never broadens itself, because
+  broadening answers a different question and reports the answer under the player's heading.
+
+- **The trade stat index keys by `(text, group)`, and `pseudo` never wins.** `StatIndex` used
+  `setdefault` and GGG puts `pseudo` first, so `Adds 12 to 30 Physical Damage` resolved to
+  `pseudo.pseudo_adds_physical_damage` — an aggregate over the whole item — rather than
+  `explicit.stat_960081730`. Measured live, the aggregate matches a strict superset: 161 listings
+  against 160 for the same movement-speed filter on Two-Toned Boots.
+
+- **A checkbox list is the one list that may not truncate.** Every other kit list takes a `limit`
+  and reports what it hid; `CheckList` takes none. A hidden row is a filter the player can neither
+  see nor switch off, and an item's six affixes already bound it.
 
 - **A mod database goes stale silently, and that is its whole risk.** It does not fail; it
   answers confidently and wrongly about tiers GGG re-levelled. So `modules/moddb/data/moddb.json`

@@ -14,13 +14,33 @@
  */
 
 import type { Transport } from './transport'
-import type { BagAppraisalPayload, ItemSet, ServerMeta } from './types/generated'
+import type {
+  BagAppraisalPayload,
+  ItemHighlightPayload,
+  ItemSet,
+  PriceCheckPayload,
+  ServerMeta,
+} from './types/generated'
 
 export interface AppraiseBagArgs {
   character?: string | null
   strictness?: 'generous' | 'strict' | null
   threshold_chaos?: number | null
-  escalate?: boolean | null
+}
+
+/**
+ * What the player ticked. Indexes, never mod text.
+ *
+ * `mods: null` means "the pre-ticked set"; `mods: []` means "none of them", which is
+ * how a pure open-affix question is asked. The two are different queries and the
+ * backend treats them as such.
+ */
+export interface PriceCheckArgs {
+  mods?: number[] | null
+  open_prefixes?: number | null
+  open_suffixes?: number | null
+  character?: string | null
+  league?: string | null
 }
 
 export function createClient(transport: Transport) {
@@ -32,13 +52,37 @@ export function createClient(transport: Transport) {
     },
 
     appraisal: {
-      /** One account request, plus a few trade requests for the bag's gated rares. */
+      /**
+       * One account request and **zero** trade requests.
+       *
+       * Rares are highlighted, never auto-priced — IMPLEMENTATION-PLAN §5b. There is
+       * no `escalate` argument any more because there is no path it could switch on.
+       */
       bag(args: AppraiseBagArgs = {}): Promise<BagAppraisalPayload> {
         return transport.call<BagAppraisalPayload>('appraisal.appraise_bag', { ...args })
       },
       /** Tier 2 for one item of the current bag, by uid. No pricing, no requests. */
       gate(uid: string, character?: string | null): Promise<Record<string, unknown>> {
         return transport.call('appraisal.gate', { uid, character: character ?? null })
+      },
+      /** The checkbox list for one item: its mods, their tiers, its open affixes.
+       * Local and free — `moddb` is a file on disk. */
+      highlight(uid: string, character?: string | null): Promise<ItemHighlightPayload> {
+        return transport.call<ItemHighlightPayload>('appraisal.highlight', {
+          uid,
+          character: character ?? null,
+        })
+      },
+      /** Ask the market the player's question. **The only call here that spends.** */
+      priceCheck(uid: string, args: PriceCheckArgs = {}): Promise<PriceCheckPayload> {
+        return transport.call<PriceCheckPayload>('appraisal.price_check', {
+          uid,
+          mods: args.mods ?? null,
+          open_prefixes: args.open_prefixes ?? null,
+          open_suffixes: args.open_suffixes ?? null,
+          character: args.character ?? null,
+          league: args.league ?? null,
+        })
       },
       settings(): Promise<Record<string, unknown>> {
         return transport.call('appraisal.settings')

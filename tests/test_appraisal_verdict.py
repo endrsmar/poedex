@@ -243,37 +243,41 @@ def test_a_priced_item_over_the_threshold_stays_keep_whatever_the_gate_says():
 
 
 def test_strictness_changes_the_verdict_of_the_same_item():
-    """The end-to-end version of the gate's divergence: a real verdict flips."""
-    ring = item(
-        name="Loath Grip",
-        base_type="Coral Ring",
-        ilvl=81,
-        explicit=[
-            "+79 to maximum Life",
-            "+41% to Fire Resistance",
-            "+39% to Cold Resistance",
-            "+38% to Lightning Resistance",
-        ],
-    )
-    from modules.appraisal.backend.gate import evaluate
+    """The end-to-end version of the highlighter's divergence: a real verdict flips.
 
+    ``+120 to maximum Life`` is **T2 of 10** on a Siege Helmet — near the top of a
+    ladder long enough for that to mean something, but not the top. Generous says
+    *look at this*; strict, which claims only what is certainly top-tier, does not.
+    """
+    from modules.appraisal.backend.gate import evaluate
+    from modules.moddb.backend.module import ModDbModule
+
+    db = ModDbModule()
+    helmet = item(
+        name="Soul Bind",
+        base_type="Siege Helmet",
+        category="armour",
+        subcategory="helmet",
+        ilvl=86,
+        explicit=["+120 to maximum Life", "+30% to Fire Resistance"],
+    )
     generous = appraise_one(
-        ring,
+        helmet,
         valuation(None),
-        evaluate(ring, strictness=Strictness.GENEROUS),
+        evaluate(helmet, strictness=Strictness.GENEROUS, moddb=db),
         keep_chaos=20.0,
         check_chaos=1.0,
     )
     strict = appraise_one(
-        ring,
+        helmet,
         valuation(None),
-        evaluate(ring, strictness=Strictness.STRICT),
+        evaluate(helmet, strictness=Strictness.STRICT, moddb=db),
         keep_chaos=20.0,
         check_chaos=1.0,
     )
     assert generous.verdict is Verdict.CHECK
     assert strict.verdict is Verdict.TRASH
-    assert generous.escalate and not strict.escalate
+    assert generous.highlighted and not strict.highlighted
 
 
 def test_the_reason_is_never_just_the_verdict_repeated():

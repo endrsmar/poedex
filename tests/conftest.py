@@ -683,18 +683,38 @@ def appraisal_module():
 
 
 @pytest.fixture
+def moddb_module():
+    """The real `moddb`, reading the committed artifact.
+
+    Not a stub, deliberately. Since Phase 9 `appraisal`'s highlighter *is* a reading
+    of this database — which tier a roll is on this base, which lines came from an
+    influence pool, how many affix slots are free — and a stubbed one would let every
+    claim in these tests be whatever the stub said. The artifact is offline and
+    loaded lazily, once.
+    """
+    from modules.moddb.backend.module import ModDbModule
+
+    return ModDbModule()
+
+
+@pytest.fixture
 async def appraised_stack(
-    stack_factory, registry: Registry, server: Server, prices_module, appraisal_module
+    stack_factory,
+    registry: Registry,
+    server: Server,
+    prices_module,
+    moddb_module,
+    appraisal_module,
 ):
     """The whole stack through `appraisal`, on the Phase 4 loot bag.
 
     ``tests/fixtures/appraisal/loot-bag.json`` rather than `prices`' ``bag.json``:
-    the pricing fixture's rares carry ``ilvl: 0`` and one mod each, so the tier-2
-    gate has nothing to read and the two strictness levels cannot be shown to
+    the pricing fixture's rares carry ``ilvl: 0`` and one mod each, so the
+    highlighter has nothing to read and the two strictness levels cannot be shown to
     diverge on it. See that directory's README for what the loot bag is and is not.
     """
     server.bag_fixture = "loot-bag.json"
-    result = await stack_factory(prices_module, appraisal_module)
+    result = await stack_factory(prices_module, moddb_module, appraisal_module)
     await prices_module.refresh()
     yield result
     await registry.stop_all()

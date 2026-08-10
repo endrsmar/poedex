@@ -19,6 +19,10 @@
  * * **League provenance too.** The subtitle reads "Allflame (from the character)"
  *   or shouts when something overrode it. A silently wrong league was a real bug.
  * * **`check` is drawn as two blocks.** See `checkLane` in `model.ts` for why.
+ * * **A highlighted rare gets a checkbox list, not a price.** Selecting one puts
+ *   `PriceCheck` in the aside: its mods with real per-base tiers, the significant
+ *   ones pre-ticked, an open-affix option, and a button. Nothing here asks the trade
+ *   API on its own — IMPLEMENTATION-PLAN §5b.
  * * **Five-digit stacks fit.** Quantity and price are fixed-width tabular columns.
  * * **Two rows with the same name stay two rows.** Nothing here merges by name.
  */
@@ -45,6 +49,7 @@ import {
 import type { GridCellModel } from '@poedex/ui'
 import { createBagStore, getClient } from '@poedex/core'
 import type { BagAppraisalPayload } from '@poedex/core'
+import { PriceCheck } from './PriceCheck'
 import {
   blocksOf,
   copyFor,
@@ -128,23 +133,28 @@ export function BagScreen(): ReactElement {
         />
       }
       aside={
-        <Detail
-          item={detailFor(bag, selected)}
-          fields={{
-            compact: ['name', 'value', 'provenance', 'reason', 'gate', 'comparables'],
-            full: [
-              'name',
-              'value',
-              'provenance',
-              'stack',
-              'location',
-              'reason',
-              'gate',
-              'comparables',
-            ],
-          }}
-          empty="pick an item to see where its number came from"
-        />
+        <Stack gap="md">
+          <Detail
+            item={detailFor(bag, selected)}
+            fields={{
+              compact: ['name', 'value', 'provenance', 'reason', 'gate', 'comparables'],
+              full: [
+                'name',
+                'value',
+                'provenance',
+                'stack',
+                'location',
+                'reason',
+                'gate',
+                'comparables',
+              ],
+            }}
+            empty="pick an item to see where its number came from"
+          />
+          {/* Only for a row the highlighter flagged. Drawing a checkbox list beside
+              a Divine Orb would offer the player a question with no answer in it. */}
+          <PriceCheck uid={checkableUid(bag, selected)} divineRate={bag.divine_rate} />
+        </Stack>
       }
     >
       <Stack gap="lg">
@@ -338,6 +348,20 @@ function gridCells(bag: BagAppraisalPayload): GridCellModel[] {
     if (cell) cells.push(cell)
   }
   return cells
+}
+
+/**
+ * The selected uid, but only when asking about it is a real question.
+ *
+ * A highlighted row with no price is exactly the case §5b built the checkbox list
+ * for. Everything else already has a number from a bulk table, and offering to spend
+ * two trade requests on a Divine Orb would be offering a worse answer than the one
+ * already on screen.
+ */
+function checkableUid(bag: BagAppraisalPayload, uid: string | null): string | null {
+  if (!uid) return null
+  const found = bag.items.find((item) => item.uid === uid)
+  return found && found.highlighted && found.valuation.unpriceable ? uid : null
 }
 
 function detailFor(bag: BagAppraisalPayload, uid: string | null) {

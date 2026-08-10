@@ -38,14 +38,19 @@ __all__ = [
     "CallResponse",
     "GatePayload",
     "GateSignalPayload",
+    "ItemHighlightPayload",
     "ItemVerdictPayload",
     "LeagueChoicePayload",
+    "ModOptionPayload",
     "ModuleInfo",
+    "PriceCheckPayload",
     "PricePayload",
+    "SelectionPayload",
     "ServerMeta",
     "SlotPayload",
     "SyncMeta",
     "TableStatusPayload",
+    "TradeQuotePayload",
     "ValuationPayload",
     "VerdictCounts",
 ]
@@ -157,7 +162,14 @@ class ItemVerdictPayload(Wire):
     pricing: bool
     no_listings: bool
     tier3: Tier3Name
-    escalate: bool
+    highlighted: bool
+    """Worth *asking* about. Renamed from ``escalate`` in Phase 9, which is the pivot
+    in one word: nothing acts on this but the player."""
+
+    unchecked: bool
+    """Highlighted, unpriced, and nobody has asked the market yet. The row the bag
+    total is missing, and the reason it can be a floor with no query outstanding."""
+
     reason: str
     gate: GatePayload
     valuation: ValuationPayload
@@ -206,7 +218,8 @@ class BagAppraisalPayload(Wire):
     divine_rate: float | None
     unpriceable_count: int
     unpriceable_stack: int
-    escalation_candidates: int
+    highlighted_count: int
+    unchecked_count: int
     pricing_count: int
     no_listings_count: int
     total_is_floor: bool
@@ -215,6 +228,99 @@ class BagAppraisalPayload(Wire):
     table: TableStatusPayload | None
     character: str | None = None
     stale: bool = False
+
+
+class ModOptionPayload(Wire):
+    """One line of an item as a tickable row. Mirrors ``appraisal.api.ModOption``.
+
+    ``tier_label`` is the only thing a surface should print, and it is
+    :meth:`ModMatch.describe`'s own wording or the word ``unknown``. ``tier`` is
+    populated only where `moddb` committed to a number; a screen that reconstructed a
+    label from ``tier``/``tiers`` would eventually print one the database refused.
+    """
+
+    index: int
+    text: str
+    origin: str
+    affix: Literal["prefix", "suffix"] | None
+    tier: int | None
+    tiers: int | None
+    tier_label: str
+    attribution: Literal["exact", "group", "ambiguous", "unknown"]
+    top_tier: bool
+    value: float | None
+    ceiling: float | None
+    influences: list[str]
+    preticked: bool
+    tradeable: bool
+    suggested_minimum: float | None
+
+
+class ItemHighlightPayload(Wire):
+    """The checkbox list, and **no price at all**. Mirrors ``ItemHighlight``."""
+
+    uid: str
+    name: str
+    base_type: str
+    rarity: str
+    ilvl: int
+    highlighted: bool
+    gate: GatePayload
+    mods: list[ModOptionPayload]
+    preticked: list[int]
+    open_prefixes: int
+    open_suffixes: int
+    max_prefixes: int
+    max_suffixes: int
+    counts_are_certain: bool
+    top_affix_level: int | None
+    note: str
+
+
+class SelectionPayload(Wire):
+    """What the player ticked — indexes, never mod text."""
+
+    uid: str
+    mods: list[int]
+    open_prefixes: int | None
+    open_suffixes: int | None
+    widen: float
+
+
+class TradeQuotePayload(Wire):
+    """Mirrors ``prices.api.TradeQuote.to_json``."""
+
+    chaos: float | None
+    considered: int
+    online: int
+    total: int
+    listings: list[float]
+    query_url: str | None
+    query: str
+    attempts: int
+    unavailable: str | None
+
+
+class PriceCheckPayload(Wire):
+    """The answer to a manual check. Mirrors ``appraisal.api.PriceCheck``.
+
+    ``comparables`` sits beside ``chaos`` rather than behind a detail pane, because a
+    median over one listing is one stranger's asking price and the first live
+    appraisal printed exactly that with nothing to say so.
+    """
+
+    uid: str
+    name: str
+    league: str
+    chaos: float | None
+    divine: float | None
+    priced: bool
+    thin: bool
+    comparables: int
+    reason: str
+    spent: int
+    selection: SelectionPayload
+    quote: TradeQuotePayload | None
 
 
 class SyncMeta(Wire):
@@ -292,6 +398,11 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     TableStatusPayload,
     LeagueChoicePayload,
     BagAppraisalPayload,
+    ModOptionPayload,
+    ItemHighlightPayload,
+    SelectionPayload,
+    TradeQuotePayload,
+    PriceCheckPayload,
     SyncMeta,
     CallError,
     CallResponse,

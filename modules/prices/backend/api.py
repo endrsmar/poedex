@@ -38,6 +38,7 @@ from modules.poeapi.backend.api import LeagueUnknownError, NormalizedItem
 from runtime.errors import PoedexError
 
 __all__ = [
+    "MAX_QUERY_FILTERS",
     "PRICES_UPDATED",
     "BagValuation",
     "LeagueChoice",
@@ -48,6 +49,7 @@ __all__ = [
     "PriceSource",
     "PricesApi",
     "PricesError",
+    "QuerySpec",
     "TableStatus",
     "Tier3",
     "TradeQuote",
@@ -190,17 +192,29 @@ class Tier3(StrEnum):
         return self in (Tier3.NO_LISTINGS, Tier3.FAILED, Tier3.PRICED)
 
 
+MAX_QUERY_FILTERS = 6
+"""How many mod filters one **chosen** query may carry.
+
+Six, because six is how many affixes a rare has: a player who ticks every line has
+asked for a near-exact-match search, and the honest response to that is to run it and
+report the one listing it found *as one listing*, not to quietly drop half of it. The
+automatic path is capped much lower (``trade.MAX_STAT_FILTERS`` is 2, from
+measurement); this number exists because a selection is not a heuristic and must not
+be second-guessed."""
+
+
 @dataclass(frozen=True, slots=True)
 class ModFocus:
-    """One mod a tier-3 query should actually filter on, and how tightly.
+    """One mod a trade query should filter on, and how tightly.
 
-    The caller that knows *why* an item is interesting is the one that decided to
-    escalate it — `appraisal`'s tier-2 gate. `prices` cannot ask the gate (that would
-    be a dependency cycle), so the gate hands its reasoning down in this shape and the
-    query is built from it. See :func:`modules.prices.backend.trade.build_plan`.
+    Since Phase 9 the caller that fills these in is the **player**, through the
+    checkbox list `appraisal` draws: automatic rare pricing failed twice against a
+    live account, once by ANDing every mod and matching zero listings, once by
+    querying one loose mod and reporting a stranger's asking price as a median. Which
+    mods make an item interesting is not derivable from the item, so it is asked.
 
-    ``minimum`` is ``None`` when the gate only observed that the mod group was
-    *present*: it made no claim about the roll, so neither does the filter.
+    ``minimum`` is ``None`` when nothing may be claimed about the roll — an
+    unattributed line, or a mod the player ticked purely for its presence.
     """
 
     text: str
@@ -213,6 +227,48 @@ class ModFocus:
 
     label: str = ""
     """Human words for the query description, so a wrong query is legible."""
+
+    origin: str = "explicit"
+    """Where the line sits on the item — ``explicit``, ``crafted``, ``fractured``,
+    ``implicit``, ``enchant``. It selects between ids that share one sentence: a
+    crafted ``+# to maximum Life`` searched as an explicit one excludes every item
+    whose life roll *is* the bench craft."""
+
+
+@dataclass(frozen=True, slots=True)
+class QuerySpec:
+    """Everything one trade query asks — and nothing the caller did not ask for.
+
+    This is the shape of a **manual price check**. It exists because the query used to
+    be assembled from a gate's opinion inside `prices`, and the two ways of doing that
+    both failed: every mod ANDed matched nothing, one loose mod matched anything.
+    A spec is the player's answer to *which mods make this item interesting*, carried
+    down without interpretation.
+    """
+
+    mods: tuple[ModFocus, ...] = ()
+
+    open_prefixes: int | None = None
+    """"At least N prefix slots still free." A real trade filter and a real source of
+    value — an item with an open prefix is one somebody can finish. ``None`` means the
+    question is not asked at all, which is different from asking for zero."""
+
+    open_suffixes: int | None = None
+
+    broaden: bool = False
+    """Whether a search that matches nothing may be retried with one loose filter.
+
+    ``False`` for a manual check, deliberately. Broadening answers a *different*
+    question and reports the answer under the player's heading; "no listings matched
+    what you ticked" is the honest outcome and the fix for it is a tick, not a
+    silently wider search."""
+
+    limit: int = MAX_QUERY_FILTERS
+    """Mod filters this spec may spend. See :data:`MAX_QUERY_FILTERS`."""
+
+    @property
+    def asks_anything(self) -> bool:
+        return bool(self.mods) or self.open_prefixes is not None or self.open_suffixes is not None
 
 
 class Price:
@@ -818,15 +874,16 @@ class PricesApi(Protocol):
         *,
         sample: int = 0,
         league: str | None = None,
-        focus: Sequence[ModFocus] | None = None,
+        spec: QuerySpec | Sequence[ModFocus] | None = None,
     ) -> TradeQuote:
-        """Tier 3. **On demand only** — never call this from a valuation pass.
+        """Tier 3. **On demand only** — never called from a valuation pass.
 
         ``sample`` is how many of the cheapest online listings to take the median of;
         ``0`` uses the configured default. Capped at 10 by the fetch endpoint.
 
-        ``focus`` names the mods worth filtering on. Without it the query falls back
-        to the item's most significant few mods, which is a guess — a caller that
-        knows why the item is interesting should say so.
+        ``spec`` is the query: which mods to filter on, how tightly, and how many
+        affix slots must still be free. Without it the query falls back to the item's
+        most significant few mods and broadens on an empty result, which is a guess —
+        and Phase 9 exists because that guess was wrong in both directions.
         """
         ...

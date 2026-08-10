@@ -11,10 +11,12 @@ from __future__ import annotations
 import pytest
 
 from modules.poeapi.backend.api import Location, NormalizedItem, Rarity, Source
-from modules.prices.backend.api import ModFocus, TradeUnavailable
+from modules.prices.backend.api import ModFocus, QuerySpec, TradeUnavailable
 from modules.prices.backend.trade import (
     MAX_FETCH_IDS,
     MAX_STAT_FILTERS,
+    OPEN_PREFIX_TEXT,
+    OPEN_SUFFIX_TEXT,
     StatIndex,
     TradeClient,
     build_plan,
@@ -60,7 +62,12 @@ def test_an_unknown_mod_has_no_id():
     assert index.stat_id("Grants Level 20 Nonexistent Skill") is None
 
 
-def test_the_first_group_wins_so_pseudo_does_not_shadow_explicit():
+def test_explicit_beats_pseudo_however_the_document_is_ordered():
+    """The Phase 9 fix. ``pseudo`` comes first in GGG's document, and the index used
+    ``setdefault``, so the first group won — the opposite of what its own docstring
+    claimed. Every search on a sentence that has both ids was filtering on an
+    aggregate over the whole item.
+    """
     entry = {"text": "+# Life"}
     payload = {
         "result": [
@@ -68,7 +75,49 @@ def test_the_first_group_wins_so_pseudo_does_not_shadow_explicit():
             {"id": "explicit", "label": "E", "entries": [{**entry, "id": "explicit.x"}]},
         ]
     }
-    assert StatIndex.from_payload(payload, 0.0).stat_id("+# Life") == "pseudo.x"
+    index = StatIndex.from_payload(payload, 0.0)
+    assert index.stat_id("+# Life") == "explicit.x"
+    # Nothing was dropped to achieve it: both ids are still there, and which one is
+    # used is a lookup-time decision the caller can influence with `origin`.
+    assert index.stat_ids("+# Life") == {"pseudo": "pseudo.x", "explicit": "explicit.x"}
+
+
+def test_the_live_shaped_fixture_resolves_added_physical_damage_to_the_explicit_id():
+    """The measured symptom, on the recorded document rather than a toy one.
+
+    ``Adds # to # Physical Damage`` exists under ``pseudo`` and under ``explicit``.
+    Before the fix ``stat_id`` answered ``pseudo.pseudo_adds_physical_damage`` — an
+    aggregate that also counts the base's own damage and its implicit, which is a
+    strictly different question from "this item has this mod".
+    """
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    ids = index.stat_ids("Adds 12 to 30 Physical Damage")
+    assert ids["pseudo"] == "pseudo.pseudo_adds_physical_damage"
+    assert index.stat_id("Adds 12 to 30 Physical Damage") == "explicit.stat_960081730"
+
+
+def test_the_origin_picks_between_ids_that_share_a_sentence():
+    """A crafted ``+# to maximum Life`` searched as an explicit one excludes every
+    item whose life roll *is* the bench craft."""
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    assert index.stat_id("+58 to maximum Life") == "explicit.stat_3299347043"
+    assert index.stat_id("+58 to maximum Life", origin="crafted") == "crafted.stat_3299347043"
+    # ...and an origin the document has no entry for falls back rather than failing.
+    assert index.stat_id("+58 to maximum Life", origin="enchant") == "explicit.stat_3299347043"
+
+
+def test_attack_speed_resolves_and_is_not_a_normalization_gap():
+    """``stat_id("20% increased Attack Speed")`` used to answer ``None``.
+
+    That was two separate things wearing one symptom: the recorded fixture carried no
+    attack-speed entry at all, and — where a document *does* carry one — ``pseudo``
+    was shadowing it. Normalization was never the problem: ``20% increased Attack
+    Speed`` collapses to ``#% increased Attack Speed``, which is exactly how GGG
+    spells it. The fixture now carries both ids, and the explicit one wins.
+    """
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    assert normalize_stat_text("20% increased Attack Speed") == "#% increased Attack Speed"
+    assert index.stat_id("20% increased Attack Speed") == "explicit.stat_681332047"
 
 
 def test_an_empty_stats_document_is_an_error():
@@ -389,16 +438,22 @@ def _stats() -> StatIndex:
     """
     return StatIndex(
         {
-            normalize_stat_text("+30 to Strength"): "explicit.stat_4080418644",
-            normalize_stat_text(
-                "Adds 2 to 5 Physical Damage to Attacks"
-            ): "pseudo.pseudo_adds_physical_damage_to_attacks",
-            normalize_stat_text(
-                "Adds 1 to 28 Lightning Damage to Attacks"
-            ): "pseudo.pseudo_adds_lightning_damage_to_attacks",
-            normalize_stat_text("+103 to maximum Life"): "explicit.stat_3299347043",
-            normalize_stat_text("+33% to Fire Resistance"): "explicit.stat_3372524247",
-            normalize_stat_text("+38% to Lightning Resistance"): "explicit.stat_1671376347",
+            normalize_stat_text("+30 to Strength"): {"explicit": "explicit.stat_4080418644"},
+            normalize_stat_text("Adds 2 to 5 Physical Damage to Attacks"): {
+                "explicit": "explicit.stat_3032590688"
+            },
+            normalize_stat_text("Adds 1 to 28 Lightning Damage to Attacks"): {
+                "explicit": "explicit.stat_3336890334"
+            },
+            normalize_stat_text("+103 to maximum Life"): {"explicit": "explicit.stat_3299347043"},
+            normalize_stat_text("+33% to Fire Resistance"): {
+                "explicit": "explicit.stat_3372524247"
+            },
+            normalize_stat_text("+38% to Lightning Resistance"): {
+                "explicit": "explicit.stat_1671376347"
+            },
+            OPEN_PREFIX_TEXT: {"pseudo": "pseudo.pseudo_number_of_empty_prefix_mods"},
+            OPEN_SUFFIX_TEXT: {"pseudo": "pseudo.pseudo_number_of_empty_suffix_mods"},
         },
         0.0,
     )
@@ -420,8 +475,8 @@ def test_bug1_a_six_mod_rare_is_not_an_exact_match_conjunction_of_all_its_mods()
 
 
 def test_bug1_the_caller_chooses_which_mods_the_query_is_about():
-    """`prices` cannot ask the gate — that would be a dependency cycle — so the
-    caller that decided to escalate says why, and the query is built from that."""
+    """Since Phase 9 the caller is the **player**, through a checkbox list. `prices`
+    is handed the selection and builds the query from it and from nothing else."""
     item = _rare("Amethyst Ring", SIX_MOD_RARE)
     plan = build_plan(
         item,
@@ -502,7 +557,7 @@ async def test_bug1_a_zero_result_search_is_retried_once_wider_and_never_twice(
         item,
         "Standard",
         chaos_of=_chaos_of,
-        focus=[ModFocus(text="+58 to maximum Life", minimum=46, label="max life")],
+        spec=[ModFocus(text="+58 to maximum Life", minimum=46, label="max life")],
     )
 
     searches = [r for r in server.trade_requests() if "/search/" in r.url.path]
@@ -532,3 +587,88 @@ async def test_bug1_the_quote_carries_the_query_that_produced_it(trade):
     assert "Amethyst Ring" in quote.query
     assert quote.to_json()["query"] == quote.query
     assert quote.to_json()["attempts"] == quote.attempts
+
+
+# -- Phase 9: the query comes from a selection, not from the item -----------------
+
+
+def test_a_selection_query_asks_about_exactly_what_was_selected():
+    """Six mods on the item, three ticked, three filters. Neither of the two failure
+    modes §5b records: not every mod (which matched nothing) and not one loose mod
+    (which matched anything)."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    spec = QuerySpec(
+        mods=(
+            ModFocus(text="+103 to maximum Life", minimum=82),
+            ModFocus(text="+33% to Fire Resistance", minimum=26),
+            ModFocus(text="+38% to Lightning Resistance", minimum=30),
+        )
+    )
+    plan = build_plan(item, _stats(), spec)
+    filters = plan[0].body["query"]["stats"][0]["filters"]
+    assert len(filters) == 3
+    assert [f["value"]["min"] for f in filters] == [82, 26, 30]
+    # ...and a selection is never second-guessed by the automatic two-filter cap.
+    assert len(filters) > MAX_STAT_FILTERS
+
+
+def test_a_manual_check_never_broadens_itself():
+    """Broadening answers a different question and reports the answer under the
+    player's heading. ``QuerySpec.broaden`` is ``False`` by default for that reason."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    spec = QuerySpec(mods=(ModFocus(text="+103 to maximum Life", minimum=82),))
+    assert len(build_plan(item, _stats(), spec)) == 1
+    assert len(build_plan(item, _stats(), spec.__class__(mods=spec.mods, broaden=True))) == 2
+
+
+def test_the_open_affix_filter_is_a_real_filter_resolved_by_text():
+    """"At least one open prefix" is a trade filter and a source of crafting value.
+
+    Resolved through the stat index by GGG's own wording rather than hardcoded, so a
+    league that renames it drops the filter and says so instead of quietly filtering
+    on an id that no longer means what it did.
+    """
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    spec = QuerySpec(
+        mods=(ModFocus(text="+103 to maximum Life", minimum=82),),
+        open_prefixes=1,
+        open_suffixes=2,
+    )
+    step = build_plan(item, _stats(), spec)[0]
+    filters = step.body["query"]["stats"][0]["filters"]
+    ids = {f["id"]: f.get("value") for f in filters}
+    assert ids["pseudo.pseudo_number_of_empty_prefix_mods"] == {"min": 1}
+    assert ids["pseudo.pseudo_number_of_empty_suffix_mods"] == {"min": 2}
+    assert "≥1 open prefix" in step.description
+    assert "≥2 open suffixes" in step.description
+
+
+def test_an_open_affix_filter_that_cannot_be_resolved_is_named_rather_than_dropped():
+    empty = StatIndex({}, 0.0)
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    step = build_plan(item, empty, QuerySpec(open_prefixes=1))[0]
+    assert step.body["query"]["stats"][0]["filters"] == []
+    assert "base type only" in step.description
+
+
+def test_an_open_affix_question_alone_is_a_legitimate_query():
+    """A player asking "what do blank-prefix versions of this go for?" has asked
+    something, and it is not a bare base-type search."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    step = build_plan(item, _stats(), QuerySpec(open_prefixes=1))[0]
+    filters = step.body["query"]["stats"][0]["filters"]
+    assert [f["id"] for f in filters] == ["pseudo.pseudo_number_of_empty_prefix_mods"]
+
+
+def test_a_dropped_mod_is_counted_in_the_description():
+    """A filter that silently vanishes turns a deliberate question into a wider one."""
+    item = _rare("Amethyst Ring", SIX_MOD_RARE)
+    spec = QuerySpec(
+        mods=(
+            ModFocus(text="+103 to maximum Life", minimum=82),
+            ModFocus(text="Grants Level 20 Nonexistent", minimum=None),
+        )
+    )
+    step = build_plan(item, _stats(), spec)[0]
+    assert len(step.body["query"]["stats"][0]["filters"]) == 1
+    assert "1 not asked" in step.description

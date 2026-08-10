@@ -6,7 +6,7 @@ suspicious to be about a rare, which bases are worth something blank, whether a
 missing price is a hole or a non-question — none of that is infrastructure, and a
 core module holding it is how a contained core stops being contained.
 
-## `requires` is `["prices", "poeapi"]`, and the plan says `["prices"]`
+## `requires` is `["prices", "poeapi", "moddb"]`, and the plan says `["prices"]`
 
 A stated deviation, with the same shape as Phase 3's (`prices` requires `net` as well
 as `poeapi`, against §1.3's arrow diagram). Two reasons:
@@ -33,27 +33,34 @@ building, no currency conversion — every number comes from ``PricesApi`` and i
 carried through untouched, including the ``unpriceable`` state, which arrives as a
 distinct outcome and leaves as a distinct verdict.
 
-## What it now *does* do: decide when tier 3 runs
+The `moddb` edge is Phase 9's, and it is the ordinary feature→core direction. It is
+what lets the highlighter say ``T4 of 10 on a helmet, T7 of 13 on a body armour``
+instead of comparing one number to one threshold, and what makes the open-affix
+option a real filter rather than a guess. Only ``moddb/backend/api.py`` is imported,
+which the boundary tests check.
 
-SPEC §5.3 said "never eager". That rule was written against **stash** scale, where a
-generous gate over 818 items produces hundreds of candidates and eager escalation is
-a self-inflicted rate-limit violation. A bag is not a stash: the real account's
-backpack holds three to five rares, and ``trade-search-request-limit`` is
-``5:10:60``. Four searches and four fetches fit inside it with room left over.
+## What it no longer does: spend trade requests unasked
 
-So the rule is now parameterised by the thing that already encodes exactly this
-distinction — :class:`Strictness`.
+Phase 4b made a bag's gate hits eager: up to ``max_eager_quotes`` tier-3 searches per
+appraise, bounded by ``eager_timeout_seconds``. **All of that is deleted.**
+IMPLEMENTATION-PLAN §5b records why — it failed twice against a live account, once by
+ANDing every mod and matching zero listings, once by matching a single listing and
+reporting 10c for an item worth 1.00c across 438 comparables. Narrow gave a missing
+answer, wide gave a confidently wrong one, and nothing in between is right, because
+the question the query encodes is *which mods make this item interesting* and that is
+player knowledge.
 
-* **generous (bag)** — gate-passing rares are quoted eagerly, up to
-  ``max_eager_quotes``, bounded by ``eager_timeout_seconds``. Anything still in
-  flight when the timeout expires comes back marked ``pricing…`` rather than
-  delaying the output; the bag total is then a floor and says so.
-* **strict (stash)** — never. Unchanged, and the setting cannot override it.
+So an appraise now makes **one account request and zero trade requests**. What
+replaces the eager pass:
 
-`prices` did not gain an eager path: ``PricesApi.quote_many`` is explicit, bounded,
-and this module is its only caller. The decision about *when* spending a shared
-budget is appropriate is a feature opinion, which is why it lives here and not in
-the module that owns the socket.
+* :meth:`AppraisalModule.highlight` — the proposal. Which of the four criteria the
+  item hit, its mods as tickable rows with real tiers, and how many affix slots are
+  free. Local, synchronous, free.
+* :meth:`AppraisalModule.price_check` — the answer, run **only** when a player asks,
+  against **their** selection. Two requests.
+
+Bulk pricing stays automatic and untouched: poe.ninja works, is free, is accurate,
+and needs no input. The pivot is about rares only.
 """
 
 from __future__ import annotations
@@ -65,22 +72,26 @@ from modules.appraisal.backend.api import (
     APPRAISAL_COMPLETE,
     DEFAULT_CHECK_CHAOS,
     DEFAULT_KEEP_CHAOS,
+    DEFAULT_WIDEN,
     AppraisalApi,
     AppraisalError,
     BagAppraisal,
     GateResult,
+    ItemHighlight,
     ItemVerdict,
+    PriceCheck,
+    Selection,
     Strictness,
 )
-from modules.appraisal.backend.gate import HIGH_VALUE_BASES, evaluate
+from modules.appraisal.backend.gate import SOUGHT_AFTER_BASES, evaluate, report_for
+from modules.appraisal.backend.highlight import build as build_highlight
 from modules.appraisal.backend.verdict import appraise_bag, appraise_one
+from modules.moddb.backend.api import ModDbApi, ModDbError
 from modules.poeapi.backend.api import NormalizedItem, PoeApi, Source
 from modules.prices.backend.api import (
-    BagValuation,
-    Price,
     PricesApi,
-    PriceSource,
-    Tier3,
+    TradeQuote,
+    TradeUnavailable,
 )
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
@@ -93,23 +104,14 @@ _fallback_log = get_logger("module.appraisal")
 DEFAULT_STRICTNESS = Strictness.GENEROUS
 """The bag is the default surface and the bag wants the generous gate (SPEC §5.2)."""
 
-DEFAULT_MAX_EAGER = 4
-"""Gate-passing rares priced per bag pass. Two requests each — one search, one
-fetch — against a measured ``5:10:60, 15:60:300`` search budget on an IP the
-player's own browser session also uses. Four is the largest number that still looks
-like a person using a website."""
-
-DEFAULT_EAGER_TIMEOUT = 12.0
-"""Seconds the pass will wait for tier 3 before showing ``pricing…`` instead."""
-
 
 class AppraisalModule:
     id = "appraisal"
     name = "Appraisal"
     kind = "feature"
-    requires: ClassVar[list[str]] = ["poeapi", "prices"]
-    """See the module docstring: the plan's §1.4 sketch says ``["prices"]``, and the
-    `poeapi` edge is a deliberate, stated addition rather than an oversight."""
+    requires: ClassVar[list[str]] = ["poeapi", "prices", "moddb"]
+    """See the module docstring: the plan's §1.4 sketch says ``["prices"]``; the
+    `poeapi` edge is Phase 4's stated addition and the `moddb` edge is Phase 9's."""
 
     provides: type | None = AppraisalApi
 
@@ -117,6 +119,7 @@ class AppraisalModule:
         self._ctx: ModuleContext | None = None
         self._prices: PricesApi | None = None
         self._poeapi: PoeApi | None = None
+        self._moddb: ModDbApi | None = None
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -124,16 +127,32 @@ class AppraisalModule:
         self._ctx = ctx
         self._prices = ctx.require(PricesApi)
         self._poeapi = ctx.require(PoeApi)
+        self._moddb = ctx.require(ModDbApi)
         ctx.logger.info(
-            "appraisal ready: keep >= %gc, gate %s",
+            "appraisal ready: keep >= %gc, highlighter %s, %s",
             self.threshold(),
             self.strictness().value,
+            self._describe_db(),
         )
+
+    def _describe_db(self) -> str:
+        """The mod database's age, said out loud at start.
+
+        A stale mod database does not fail — it answers confidently and wrongly about
+        tiers GGG re-levelled — and this module is now the main thing quoting it.
+        """
+        if self._moddb is None:
+            return "no mod database"
+        try:
+            return self._moddb.version().describe()
+        except ModDbError as exc:
+            return f"no mod database ({exc})"
 
     async def stop(self) -> None:
         self._ctx = None
         self._prices = None
         self._poeapi = None
+        self._moddb = None
 
     def methods(self) -> dict[str, Callable[..., Any]]:
         """Registered as ``appraisal.*`` for the Phase 5 HTTP and Phase 7 Decky
@@ -142,6 +161,8 @@ class AppraisalModule:
         return {
             "appraise_bag": self.appraise_bag_json,
             "gate": self.gate_json,
+            "highlight": self.highlight_json,
+            "price_check": self.price_check_json,
             "settings": self.settings_json,
         }
 
@@ -182,49 +203,28 @@ class AppraisalModule:
                     "safe, and a generous gate at stash scale is all noise."
                 ),
             },
-            "eager_tier3": {
-                "type": "bool",
-                "default": True,
-                "label": "Price a bag's rares automatically",
-                "description": (
-                    "A rare has no bulk price and never will, so without this every "
-                    "rare in the bag comes back with a gate opinion and no number. "
-                    "Only ever runs for a bag, only for items the gate flagged, and "
-                    "at most a few per pass — a stash is never escalated eagerly."
-                ),
-            },
-            "max_eager_quotes": {
-                "type": "int",
-                "default": DEFAULT_MAX_EAGER,
-                "min": 0,
-                "max": 10,
-                "label": "Rares to price per bag",
-                "description": (
-                    "One trade search plus one fetch each. The measured limit is 5 "
-                    "searches per 10 seconds and 15 per minute, and the player's own "
-                    "browser shares that IP — four leaves real headroom."
-                ),
-            },
-            "eager_timeout_seconds": {
+            "check_widen": {
                 "type": "float",
-                "default": DEFAULT_EAGER_TIMEOUT,
-                "min": 0.1,
-                "max": 60.0,
-                "label": "How long to wait for rare prices",
+                "default": DEFAULT_WIDEN,
+                "min": 0.0,
+                "max": 0.9,
+                "label": "How far below a ticked roll to search",
                 "description": (
-                    "Whatever has not answered by then is shown as 'pricing…' and "
-                    "the bag total is reported as a floor. A slow query may cost a "
-                    "number; it must never cost the output."
+                    "0.2 searches '+103 to maximum Life' as '≥ 82'. An exact-value "
+                    "filter on a random roll matches almost nothing — that is what "
+                    "returned zero listings for two of three rares in a real bag."
                 ),
             },
-            "extra_high_value_bases": {
+            "extra_sought_after_bases": {
                 "type": "list",
                 "default": [],
-                "label": "Extra high-value bases",
+                "label": "Extra sought-after bases",
                 "description": (
-                    "Base types added to the gate's allowlist, exactly as they are "
-                    "spelled in game ('Convoking Wand'). The built-in list is short "
-                    "on purpose; league-specific bases belong here, not in code."
+                    "Base types added to the highlighter's opinion list, exactly as "
+                    "they are spelled in game ('Convoking Wand'). GGG's own "
+                    "top-tier-base tag is read from the mod database and needs no "
+                    "list; this is for bases the market wants and the game files do "
+                    "not mark."
                 ),
             },
         }
@@ -245,11 +245,21 @@ class AppraisalModule:
             self._log().warning("unknown strictness %r; using %s", raw, DEFAULT_STRICTNESS.value)
             return DEFAULT_STRICTNESS
 
-    def allowlist(self) -> frozenset[str]:
-        extra = self._setting("extra_high_value_bases", [])
+    def sought_bases(self) -> frozenset[str]:
+        """The opinion list, plus whatever the player added.
+
+        Deliberately *not* named ``allowlist`` any more. The old one mixed a factual
+        claim (this base is the best of its class) with a market one (people buy this
+        blank), and only the second is left here — GGG's own ``top_tier_base_item_type``
+        tag answers the first, from data, for 187 bases.
+        """
+        extra = self._setting("extra_sought_after_bases", [])
         if not isinstance(extra, list):
-            return HIGH_VALUE_BASES
-        return HIGH_VALUE_BASES | {str(name) for name in extra if str(name).strip()}
+            return SOUGHT_AFTER_BASES
+        return SOUGHT_AFTER_BASES | {str(name) for name in extra if str(name).strip()}
+
+    def widen(self) -> float:
+        return float(self._setting("check_widen", DEFAULT_WIDEN))
 
     def gate(
         self, item: NormalizedItem, *, strictness: Strictness | None = None
@@ -257,8 +267,28 @@ class AppraisalModule:
         return evaluate(
             item,
             strictness=strictness or self.strictness(),
-            allowlist=self.allowlist(),
+            moddb=self._moddb,
+            sought_bases=self.sought_bases(),
         )
+
+    def highlight(
+        self, item: NormalizedItem, *, strictness: Strictness | None = None
+    ) -> ItemHighlight:
+        """The proposal for one item — free, local, and claiming no number.
+
+        `moddb` is read **once** and the reading is handed to both the highlighter and
+        the checkbox list, so a mod is never attributed twice and the two can never
+        disagree about what the database said.
+        """
+        report = report_for(item, self._moddb)
+        gate = evaluate(
+            item,
+            strictness=strictness or self.strictness(),
+            moddb=self._moddb,
+            sought_bases=self.sought_bases(),
+            report=report,
+        )
+        return build_highlight(item, gate, report, moddb=self._moddb)
 
     async def appraise(
         self,
@@ -268,15 +298,13 @@ class AppraisalModule:
         threshold_chaos: float | None = None,
         league: str | None = None,
         override: str | None = None,
-        escalate: bool | None = None,
     ) -> BagAppraisal:
+        """One account request, zero trade requests. See the module docstring."""
         rows = list(items)
         level = strictness or self.strictness()
         keep = self.threshold() if threshold_chaos is None else float(threshold_chaos)
         valued = await self._require_prices().value_all(rows, league=league, override=override)
         gates = [self.gate(item, strictness=level) for item in rows]
-        if self._should_escalate(level, escalate):
-            valued = await self._escalate(rows, valued, gates, league=league, override=override)
         return appraise_bag(
             rows,
             valued,
@@ -286,103 +314,66 @@ class AppraisalModule:
             strictness=level,
         )
 
-    def _should_escalate(self, level: Strictness, explicit: bool | None) -> bool:
-        """Whether this pass may spend trade requests.
-
-        Strictness is checked **after** the explicit argument and cannot be
-        overridden by it. ``--escalate`` on a stash run is a request to do something
-        SPEC §5.3 forbids for a reason that has not changed: hundreds of candidates
-        against a five-per-ten-seconds budget.
-        """
-        if level is not Strictness.GENEROUS:
-            return False
-        if explicit is not None:
-            return bool(explicit)
-        return bool(self._setting("eager_tier3", True))
-
-    async def _escalate(
+    async def price_check(
         self,
-        items: Sequence[NormalizedItem],
-        valued: BagValuation,
-        gates: Sequence[GateResult],
+        item: NormalizedItem,
+        selection: Selection | None = None,
         *,
-        league: str | None,
-        override: str | None,
-    ) -> BagValuation:
-        """Tier 3 over the bag's gated rares, bounded, then folded back in.
+        league: str | None = None,
+        override: str | None = None,
+        sample: int = 0,
+    ) -> PriceCheck:
+        """Run the player's query. The only method in this module that spends.
 
-        Only rows that are **unpriceable and gated** are candidates. A rare with a
-        note already has the player's own number; an item bulk priced does not need
-        a search; an item the gate ignored is one the gate has already said is not
-        worth a request.
+        The query is built from :meth:`Selection.spec` and from nothing else — not
+        from the gate, which has no opinion to contribute here, and not from the item,
+        whose every mod ANDed together is the search that matched zero listings twice.
+
+        A selection that asks nothing is refused rather than widened. "Price this item
+        with no filters" is a base-type search, and the price of the cheapest junk
+        sharing a base is the confidently wrong number this phase exists to stop.
         """
-        limit = max(0, int(self._setting("max_eager_quotes", DEFAULT_MAX_EAGER)))
-        if not limit:
-            return valued
-        candidates = [
-            (position, item)
-            for position, (item, gate) in enumerate(zip(items, gates, strict=True))
-            if gate.passed and valued.items[position].unpriceable
-        ]
-        if not candidates:
-            return valued
-        # Most signals first: with a budget of four and five candidates, the one left
-        # out should be the least interesting, not the last one in the bag.
-        candidates.sort(key=lambda pair: -len(gates[pair[0]].signals))
-        chosen = candidates[:limit]
-
         prices = self._require_prices()
-        before = prices.trade_requests
-        quotes = await prices.quote_many(
-            [item for _position, item in chosen],
-            league=league or override,
-            timeout=float(self._setting("eager_timeout_seconds", DEFAULT_EAGER_TIMEOUT)),
-            # The gate just decided why each of these is interesting. Handing that
-            # down is what stops the query from ANDing every mod on the item — see
-            # `GateResult.focus`.
-            focus={item.uid: gates[position].focus() for position, item in chosen},
-        )
-        rows = list(valued.items)
-        for position, item in chosen:
-            quote = quotes.get(item.uid)
-            if quote is None:
-                # Absent means the task was still running when the timeout fired.
-                # This is the *only* case that is genuinely "pricing…".
-                rows[position].tier3 = Tier3.PENDING
-                continue
-            if not quote.searched:
-                rows[position].tier3 = Tier3.FAILED
-                rows[position].reason = quote.unavailable
-                continue
-            if quote.chaos is None:
-                # The search ran — twice, if the first was empty — and matched
-                # nothing. A finished answer, and the surface must be able to stop
-                # spinning on it.
-                rows[position].tier3 = Tier3.NO_LISTINGS
-                rows[position].reason = quote.query or None
-                continue
-            rows[position] = rows[position].replace_price(
-                Price(
-                    quote.chaos,
-                    PriceSource.TRADE,
-                    detail=(
-                        f"median of {len(quote.listings)} online listing(s) "
-                        f"of {quote.total} matching · {quote.query}"
-                    ),
-                    listing_count=quote.total or None,
-                    sample_size=len(quote.listings) or None,
-                ),
+        proposal = self.highlight(item)
+        chosen = selection or proposal.selection(widen=self.widen())
+        if not chosen.asks_anything:
+            raise AppraisalError(
+                "nothing was selected: tick at least one mod, or ask for an open "
+                "prefix or suffix. A search with no filters prices the cheapest item "
+                "sharing this base, which is not this item's price."
             )
-        return BagValuation(
-            rows,
-            league=valued.league,
-            league_source=valued.league_source,
-            divine_rate=valued.divine_rate,
-            table=valued.table,
-            lookups=valued.lookups,
-            trade_requests=max(0, prices.trade_requests - before),
-            exchange_requests=valued.exchange_requests,
+        choice = prices.league_choice(league, explicit=override)
+        before = prices.trade_requests
+        try:
+            quote = await prices.quote(
+                item,
+                league=override or league,
+                sample=sample,
+                spec=chosen.spec(proposal),
+            )
+        except TradeUnavailable as exc:
+            return PriceCheck(
+                highlight=proposal,
+                selection=chosen,
+                league=choice.league,
+                quote=TradeQuote(
+                    None, considered=0, online=0, total=0, attempts=0, unavailable=str(exc)
+                ),
+                spent=max(0, prices.trade_requests - before),
+            )
+        return PriceCheck(
+            highlight=proposal,
+            selection=chosen,
+            league=choice.league,
+            quote=quote,
+            spent=max(0, prices.trade_requests - before),
         )
+
+    # ``PriceCheck.divine_rate`` is deliberately left unset here. `PricesApi`
+    # publishes no divine accessor, and inventing one for a second figure under the
+    # first would mean either a fetch inside a method that has already spent its
+    # requests, or a rate read from tables that may belong to another league. The bag
+    # payload already carries the rate; a surface converts with the one it is showing.
 
     async def appraise_item(
         self,
@@ -410,7 +401,6 @@ class AppraisalModule:
         character: str | None = None,
         strictness: str | None = None,
         threshold_chaos: float | None = None,
-        escalate: bool | None = None,
     ) -> dict[str, Any]:
         prices = self._require_prices()
         bag = await self._require_poeapi().get_items(character)
@@ -423,7 +413,6 @@ class AppraisalModule:
             strictness=_parse_strictness(strictness),
             threshold_chaos=threshold_chaos,
             league=bag.league,
-            escalate=escalate,
         )
         await self._announce(result, character=bag.character)
         payload = result.to_json()
@@ -436,19 +425,59 @@ class AppraisalModule:
     ) -> dict[str, Any]:
         """Tier 2 for one item of the current bag, by uid. No pricing, no requests
         beyond the bag fetch `poeapi` may already have cached."""
-        bag = await self._require_poeapi().get_items(character)
-        for item in bag.items:
-            if item.uid == uid:
-                return self.gate(item, strictness=_parse_strictness(strictness)).to_json()
-        raise AppraisalError(f"no item {uid!r} in the current bag")
+        item = await self._find(uid, character)
+        return self.gate(item, strictness=_parse_strictness(strictness)).to_json()
+
+    async def highlight_json(
+        self, uid: str, character: str | None = None, strictness: str | None = None
+    ) -> dict[str, Any]:
+        """The checkbox list for one item of the current bag. Costs nothing."""
+        item = await self._find(uid, character)
+        return self.highlight(item, strictness=_parse_strictness(strictness)).to_json()
+
+    async def price_check_json(
+        self,
+        uid: str,
+        mods: list[int] | None = None,
+        open_prefixes: int | None = None,
+        open_suffixes: int | None = None,
+        character: str | None = None,
+        league: str | None = None,
+    ) -> dict[str, Any]:
+        """Run the player's query for one item of the current bag.
+
+        Takes a **uid and a list of indexes**, never an item and never mod text, so
+        the frontend cannot submit an item it invented or a filter the panel never
+        showed. ``mods`` of ``None`` means "the pre-ticked set", which is what the
+        button does before anything is unticked.
+        """
+        item = await self._find(uid, character)
+        proposal = self.highlight(item)
+        selection = proposal.selection(
+            mods,
+            open_prefixes=open_prefixes,
+            open_suffixes=open_suffixes,
+            widen=self.widen(),
+        )
+        result = await self.price_check(item, selection, league=league)
+        return result.to_json()
 
     async def settings_json(self) -> dict[str, Any]:
         return {
             "keep_threshold_chaos": self.threshold(),
             "check_threshold_chaos": self.check_floor(),
             "strictness": self.strictness().value,
-            "high_value_bases": sorted(self.allowlist()),
+            "check_widen": self.widen(),
+            "sought_after_bases": sorted(self.sought_bases()),
+            "moddb": self._describe_db(),
         }
+
+    async def _find(self, uid: str, character: str | None) -> NormalizedItem:
+        bag = await self._require_poeapi().get_items(character)
+        for item in bag.items:
+            if item.uid == uid:
+                return item
+        raise AppraisalError(f"no item {uid!r} in the current bag")
 
     # -- internals -------------------------------------------------------------
 

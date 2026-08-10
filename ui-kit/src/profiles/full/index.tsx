@@ -12,7 +12,7 @@ import { FULL_PROFILE } from '../../profile'
 
 export { Screen, Section, Stack, Row, Focus } from './layout'
 export { Stat, Tally, ItemGrid, ItemRow, ValueBar, VerdictPill } from './data'
-export { Action, Detail } from './interaction'
+export { Action, CheckList, Stepper, Detail } from './interaction'
 export { Pending, Empty, ErrorState, StaleBanner } from './state'
 
 export const PROFILE = FULL_PROFILE
@@ -40,6 +40,8 @@ const _implementation: KitImplementation = {
   ValueBar: data.ValueBar,
   VerdictPill: data.VerdictPill,
   Action: interaction.Action,
+  CheckList: interaction.CheckList,
+  Stepper: interaction.Stepper,
   Detail: interaction.Detail,
   Pending: state.Pending,
   Empty: state.Empty,

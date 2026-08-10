@@ -29,4 +29,5 @@ export default defineModuleUI({
 })
 
 export { BagScreen } from './BagScreen'
+export { PriceCheck } from './PriceCheck'
 export * from './model'

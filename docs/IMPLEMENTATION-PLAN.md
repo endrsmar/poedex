@@ -561,12 +561,56 @@ honestly rather than guessed.
 
 **Done:** `gate.py`'s hand-typed thresholds and 26-base allowlist have a factual replacement.
 
-### Phase 9 — highlight-not-price
-Gate becomes a highlighter. Per-mod checkbox list, pre-ticked by tier. Open-affix filter. Manual
-check action building the query from the selection. Eager tier 3 removed.
+### Phase 9 — highlight-not-price — **done**
 
-**Done:** a rare in the bag is flagged, its mods are ticked sensibly by default, and one action
-returns a price the player can trust because they chose what it asked.
+`gate.py` is a highlighter built on `moddb`, eager tier 3 is gone, and the query comes from a
+player's ticks. `poedex price <uid>` is the shippable increment; the panel is the same thing with
+checkboxes.
+
+**What `gate.py` lost.** 407 lines to 400, but the count is the least of it. Deleted: `MOD_GROUPS`
+(14 regex+threshold entries), the `ModGroup` class and `mod_hits`, `HIGH_VALUE_BASES` (26 names),
+`ILVL86_BASE_CATEGORIES`, `ILVL86_EXCLUDED_SUBCATEGORIES`. **Every number the file used to compare
+against is gone.** What is left is `SIX_LINK`, `ILVL86` as a fallback for a base the database does
+not know, and `NEAR_TOP_TIER`/`NEAR_TOP_TIER_LADDER` — which are not thresholds on *rolls* but on
+tier positions the database supplies.
+
+The two factual errors the plan predicted are both confirmed against the artifact: a **Hubris
+Circlet tops out at affix level 85**, so a third of the old ilvl-86 flags on helmets, gloves and
+rings were noise; and of the 26 hand-typed bases, **seven** carry GGG's own
+`top_tier_base_item_type` tag. The other nineteen survive as `SOUGHT_AFTER_BASES`, labelled an
+opinion and demoted to a *soft* signal, which makes the strict gate entirely factual for the first
+time.
+
+**One criterion changed a live fixture's verdict, and that is the finding.** §5b's fourth criterion
+is influence *mods*, not influenced items. The fixture's Shaper-tagged `Leather Belt` carries no
+mod from the Shaper pool, so it is no longer flagged — the old gate was highlighting a tag, which
+is a highlight on nothing.
+
+**The `StatIndex` bug was real and is fixed.** `entries.setdefault()` made the *first* group win
+and `pseudo` comes first, so `Adds 12 to 30 Physical Damage` resolved to
+`pseudo.pseudo_adds_physical_damage` — an aggregate over every source of physical damage on the
+item — instead of `explicit.stat_960081730`. The index now keeps every group per sentence and
+chooses at lookup time by the line's origin, with `pseudo` last always. Measured live: the same
+`30% increased Movement Speed` filter on Two-Toned Boots matches **161** listings through the
+pseudo id and **160** through the explicit one. Small, and in the direction the bug predicts — an
+aggregate is a superset and never a subset.
+
+`stat_id("20% increased Attack Speed")` returning `None` was **not** a normalization gap.
+`normalize_stat_text` produces `#% increased Attack Speed`, which is exactly GGG's spelling; the
+recorded fixture simply carried no attack-speed entry. It carries both ids now, and the explicit
+one wins.
+
+**The 300 px problem was solved in the kit, with no override.** A checkbox row at `compact` is two
+lines — mod text, then the tier under it — inside a 30 px focus target, rather than a row of
+columns with a 13 px input. The tier goes *under* the text because a right-hand column costs the
+mod line its last eight characters at 268 px, and the mod line is the thing being identified
+against the game's own tooltip. `CheckList` deliberately takes **no `limit`**, breaking the kit's
+own truncate-and-report rule: a hidden row is a filter the player cannot see and cannot switch
+off, and six affixes is the game's ceiling anyway. Both profiles run the same 146 tests.
+
+**Done:** 1083 Python tests and 146×2 frontend tests, all offline. `poedex price <uid> --dry-run`
+prints an item's mods with real per-base tiers and the word `unknown` where `moddb` will not
+commit; without `--dry-run` it spends two trade requests on the query the player chose.
 
 ### Phase 10 — stash tabs
 Tab enumeration and per-tab fetch (one request per tab; no batch endpoint). Remove-only tabs
@@ -599,9 +643,15 @@ under-reports value.
 | A rare with no bulk price is *not* `unpriceable` | Bulk has never priced rares. Calling that a gap in poe.ninja's coverage would fill the panel with question marks and hide the gaps that are real |
 | Which poe.ninja tables exist is discovered per league | A hardcoded list of 26 types omitted `Ducat` and made a whole item class unpriceable for a league. Being more careful with the list is not a fix; asking the league is |
 | Discovery derives type names from sitemap slugs | It has to be able to find a type nobody typed in, or it is a slower way to have the same bug. There is no type-index endpoint (research-notes §9.6) |
-| Tier 3 is eager for a bag and never for a stash | "Never eager" was a stash rule applied to a bag. `Strictness` already encodes exactly that distinction, so it is reused rather than duplicated |
+| ~~Tier 3 is eager for a bag and never for a stash~~ | **Reversed in Phase 9.** It failed twice live in opposite directions, and no setting between them is right. Tier 3 is now never automatic at all; a rare is highlighted and the player asks |
 | Tier 1b is numbered 1b, not 2 | Tiers 2 and 3 are referenced by number across four documents and every module docstring. The new source is a bulk answer that runs where tier 1 missed, so it belongs beside tier 1 |
-| Mod "tiers" are one regex and one threshold per group | A real mod database is tens of thousands of rows that go stale every league. Stated as an approximation in `gate.py`, used only by the generous gate, and off entirely at strict |
+| ~~Mod "tiers" are one regex and one threshold per group~~ | **Deleted in Phase 9**, as `gate.py`'s own docstring asked. `moddb` answers per base and per pool; `+95 to maximum Life` is T4 of 10 on a helmet and T7 of 13 on a body armour, and no single number says that |
+| The four highlight criteria are the plan's, plus three stated retentions | §5b names valuable-base-at-high-ilvl, high-tier rolls, six-link and influence *mods*. `fractured` and `synthesised` are kept as hard signals and `unidentified`/`veiled` as soft ones — all four are facts about the item that cost nothing to read, and dropping them would be a regression nobody asked for. The deviation is stated in `gate.py` rather than buried |
+| What survives subtracting GGG's tag is an opinion, and is labelled one | 7 of the 26 hand-typed bases carry `top_tier_base_item_type`. The other 19 are a claim about the *market* — a Stygian Vise is wanted for an abyssal socket and no game file says so — so they are a soft signal, off at strict, and extendable by setting rather than by editing code |
+| A manual price check never broadens itself | Broadening answers a different question and reports the answer under the player's heading. "No listings matched what you ticked" is an answer, and the fix for it is a tick |
+| `MAX_QUERY_FILTERS` is 6 for a selection and `MAX_STAT_FILTERS` stays 2 for the automatic path | Six is how many affixes a rare has. A player who ticks all six has asked for a near-exact-match search, and the honest response is to run it and report the one listing it found *as one listing* — not to silently drop half the query. A selection is not a heuristic |
+| The stat index keeps every group per sentence and chooses at lookup | `setdefault` made the first group win and `pseudo` is first, so explicit mods were being searched as aggregates. Which id is right depends on where the line sits on the item, which is a lookup-time fact |
+| `CheckList` is the one kit list with no `limit` | Every other list truncates and reports, which is honest. A checkbox list cannot: a hidden row is a filter the player can neither see nor switch off, and the item's own six-affix ceiling already bounds it |
 | The wire schema is pydantic in `transports/wire.py` | `prices` and `appraisal` use plain classes with `to_json()` on purpose. §3 still wants pydantic as the single source of TS types, so the *wire* shape is declared in the transport, generated from, and validated against the real `to_json()` output. Both halves are tested; a schema nothing validates against is a wish |
 | `check` is split in the UI, not in `Verdict` | Phase 4 asked for the split before the panel was drawn. Both lanes still mean *look before you vendor*, so the difference is layout: a fifth verdict would need a fifth colour and a change to the CLI, the event payload and every test |
 | The compact profile is implemented, not stubbed | The phase's stated risk cannot be checked against signatures. Running the real test suite through the other profile found five content drops and one forked vocabulary; a stub would have found none of them |
