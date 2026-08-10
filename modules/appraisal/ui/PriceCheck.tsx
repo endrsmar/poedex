@@ -44,11 +44,21 @@ export interface PriceCheckProps {
   uid: string | null
   /** Chaos per divine, from the bag payload. The backend publishes no rate. */
   divineRate?: number | null
+  /**
+   * Which stash tab the item is in, when it is in one. Omitted, the uid is looked
+   * for in the bag.
+   *
+   * This is the whole of Phase 10's change to this component. An item does not
+   * become a different question because of where it is sitting, so the checkbox
+   * list, the pre-tick cap and the query are untouched — only *where to find the
+   * uid* differs, and it is one argument.
+   */
+  tabIndex?: number | null
 }
 
 type Phase = 'idle' | 'loading' | 'checking' | 'failed'
 
-export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement | null {
+export function PriceCheck({ uid, divineRate, tabIndex }: PriceCheckProps): ReactElement | null {
   const client = getClient()
   const [highlight, setHighlight] = useState<ItemHighlightPayload | null>(null)
   const [ticks, setTicks] = useState<string[]>([])
@@ -74,7 +84,7 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
     setOpenPrefixes(null)
     setOpenSuffixes(null)
     void client.appraisal
-      .highlight(uid)
+      .highlight(uid, null, tabIndex ?? null)
       .then((payload) => {
         if (!live) return
         setHighlight(payload)
@@ -89,7 +99,7 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
     return () => {
       live = false
     }
-  }, [client, uid])
+  }, [client, uid, tabIndex])
 
   const toggle = useCallback((id: string) => {
     setTicks((current) =>
@@ -113,6 +123,7 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
         mods: ticks.map((id) => Number(id)),
         open_prefixes: openPrefixes,
         open_suffixes: openSuffixes,
+        tab_index: tabIndex ?? null,
       })
       .then((payload) => {
         setResult(payload)
@@ -122,7 +133,7 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
         setError(problem instanceof Error ? problem.message : String(problem))
         setPhase('failed')
       })
-  }, [asksNothing, client, openPrefixes, openSuffixes, ticks, uid])
+  }, [asksNothing, client, openPrefixes, openSuffixes, tabIndex, ticks, uid])
 
   if (!uid) return null
 
@@ -139,7 +150,7 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
       <Section title="price check">
         <ErrorState
           title="could not read this item"
-          detail={error ?? 'the item is no longer in the bag'}
+          detail={error ?? 'the item is no longer where it was'}
         />
       </Section>
     )

@@ -46,11 +46,24 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from modules.appraisal.backend.api import (  # noqa: E402
+    Composition,
     GateResult,
     GateSignal,
+    StashDigest,
     Strictness,
+    TabAppraisal,
+    TabSummary,
+    Verdict,
 )
 from modules.appraisal.backend.verdict import appraise_bag  # noqa: E402
+from modules.poeapi.backend.api import (  # noqa: E402
+    CrawlPlan,
+    StashTab,
+    TabState,
+    layout_for,
+    tab_kind,
+    unsupported_reason,
+)
 from modules.poeapi.backend.models import (  # noqa: E402
     Grid,
     Location,
@@ -78,6 +91,8 @@ FIXTURES = REPO_ROOT / "modules" / "appraisal" / "ui" / "fixtures"
 OUTPUT = FIXTURES / "bag-appraisal.json"
 HIGHLIGHT_OUTPUT = FIXTURES / "item-highlight.json"
 CHECK_OUTPUT = FIXTURES / "price-check.json"
+STASH_OUTPUT = FIXTURES / "stash-digest.json"
+STASH_TAB_OUTPUT = FIXTURES / "stash-tab.json"
 
 LEAGUE = "Allflame"
 DIVINE_RATE = 214.0
@@ -578,8 +593,251 @@ def build_check() -> dict:
     ).to_json()
 
 
+# -- Phase 10: the stash -------------------------------------------------------
+#
+# Two payloads, and between them they carry every state the stash screen has to draw
+# *honestly*. The rows are chosen from the measured account (research-notes §7)
+# rather than from what is convenient:
+#
+# * a currency tab — special layout, no lattice, and most of the value
+# * a gear tab — 12x12, where the rares are, with highlighted rows
+# * a quad tab — 24x24, which a 12x12 grid would silently three-quarters drop
+# * a remove-only tab — permanent, holding a removed item that is unpriceable
+# * a map tab — unreadable, and the row must say so rather than show 0c
+# * a tab nobody has read — the other kind of hole, and the easiest to draw as zero
+
+
+def stash_tab(
+    index: int,
+    name: str,
+    type_: str,
+    *,
+    remove_only: bool = False,
+    hidden: bool = False,
+) -> StashTab:
+    kind = tab_kind(type_)
+    return StashTab(
+        index=index,
+        id=f"tab-{index}",
+        name=name,
+        type=type_,
+        kind=kind,
+        layout=layout_for(kind),
+        colour="#7c5132",
+        hidden=hidden,
+        remove_only=remove_only,
+        supported=unsupported_reason(kind) is None,
+        unsupported_reason=unsupported_reason(kind),
+    )
+
+
+def tab_state(tab: StashTab, *, age: float | None = None, items: int | None = None) -> TabState:
+    """``age is None`` means *never read*, which is not the same as *empty*."""
+    return TabState(
+        tab=tab,
+        cached=age is not None,
+        fetched_at=(
+            datetime.fromtimestamp(AS_OF.timestamp() - age, tz=UTC) if age is not None else None
+        ),
+        age_seconds=age,
+        stale=age is not None and age >= 20 and not tab.remove_only,
+        permanent=tab.remove_only,
+        item_count=items,
+    )
+
+
+def summary(
+    tab: StashTab,
+    *,
+    age: float | None = None,
+    items: int | None = None,
+    composition: Composition | None = None,
+    chaos: float = 0.0,
+    highlighted: int = 0,
+    unpriceable: int = 0,
+    units: int = 0,
+) -> TabSummary:
+    return TabSummary(
+        tab_state(tab, age=age, items=items),
+        composition=composition,
+        total_chaos=chaos,
+        highlighted=highlighted,
+        unpriceable_count=unpriceable,
+        units=units,
+    )
+
+
+def build_stash() -> dict:
+    currency = stash_tab(0, "C", "CurrencyStash")
+    gear = stash_tab(1, "Gear", "PremiumStash")
+    quad = stash_tab(2, "Sext", "QuadStash")
+    legacy = stash_tab(3, "(Remove-only) Placeholder League", "NormalStash", remove_only=True)
+    maps = stash_tab(4, "M", "MapStash", hidden=True)
+    unread = stash_tab(5, "Later", "PremiumStash")
+
+    tabs = [
+        summary(
+            currency, age=45, items=50, composition=Composition.BULK, chaos=18_402.0, units=3_812
+        ),
+        summary(
+            gear,
+            age=12,
+            items=43,
+            composition=Composition.GEAR,
+            chaos=612.0,
+            highlighted=4,
+            units=43,
+        ),
+        summary(
+            quad,
+            age=3_600,
+            items=112,
+            composition=Composition.MIXED,
+            chaos=1_204.0,
+            highlighted=1,
+            units=340,
+        ),
+        summary(
+            legacy,
+            age=86_400 * 9,
+            items=6,
+            composition=Composition.BULK,
+            unpriceable=2,
+            units=181,
+        ),
+        summary(maps),
+        summary(unread),
+    ]
+    return StashDigest(
+        tabs,
+        league=LEAGUE,
+        strictness=Strictness.STRICT,
+        cost=CrawlPlan(
+            league=LEAGUE,
+            total_tabs=6,
+            cached_tabs=4,
+            permanent_tabs=1,
+            unsupported_tabs=1,
+            requests=1,
+            seconds=18.0,
+        ),
+        divine_rate=DIVINE_RATE,
+    ).to_json()
+
+
+def build_stash_tab() -> dict:
+    """One tab, judged at **strict**. Same verdict model as the bag, other bias."""
+    rows: list[tuple[NormalizedItem, Valuation, GateResult]] = []
+
+    def stash_item(uid: str, name: str, **kwargs) -> NormalizedItem:
+        row = item(uid, name, **kwargs)
+        return row.model_copy(
+            update={"location": Location(source=Source.STASH, tab_index=1, tab_name="Gear")}
+        )
+
+    six = stash_item(
+        "s-chest",
+        "Rift Shroud",
+        base_type="Astral Plate",
+        category="armour",
+        rarity=Rarity.RARE,
+        ilvl=84,
+        links=6,
+        width=2,
+        height=3,
+        explicit=("+112 to maximum Life",),
+    )
+    rows.append(
+        (
+            six,
+            valued(six, chaos=None, reason="no bulk table prices rares"),
+            GateResult(
+                [GateSignal("six_link", "6-link", hard=True)], strictness=Strictness.STRICT
+            ),
+        )
+    )
+
+    # The strict/generous divergence, as a row: a near-top-tier roll and nothing
+    # hard. In a bag it is worth a look; in a stash of 818 items it is the noise
+    # SPEC §5.2 is about, and the strict gate is what says so.
+    ring = stash_item(
+        "s-ring",
+        "Gloom Coil",
+        base_type="Two-Stone Ring",
+        category="accessory",
+        rarity=Rarity.RARE,
+        ilvl=84,
+        explicit=("+68 to maximum Life", "+41% to Fire Resistance"),
+    )
+    rows.append(
+        (
+            ring,
+            valued(ring, chaos=None, reason="no bulk table prices rares"),
+            GateResult((), strictness=Strictness.STRICT),
+        )
+    )
+
+    scarab = stash_item("s-scarab", "Veiled Scarab", category="fragment", stack=170)
+    rows.append(
+        (
+            scarab,
+            valued(scarab, chaos=None, reason="not in the Allflame price index"),
+            GateResult((), strictness=Strictness.STRICT, considered=False),
+        )
+    )
+
+    items = [row for row, _valuation, _gate in rows]
+    valuation = BagValuation(
+        [value for _row, value, _gate in rows],
+        league=LEAGUE,
+        league_source=LeagueSource.SETTING,
+        divine_rate=DIVINE_RATE,
+        table=TableStatus(
+            league=LEAGUE,
+            loaded=36,
+            requested=38,
+            oldest=datetime(2026, 8, 10, 14, 2, 0, tzinfo=UTC),
+            newest=AS_OF,
+            stale=False,
+            note=None,
+            discovery="36 of 38 candidate types served by Allflame (asked, not assumed)",
+        ),
+        lookups=3,
+        trade_requests=0,
+    )
+    appraisal = appraise_bag(
+        items,
+        valuation,
+        [result for _row, _valuation, result in rows],
+        keep_chaos=20.0,
+        check_chaos=1.0,
+        strictness=Strictness.STRICT,
+    )
+    return TabAppraisal(
+        summary(
+            stash_tab(1, "Gear", "PremiumStash"),
+            age=12,
+            items=len(items),
+            composition=Composition.MIXED,
+            chaos=appraisal.total_chaos,
+            highlighted=len(appraisal.highlighted),
+            unpriceable=len(appraisal.of(Verdict.UNPRICEABLE)),
+            units=sum(row.stack_size for row in items),
+        ),
+        appraisal,
+    ).to_json()
+
+
 def render() -> str:
     return json.dumps(build(), indent=2, sort_keys=False) + "\n"
+
+
+def render_stash() -> str:
+    return json.dumps(build_stash(), indent=2, sort_keys=False) + "\n"
+
+
+def render_stash_tab() -> str:
+    return json.dumps(build_stash_tab(), indent=2, sort_keys=False) + "\n"
 
 
 def render_highlight() -> str:
@@ -598,6 +856,8 @@ def main(argv: list[str] | None = None) -> int:
         (OUTPUT, render()),
         (HIGHLIGHT_OUTPUT, render_highlight()),
         (CHECK_OUTPUT, render_check()),
+        (STASH_OUTPUT, render_stash()),
+        (STASH_TAB_OUTPUT, render_stash_tab()),
     ]
     if args.check:
         stale = [

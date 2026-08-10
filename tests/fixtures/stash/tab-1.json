@@ -1,0 +1,165 @@
+{
+ "items": [
+  {
+   "verified": true,
+   "w": 2,
+   "h": 2,
+   "league": "Standard",
+   "id": "8e0c3663305dd028bef127c0ac06e70d711f6ce699814bbc014e8daa5ca79dd3",
+   "identified": true,
+   "ilvl": 86,
+   "x": 0,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Armours/Helmets/HelmetStrInt3.png",
+   "name": "Soul Bind",
+   "typeLine": "Siege Helmet",
+   "baseType": "Siege Helmet",
+   "frameType": 2,
+   "explicitMods": [
+    "+120 to maximum Life",
+    "+30% to Fire Resistance"
+   ]
+  },
+  {
+   "verified": true,
+   "w": 2,
+   "h": 3,
+   "league": "Standard",
+   "id": "23a048f5cd3112a30b260d45d48b81ee5089c1869a0ec75129774d04506b7443",
+   "identified": true,
+   "ilvl": 84,
+   "x": 2,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Armours/BodyArmours/BodyInt1.png",
+   "name": "Corpse Guardian",
+   "typeLine": "Vaal Regalia",
+   "baseType": "Vaal Regalia",
+   "frameType": 2,
+   "explicitMods": [
+    "+112 to maximum Energy Shield",
+    "98% increased Energy Shield",
+    "+31% to Cold Resistance"
+   ],
+   "sockets": [
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    },
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    },
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    },
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    },
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    },
+    {
+     "group": 0,
+     "attr": "I",
+     "sColour": "B"
+    }
+   ]
+  },
+  {
+   "verified": true,
+   "w": 2,
+   "h": 2,
+   "league": "Standard",
+   "id": "a2c4662f8a20a8b42cb6a56eed369937e863e965badc1657e852ff7801fa47f3",
+   "identified": false,
+   "ilvl": 86,
+   "x": 4,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Armours/Helmets/HelmetInt3.png",
+   "name": "",
+   "typeLine": "Hubris Circlet",
+   "baseType": "Hubris Circlet",
+   "frameType": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "1712c8094249e80aa3c37c266e4bc0dfed2a56f3d6f08208e5d3a0113ae01679",
+   "identified": true,
+   "ilvl": 84,
+   "x": 6,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Rings/Ring1.png",
+   "name": "Gloom Coil",
+   "typeLine": "Two-Stone Ring",
+   "baseType": "Two-Stone Ring",
+   "frameType": 2,
+   "fractured": true,
+   "fracturedMods": [
+    "+48 to maximum Life"
+   ],
+   "explicitMods": [
+    "+29% to Fire Resistance",
+    "+24 to Dexterity"
+   ]
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 3,
+   "league": "Standard",
+   "id": "0abcc2fcde88a0632c56e80da12b32f1c6a124d0831a337935e0dce85ec5e9e7",
+   "identified": true,
+   "ilvl": 62,
+   "x": 7,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Weapons/OneHandWeapons/OneHandSwords/OneHandSword1.png",
+   "name": "Woe Edge",
+   "typeLine": "Rusted Sword",
+   "baseType": "Rusted Sword",
+   "frameType": 2,
+   "explicitMods": [
+    "+23 to maximum Life",
+    "11% increased Attack Speed",
+    "Adds 5 to 9 Physical Damage",
+    "+13% to Cold Resistance"
+   ]
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "dad4cf49ea50f04d67bf0914ccc2bb42a41b6124b24b4199decde79b448dba39",
+   "identified": true,
+   "ilvl": 84,
+   "x": 0,
+   "y": 11,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Amulets/Amulet7.png",
+   "name": "Brood Locket",
+   "typeLine": "Onyx Amulet",
+   "baseType": "Onyx Amulet",
+   "frameType": 2,
+   "explicitMods": [
+    "+58 to maximum Life",
+    "+35% to Fire Resistance"
+   ]
+  }
+ ]
+}

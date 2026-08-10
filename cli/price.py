@@ -153,10 +153,24 @@ async def cmd_price(
     open_suffixes: int | None = None,
     dry_run: bool = False,
     league: str | None = None,
+    tab_index: int | None = None,
 ) -> int:
-    bag = await poeapi.get_items(character)
+    # Phase 10: the same check, on an item that lives in a stash tab. One `--tab`,
+    # and everything after this block is identical — the same highlight, the same
+    # selection, the same query, the same comparable count. An item does not become
+    # a different question because of where it is sitting, and a second code path
+    # here is how the two would drift apart.
+    if tab_index is not None:
+        source = await poeapi.get_stash_items(tab_index)
+        where = f"stash tab {tab_index}"
+        if source.unsupported:
+            print(f"error: {source.unsupported}", file=sys.stderr)
+            return 2
+    else:
+        source = await poeapi.get_items(character)
+        where = "the current bag"
     try:
-        item = _find(bag.items, uid)
+        item = _find(source.items, uid)
     except AmbiguousItem as clash:
         print(f"error: {uid!r} matches {len(clash.matches)} items:", file=sys.stderr)
         for match in clash.matches[:8]:
@@ -164,11 +178,14 @@ async def cmd_price(
         print("       use a longer name, or one of the uid prefixes above", file=sys.stderr)
         return 2
     if item is None:
-        print(f"error: no item matching {uid!r} in the current bag", file=sys.stderr)
-        print("       'poedex appraise' lists what is there", file=sys.stderr)
+        print(f"error: no item matching {uid!r} in {where}", file=sys.stderr)
+        print(
+            "       'poedex appraise' lists the bag; 'poedex stash tab N' lists a tab",
+            file=sys.stderr,
+        )
         return 2
 
-    choice = await prepare_league(prices, bag.league, override=league)
+    choice = await prepare_league(prices, source.league, override=league)
     highlight = appraisal.highlight(item)
     selection = highlight.selection(
         parse_mods(mods), open_prefixes=open_prefixes, open_suffixes=open_suffixes
@@ -183,7 +200,9 @@ async def cmd_price(
         print("\ndry run — nothing was asked of the trade API")
         return 0
     try:
-        result = await appraisal.price_check(item, selection, league=bag.league, override=league)
+        result = await appraisal.price_check(
+            item, selection, league=source.league, override=league
+        )
     except AppraisalError as exc:
         print(f"\nerror: {exc}", file=sys.stderr)
         return 2

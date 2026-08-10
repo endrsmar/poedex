@@ -14,11 +14,15 @@ as one blank panel.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from modules.poeapi.backend.models import (
+    Budget,
     Character,
     CharacterList,
+    CrawlPlan,
+    CrawlProgress,
     Grid,
     ItemSet,
     Location,
@@ -28,8 +32,21 @@ from modules.poeapi.backend.models import (
     Rarity,
     Sockets,
     Source,
+    StashState,
     StashTab,
     StashTabList,
+    TabKind,
+    TabLayout,
+    TabState,
+)
+from modules.poeapi.backend.stash import (
+    FOREVER,
+    MAP_UNSUPPORTED,
+    QUAD_COLUMNS,
+    STANDARD_COLUMNS,
+    layout_for,
+    tab_kind,
+    unsupported_reason,
 )
 from runtime.errors import PoedexError
 
@@ -45,12 +62,20 @@ settings file just because they wanted to look at a different character once.
 __all__ = [
     "CHARACTERS_PATH",
     "CHARACTER_ENV",
+    "FOREVER",
     "ITEMS_PATH",
+    "MAP_UNSUPPORTED",
+    "QUAD_COLUMNS",
+    "STANDARD_COLUMNS",
     "STASH_PATH",
     "SYNC_COMPLETE",
     "AccountUnknownError",
+    "Budget",
     "Character",
     "CharacterList",
+    "CrawlPlan",
+    "CrawlProgress",
+    "CrawlStep",
     "Grid",
     "ItemSet",
     "LeagueUnknownError",
@@ -64,8 +89,15 @@ __all__ = [
     "SessionRejectedError",
     "Sockets",
     "Source",
+    "StashState",
     "StashTab",
     "StashTabList",
+    "TabKind",
+    "TabLayout",
+    "TabState",
+    "layout_for",
+    "tab_kind",
+    "unsupported_reason",
 ]
 
 SYNC_COMPLETE = "sync_complete"
@@ -120,6 +152,32 @@ class RateLimitedError(PoeApiError):
         self.reason = reason
         detail = f" ({reason})" if reason else ""
         super().__init__(f"rate limited: retry in {self.retry_after:.0f}s{detail}")
+
+
+@dataclass(frozen=True, slots=True)
+class CrawlStep:
+    """One tab of a crawl, reported the moment it lands.
+
+    A crawl is minutes long, so it reports per tab rather than at the end: a caller
+    can draw progress, write a digest incrementally, and — because
+    :attr:`CrawlProgress` is written after each of these — resume from here.
+    """
+
+    tab: StashTab
+    index: int
+    """Position within this crawl, 1-based. Not the tab index."""
+
+    total: int
+    items: ItemSet | None = None
+    error: str | None = None
+    from_cache: bool = False
+    """``True`` when the tab was already on disk and no request was spent. Every
+    remove-only tab is this on the second crawl, which is the 34-minutes-to-45-seconds
+    rule showing up as a number a caller can print."""
+
+    @property
+    def spent(self) -> int:
+        return 0 if self.from_cache or self.items is None else 1
 
 
 @runtime_checkable
@@ -183,7 +241,63 @@ class PoeApi(Protocol):
         refresh: bool = False,
         realm: str | None = None,
     ) -> ItemSet:
-        """One stash tab's contents, normalized."""
+        """One stash tab's contents, normalized. **One request per tab; there is no
+        batch endpoint**, and this endpoint shares ``backend-item-request-limit``
+        with ``get_items`` — one item request per 18 seconds, sustained.
+
+        Two rules ride on the tab's own metadata, both from research-notes §7:
+
+        * A **remove-only** tab is cached forever. It cannot gain items, so a second
+          fetch spends budget to learn nothing. ``refresh=True`` still overrides.
+        * A **map** tab comes back with ``unsupported`` set and no items, because the
+          endpoint returns none and the zero cannot be trusted (:data:`MAP_UNSUPPORTED`).
+        """
+        ...
+
+    async def cached_stash_items(
+        self, tab_index: int, league: str | None = None
+    ) -> ItemSet | None:
+        """A tab's contents if they are already on disk, ``None`` if they are not.
+
+        The accessor a digest is built from: it can walk 117 tabs and spend nothing.
+        ``None`` means *not read yet*, which a surface must be able to distinguish
+        from *empty* — the two look identical in a total and mean opposite things.
+        """
+        ...
+
+    async def stash_state(
+        self, league: str | None = None, *, refresh: bool = False
+    ) -> StashState:
+        """Every tab with its freshness, and what a full refresh would cost.
+
+        Costs at most one request — the tab list — and **never** fetches a tab. This
+        is the accessor a stash screen opens on: it answers "what is on disk, how old
+        is it, and what would the rest cost" without touching the item budget.
+        """
+        ...
+
+    def crawl_stash(
+        self,
+        league: str | None = None,
+        *,
+        resume: bool = True,
+        limit: int | None = None,
+        refresh: bool = False,
+    ) -> Any:
+        """A cold crawl, as an async iterator of :class:`CrawlStep`.
+
+        **Never called automatically.** SPEC §6.6: a crawl is user-initiated,
+        resumable, disk-backed, and states its cost up front — :meth:`stash_state`'s
+        ``cost`` is that statement. Nothing in this module schedules one, and nothing
+        in a surface may start one without a press.
+
+        Resumable because it is minutes long: progress is written to disk after every
+        tab, and ``resume=True`` skips what an earlier run finished.
+        """
+        ...
+
+    async def crawl_progress(self, league: str | None = None) -> CrawlProgress | None:
+        """The bookmark an interrupted crawl left behind, if any. Spends nothing."""
         ...
 
     def limits(self) -> list[dict[str, Any]]:

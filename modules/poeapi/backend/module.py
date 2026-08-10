@@ -29,9 +29,11 @@ see :data:`NO_REALM`.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, ClassVar
+
+from pydantic import ValidationError
 
 from modules.credentials.backend.api import CredentialsApi, CredentialState
 from modules.net.backend.api import AuthRejected, HttpStatusError, NetApi, NetError, RateLimited
@@ -42,8 +44,11 @@ from modules.poeapi.backend.api import (
     STASH_PATH,
     SYNC_COMPLETE,
     AccountUnknownError,
+    Budget,
     Character,
     CharacterList,
+    CrawlProgress,
+    CrawlStep,
     ItemSet,
     LeagueUnknownError,
     Meta,
@@ -52,14 +57,27 @@ from modules.poeapi.backend.api import (
     RateLimitedError,
     SessionRejectedError,
     Source,
+    StashState,
     StashTab,
     StashTabList,
+    TabKind,
+    TabState,
 )
 from modules.poeapi.backend.cache import CacheEntry, ResponseCache
+from modules.poeapi.backend.models import utcnow
 from modules.poeapi.backend.normalize import normalize_items, strip_set_tokens
+from modules.poeapi.backend.stash import (
+    crawl_key,
+    flatten,
+    tab_kind,
+    tab_ttl,
+    tabs_from,
+    unsupported_reason,
+)
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
 from runtime.log import get_logger
+from runtime.storage import Storage
 
 __all__ = ["MODULE", "PoeApiModule"]
 
@@ -114,6 +132,16 @@ without it turns out to be refused, the fix is to set the realm explicitly:
 ``poedex config set poeapi.realm pc``.
 """
 
+MEASURED_ITEM_INTERVAL = 18.0
+"""Seconds per item request, sustained — measured (research-notes §3, CLAUDE.md).
+
+The **fallback** for a cost estimate before the limiter has parsed a real header, and
+never used for pacing: `net` paces from ``X-Rate-Limit-*`` and this module has no
+business having a second opinion. It is here so that "how long would a crawl take?"
+has an answer on a cold start, and :meth:`PoeApiModule.seconds_per_item_request`
+replaces it with the learned figure the moment there is one.
+"""
+
 # How stale the credential's "last confirmed" timestamp may get before a successful
 # fetch refreshes it. Every refresh is a disk write plus a `credential_changed`
 # event, and the fact being recorded barely changes.
@@ -133,6 +161,11 @@ class PoeApiModule:
         self._net: NetApi | None = None
         self._credentials: CredentialsApi | None = None
         self._hashes: dict[str, str] = {}
+        self._storage: Storage | None = None
+        self._requests_made = 0
+        """Live fetches this process has made. A crawl reads it to tell "this tab cost
+        a request" from "this tab was already on disk", which is the difference
+        between a 34-minute refresh and a 45-second one."""
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -140,6 +173,7 @@ class PoeApiModule:
         self._ctx = ctx
         self._net = ctx.require(NetApi)
         self._credentials = ctx.require(CredentialsApi)
+        self._storage = ctx.storage
         if self._cache is None:
             self._cache = ResponseCache(ctx.storage)
         configured = str(self._setting("league", NO_LEAGUE)).strip()
@@ -152,13 +186,23 @@ class PoeApiModule:
         self._ctx = None
         self._net = None
         self._credentials = None
+        self._storage = None
 
     def methods(self) -> dict[str, Callable[..., Any]]:
+        """No ``crawl_stash`` here, deliberately.
+
+        A crawl is minutes long and spends the account's whole item budget; putting it
+        behind a method call would let any surface start one with a single dispatch,
+        which is precisely what SPEC §6.6's "never auto-crawl" forbids. ``stash_state``
+        is registered instead — it costs at most the tab list and it *reports* what a
+        crawl would cost, which is the thing a surface actually needs.
+        """
         return {
             "get_characters": self.get_characters_json,
             "get_items": self.get_items_json,
             "get_stash_tabs": self.get_stash_tabs_json,
             "get_stash_items": self.get_stash_items_json,
+            "stash_state": self.stash_state_json,
             "limits": self.limits_json,
         }
 
@@ -324,11 +368,11 @@ class PoeApiModule:
                 },
                 realm_name,
             ),
-            cache_key=f"stash-tabs:{account_name}:{league_name}",
+            cache_key=self._tabs_key(account_name, league_name),
             ttl=float(self._setting("stash_tabs_ttl_seconds", DEFAULT_STASH_TABS_TTL)),
             refresh=refresh,
         )
-        return StashTabList(league=league_name, tabs=_tabs_from(payload), meta=meta)
+        return StashTabList(league=league_name, tabs=tabs_from(payload), meta=meta)
 
     async def get_stash_items(
         self,
@@ -338,9 +382,32 @@ class PoeApiModule:
         refresh: bool = False,
         realm: str | None = None,
     ) -> ItemSet:
+        """One tab, one request — with the two rules research-notes §7 measured.
+
+        The tab's own metadata decides both, and it is read out of the **cached** tab
+        list rather than fetched: a lazy open is meant to cost one request, and
+        checking whether it is allowed to cost one must not cost another.
+        """
         league_name = await self._league(league)
         realm_name = await self._realm(realm)
         account_name = await self._account(None)
+        known = self._known_tab(account_name, league_name, tab_index)
+
+        if known is not None and not known.supported:
+            # A map tab, refused before the request rather than after. Spending an
+            # item request to be told nothing — on 10 of the 117 measured tabs — is
+            # budget spent to produce a zero that would be wrong.
+            return ItemSet(
+                items=[],
+                source=Source.STASH,
+                league=league_name,
+                tab_index=tab_index,
+                tab_name=known.name or None,
+                unsupported=known.unsupported_reason,
+                meta=Meta(fetched_at=utcnow(), note=known.unsupported_reason),
+            )
+
+        default_ttl = float(self._setting("stash_items_ttl_seconds", DEFAULT_STASH_ITEMS_TTL))
         payload, meta = await self._fetch(
             path=STASH_PATH,
             route=ITEM_ROUTE,
@@ -348,33 +415,289 @@ class PoeApiModule:
                 {
                     "accountName": account_name,
                     "league": league_name,
-                    "tabs": 0,
+                    # `tabs=1` costs nothing extra — it is the same request — and it
+                    # is what makes a *cold* read of one tab still able to tell a map
+                    # tab from a premium one. Without the tab list riding along, an
+                    # unknown tab type would let a map tab's empty answer through as a
+                    # confident zero, which is the failure this phase exists to avoid.
+                    "tabs": 1,
                     "tabIndex": tab_index,
                 },
                 realm_name,
             ),
-            cache_key=f"stash-items:{account_name}:{league_name}:{tab_index}",
-            ttl=float(self._setting("stash_items_ttl_seconds", DEFAULT_STASH_ITEMS_TTL)),
+            cache_key=self._items_key(account_name, league_name, tab_index),
+            # Remove-only tabs can never gain items, so their copy never expires
+            # (research-notes §7). `refresh=True` still overrides, because a tab can
+            # still *lose* items and that goes through the player.
+            ttl=tab_ttl(known, default_ttl),
             refresh=refresh,
         )
+        if not meta.from_cache:
+            # The tab list rode along with the items, so file it. Without this, the
+            # very first tab a player opens costs two requests — one for the items and
+            # one for a list that was already in the response — and "open a tab, one
+            # request" (SPEC §6.6) would be true only from the second tab onwards.
+            self._remember_tabs(account_name, league_name, payload)
         raw_items = payload.get("items") if isinstance(payload, Mapping) else None
-        tab_name = _tab_name(payload, tab_index)
+        tab_name = _tab_name(payload, tab_index) or (known.name if known else None)
         items = normalize_items(
             raw_items or [],
             source=Source.STASH,
             tab_index=tab_index,
             tab_name=tab_name,
         )
+        kind = known.kind if known is not None else _kind_in(payload, tab_index)
+        # Asked again *with the count*: a map tab that came back with items is not
+        # reported unsupported. It is the zero that is untrustworthy, not the tab.
+        blocked = unsupported_reason(kind, item_count=len(items))
         result = ItemSet(
             items=items,
             source=Source.STASH,
             league=league_name,
             tab_index=tab_index,
             tab_name=tab_name,
-            meta=meta,
+            unsupported=blocked,
+            meta=meta if blocked is None else meta.model_copy(update={"note": blocked}),
         )
         await self._announce(f"stash:{league_name}:{tab_index}", result)
         return result
+
+    async def cached_stash_items(self, tab_index: int, league: str | None = None) -> ItemSet | None:
+        """A tab's contents **if they are already on disk**, and ``None`` otherwise.
+
+        Exists so that a digest over 117 tabs can be built without a single request.
+        :meth:`get_stash_items` would be wrong for that: a tab whose 20-second TTL has
+        passed is a *fetch*, and a screen that quietly turned into 117 of them is
+        precisely the auto-crawl SPEC §6.6 forbids. ``None`` here means "not read
+        yet", which is a thing a surface must be able to say — and is not zero.
+        """
+        league_name = await self._league(league)
+        account_name = await self._account(None)
+        entry = self._require_cache().get(self._items_key(account_name, league_name, tab_index))
+        known = self._known_tab(account_name, league_name, tab_index)
+        if known is not None and not known.supported:
+            return ItemSet(
+                items=[],
+                source=Source.STASH,
+                league=league_name,
+                tab_index=tab_index,
+                tab_name=known.name or None,
+                unsupported=known.unsupported_reason,
+                meta=Meta(fetched_at=utcnow(), note=known.unsupported_reason),
+            )
+        if entry is None:
+            return None
+        payload = entry.payload
+        raw_items = payload.get("items") if isinstance(payload, Mapping) else None
+        tab_name = _tab_name(payload, tab_index) or (known.name if known else None)
+        items = normalize_items(
+            raw_items or [], source=Source.STASH, tab_index=tab_index, tab_name=tab_name
+        )
+        kind = known.kind if known is not None else _kind_in(payload, tab_index)
+        blocked = unsupported_reason(kind, item_count=len(items))
+        age = entry.age(self._require_cache().now())
+        return ItemSet(
+            items=items,
+            source=Source.STASH,
+            league=league_name,
+            tab_index=tab_index,
+            tab_name=tab_name,
+            unsupported=blocked,
+            meta=_cached_meta(entry, note=blocked or f"cached {age:.0f}s ago"),
+        )
+
+    async def stash_state(
+        self, league: str | None = None, *, refresh: bool = False
+    ) -> StashState:
+        """What is on disk, how old it is, and what the rest would cost.
+
+        Reads the cache directly and fetches nothing but the tab list. A remove-only
+        tab is reported ``permanent`` and never ``stale``, which is what stops a
+        surface offering to refresh a tab that cannot change.
+        """
+        tabs = await self.get_stash_tabs(league, refresh=refresh)
+        account_name = await self._account(None)
+        cache = self._require_cache()
+        now = cache.now()
+        default_ttl = float(self._setting("stash_items_ttl_seconds", DEFAULT_STASH_ITEMS_TTL))
+
+        states: list[TabState] = []
+        for tab in tabs.all_tabs():
+            entry = cache.get(self._items_key(account_name, tabs.league, tab.index))
+            ttl = tab_ttl(tab, default_ttl)
+            age = entry.age(now) if entry is not None else None
+            states.append(
+                TabState(
+                    tab=tab,
+                    cached=entry is not None,
+                    fetched_at=_as_datetime(entry.fetched_at) if entry is not None else None,
+                    age_seconds=age,
+                    stale=age is not None and age >= ttl,
+                    permanent=tab.remove_only,
+                    item_count=_item_count(entry.payload) if entry is not None else None,
+                )
+            )
+        return StashState(
+            league=tabs.league,
+            tabs=states,
+            meta=tabs.meta,
+            seconds_per_request=self.seconds_per_item_request(),
+            buckets=self.item_budgets(),
+        )
+
+    def item_budgets(self) -> list[Budget]:
+        """Every learned item bucket, for the cost estimate.
+
+        Two on the measured account — ``30:60`` and ``100:1800`` — and carrying both
+        is the difference between "a 15-tab refresh takes 15 seconds" and "it takes
+        four and a half minutes". The second is what the sustained rate alone says,
+        and it is wrong by an order of magnitude for every small refresh.
+        """
+        return [
+            Budget(max_hits=snapshot.effective_max, period=float(snapshot.period))
+            for snapshot in self._require_net().limits()
+            if "item" in snapshot.policy and snapshot.effective_max > 0
+        ]
+
+    def seconds_per_item_request(self) -> float:
+        """The sustained item-request interval, learned where the limiter has learned it.
+
+        Estimation only — pacing is header-driven and lives in `net`. Reading it off
+        the real buckets is what lets a cost warning shrink as the cache fills instead
+        of quoting a constant from a research note forever.
+        """
+        worst = 0.0
+        for snapshot in self._require_net().limits():
+            if "item" not in snapshot.policy or snapshot.effective_max <= 0:
+                continue
+            worst = max(worst, snapshot.period / snapshot.effective_max)
+        return worst or MEASURED_ITEM_INTERVAL
+
+    async def crawl_stash(
+        self,
+        league: str | None = None,
+        *,
+        resume: bool = True,
+        limit: int | None = None,
+        refresh: bool = False,
+    ) -> AsyncIterator[CrawlStep]:
+        """Walk every readable tab, one request at a time, resumably.
+
+        **Nothing calls this on a timer, on start, or on a zone change.** It exists to
+        be pressed. Progress is written to disk after every tab, so a crawl
+        interrupted at minute 28 resumes at tab 94 rather than at tab 1.
+        """
+        league_name = await self._league(league)
+        account_name = await self._account(None)
+        tabs = await self.get_stash_tabs(league_name, refresh=refresh)
+        progress = self._load_progress(account_name, league_name)
+        if not resume or progress is None:
+            progress = CrawlProgress(league=league_name, started_at=utcnow())
+
+        done = set(progress.done)
+        queue = [
+            tab for tab in tabs.all_tabs() if tab.supported and not (resume and tab.index in done)
+        ]
+        if limit is not None:
+            queue = queue[: max(0, limit)]
+
+        total = len(queue)
+        for position, tab in enumerate(queue, start=1):
+            before = self._requests_made
+            try:
+                items = await self.get_stash_items(tab.index, league_name, refresh=refresh)
+            except PoeApiError as exc:
+                progress = progress.model_copy(
+                    update={
+                        "failed": sorted({*progress.failed, tab.index}),
+                        "updated_at": utcnow(),
+                    }
+                )
+                self._save_progress(account_name, progress)
+                yield CrawlStep(tab=tab, index=position, total=total, error=str(exc))
+                continue
+            spent = max(0, self._requests_made - before)
+            progress = progress.model_copy(
+                update={
+                    "done": sorted({*progress.done, tab.index}),
+                    "failed": [i for i in progress.failed if i != tab.index],
+                    "updated_at": utcnow(),
+                    "requests": progress.requests + spent,
+                    "items": progress.items + len(items.items),
+                }
+            )
+            self._save_progress(account_name, progress)
+            yield CrawlStep(
+                tab=tab, index=position, total=total, items=items, from_cache=spent == 0
+            )
+
+    async def crawl_progress(self, league: str | None = None) -> CrawlProgress | None:
+        """The bookmark an interrupted crawl left behind, or ``None``.
+
+        Spends nothing: it reads one file. It is ``async`` only because the account
+        name is resolved the same way every other stash key resolves it — a bookmark
+        filed under a different account than the crawl wrote it under would silently
+        make every resumed crawl a fresh one.
+        """
+        league_name = await self._league(league)
+        account_name = await self._account(None)
+        return self._load_progress(account_name, league_name)
+
+    async def clear_crawl(self, league: str | None = None) -> None:
+        """Forget a crawl's bookmark, so the next one starts from the top."""
+        league_name = await self._league(league)
+        account_name = await self._account(None)
+        self._require_cache_storage().delete(crawl_key(account_name, league_name))
+
+    # -- stash internals -------------------------------------------------------
+
+    @staticmethod
+    def _tabs_key(account: str, league: str) -> str:
+        return f"stash-tabs:{account}:{league}"
+
+    @staticmethod
+    def _items_key(account: str, league: str, tab_index: int) -> str:
+        return f"stash-items:{account}:{league}:{tab_index}"
+
+    def _remember_tabs(self, account: str, league: str, payload: Any) -> None:
+        """File the ``tabs`` array a stash response carried, if it carried one."""
+        if not isinstance(payload, Mapping) or not isinstance(payload.get("tabs"), list):
+            return
+        self._require_cache().put(self._tabs_key(account, league), payload)
+
+    def _known_tab(self, account: str, league: str, tab_index: int) -> StashTab | None:
+        """The tab's metadata from the cached tab list, or ``None``.
+
+        Deliberately cache-only. Falling back to a fetch here would make every stash
+        read cost two requests on a cold cache — and the answer is only ever used to
+        make a fetch *cheaper* or to refuse one, so not knowing degrades to the
+        ordinary path rather than to a wrong one.
+        """
+        entry = self._require_cache().get(self._tabs_key(account, league))
+        if entry is None:
+            return None
+        for tab in tabs_from(entry.payload):
+            for candidate in flatten([tab]):
+                if candidate.index == tab_index:
+                    return candidate
+        return None
+
+    def _load_progress(self, account: str, league: str) -> CrawlProgress | None:
+        raw = self._require_cache_storage().read_json(crawl_key(account, league))
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return CrawlProgress.model_validate(raw)
+        except ValidationError:
+            # A bookmark that will not parse is a bookmark we ignore: starting over
+            # costs requests, but acting on a half-decoded one could skip real tabs.
+            self._log().warning("discarding an unreadable stash crawl bookmark")
+            return None
+
+    def _save_progress(self, account: str, progress: CrawlProgress) -> None:
+        self._require_cache_storage().write_json(
+            crawl_key(account, progress.league), progress.to_json()
+        )
 
     def limits(self) -> list[dict[str, Any]]:
         return [snapshot.to_json() for snapshot in self._require_net().limits()]
@@ -398,6 +721,11 @@ class PoeApiModule:
         self, tab_index: int, league: str | None = None, refresh: bool = False
     ) -> dict[str, Any]:
         return (await self.get_stash_items(tab_index, league, refresh=refresh)).to_json()
+
+    async def stash_state_json(
+        self, league: str | None = None, refresh: bool = False
+    ) -> dict[str, Any]:
+        return (await self.stash_state(league, refresh=refresh)).to_json()
 
     async def limits_json(self) -> list[dict[str, Any]]:
         return self.limits()
@@ -471,6 +799,7 @@ class PoeApiModule:
                 )
             raise PoeApiError(str(exc)) from None
 
+        self._requests_made += 1
         stored = cache.put(cache_key, payload)
         await self._accept()
         return payload, Meta(fetched_at=_as_datetime(stored.fetched_at))
@@ -720,6 +1049,14 @@ class PoeApiModule:
             raise ModuleNotStartedError("poeapi has not been started")
         return self._cache
 
+    def _require_cache_storage(self) -> Storage:
+        """Where a crawl's bookmark lives — the module's own namespace, beside the
+        response cache but not inside it: a cache entry is a copy of something GGG
+        said, and this is a note to ourselves about how far we got."""
+        if self._storage is None:
+            raise ModuleNotStartedError("poeapi has not been started")
+        return self._storage
+
     def __repr__(self) -> str:
         return f"PoeApiModule(started={self._net is not None})"
 
@@ -765,39 +1102,28 @@ def _characters_from(payload: Any) -> list[Character]:
     return out
 
 
-def _tabs_from(payload: Any) -> list[StashTab]:
+def _kind_in(payload: Any, tab_index: int) -> TabKind:
+    """The tab's kind as reported by the response that carried its items.
+
+    Every ``get-stash-items`` call asks for ``tabs=1``, so the tab list rides along
+    with the items for free. That is what makes a cold read of one tab still able to
+    tell a map tab from a premium one without a second request.
+    """
     if not isinstance(payload, Mapping):
-        return []
+        return TabKind.UNKNOWN
     entries = payload.get("tabs")
-    if not isinstance(entries, list):
-        return []
-    out: list[StashTab] = []
-    for index, entry in enumerate(entries):
-        if not isinstance(entry, Mapping):
-            continue
-        name = strip_set_tokens(entry.get("n") or entry.get("name"))
-        colour = None
-        metadata = entry.get("colour")
-        if isinstance(metadata, Mapping):
-            red = _int(metadata.get("r")) & 0xFF
-            green = _int(metadata.get("g")) & 0xFF
-            blue = _int(metadata.get("b")) & 0xFF
-            colour = f"#{red:02x}{green:02x}{blue:02x}"
-        out.append(
-            StashTab(
-                index=_int(entry.get("i"), index),
-                id=entry.get("id") if isinstance(entry.get("id"), str) else None,
-                name=name,
-                type=str(entry.get("type") or ""),
-                colour=colour,
-                hidden=bool(entry.get("hidden", False)),
-                # Remove-only tabs are named "(Remove-only) …" by GGG. They can never
-                # gain items, which is the highest-leverage caching rule in the
-                # feature (research-notes §7) — but acting on it belongs to Phase 3+.
-                remove_only="remove-only" in name.casefold(),
-            )
-        )
-    return out
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, Mapping) and _int(entry.get("i"), -1) == tab_index:
+                return tab_kind(str(entry.get("type") or ""))
+    return TabKind.UNKNOWN
+
+
+def _item_count(payload: Any) -> int | None:
+    if not isinstance(payload, Mapping):
+        return None
+    items = payload.get("items")
+    return len(items) if isinstance(items, list) else None
 
 
 def _tab_name(payload: Any, tab_index: int) -> str | None:

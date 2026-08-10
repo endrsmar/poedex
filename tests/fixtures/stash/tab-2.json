@@ -1,0 +1,97 @@
+{
+ "items": [
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "1753769e70a8438e565394715d9067bf1cc88f893adfe0a56206bef47918be33",
+   "identified": true,
+   "ilvl": 0,
+   "x": 0,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/Oils/GoldenOil.png",
+   "name": "",
+   "typeLine": "Golden Oil",
+   "baseType": "Golden Oil",
+   "frameType": 5,
+   "stackSize": 9,
+   "maxStackSize": 10,
+   "properties": [
+    {
+     "name": "Stack Size",
+     "values": [
+      [
+       "1/10",
+       0
+      ]
+     ],
+     "displayMode": 0
+    }
+   ]
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "d849f5f4db87f6cec58fc308f92500b03fe61f7f7980a0f4cd3d356d8bb702dc",
+   "identified": true,
+   "ilvl": 0,
+   "x": 12,
+   "y": 12,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png",
+   "name": "",
+   "typeLine": "Stacked Deck",
+   "baseType": "Stacked Deck",
+   "frameType": 5,
+   "stackSize": 40,
+   "maxStackSize": 10,
+   "properties": [
+    {
+     "name": "Stack Size",
+     "values": [
+      [
+       "4/10",
+       0
+      ]
+     ],
+     "displayMode": 0
+    }
+   ]
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "5f0976b9e4120b1d83f1845103639816125a71914f97feeccf91872090280153",
+   "identified": true,
+   "ilvl": 0,
+   "x": 23,
+   "y": 23,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png",
+   "name": "",
+   "typeLine": "Orb of Alchemy",
+   "baseType": "Orb of Alchemy",
+   "frameType": 5,
+   "stackSize": 77,
+   "maxStackSize": 20,
+   "properties": [
+    {
+     "name": "Stack Size",
+     "values": [
+      [
+       "31/20",
+       0
+      ]
+     ],
+     "displayMode": 0
+    }
+   ]
+  }
+ ]
+}

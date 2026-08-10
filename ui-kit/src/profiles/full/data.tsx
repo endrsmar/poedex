@@ -223,6 +223,11 @@ export const ItemGrid: ItemGridComponent = ({
         role="grid"
         aria-label={label}
         aria-busy={dimmed}
+        // The declared shape, on the element. A quad tab is 24x24 and a bag is
+        // 12x5, and "which lattice is this?" is otherwise only inspectable through
+        // a style attribute that the two profiles spell differently.
+        data-cols={columns}
+        data-rows={rowCount}
         onKeyDown={onKeyDown}
         style={{
           gridTemplateColumns: `repeat(${columns}, 1fr)`,

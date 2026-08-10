@@ -20,6 +20,8 @@ import type {
   ItemSet,
   PriceCheckPayload,
   ServerMeta,
+  StashDigestPayload,
+  TabAppraisalPayload,
 } from './types/generated'
 
 export interface AppraiseBagArgs {
@@ -41,6 +43,14 @@ export interface PriceCheckArgs {
   open_suffixes?: number | null
   character?: string | null
   league?: string | null
+  /**
+   * Which stash tab the item is in. Omitted, the uid is looked for in the bag.
+   *
+   * Required rather than optional-with-a-search on purpose: scanning every tab for a
+   * uid would be up to 117 requests behind a call that looks free, and a surface that
+   * showed the item knows which tab it came from.
+   */
+  tab_index?: number | null
 }
 
 export function createClient(transport: Transport) {
@@ -66,11 +76,19 @@ export function createClient(transport: Transport) {
         return transport.call('appraisal.gate', { uid, character: character ?? null })
       },
       /** The checkbox list for one item: its mods, their tiers, its open affixes.
-       * Local and free — `moddb` is a file on disk. */
-      highlight(uid: string, character?: string | null): Promise<ItemHighlightPayload> {
+       * Local and free — `moddb` is a file on disk.
+       *
+       * The **same** call for a bag item and a stash item; `tabIndex` only says where
+       * to find the uid. Phase 10 extends the check to the stash by not forking it. */
+      highlight(
+        uid: string,
+        character?: string | null,
+        tabIndex?: number | null,
+      ): Promise<ItemHighlightPayload> {
         return transport.call<ItemHighlightPayload>('appraisal.highlight', {
           uid,
           character: character ?? null,
+          tab_index: tabIndex ?? null,
         })
       },
       /** Ask the market the player's question. **The only call here that spends.** */
@@ -82,6 +100,35 @@ export function createClient(transport: Transport) {
           open_suffixes: args.open_suffixes ?? null,
           character: args.character ?? null,
           league: args.league ?? null,
+          tab_index: args.tab_index ?? null,
+        })
+      },
+      /**
+       * Every stash tab, with what is already known about each. **No item requests.**
+       *
+       * Opening the stash screen must never become a crawl: this reads the tab list
+       * (cached 15 minutes) and prices only the tabs already on disk. Tabs nobody has
+       * read come back `known: false`, which is *unknown* and not zero.
+       */
+      stash(league?: string | null, refresh = false): Promise<StashDigestPayload> {
+        return transport.call<StashDigestPayload>('appraisal.stash_digest', {
+          league: league ?? null,
+          refresh,
+        })
+      },
+      /**
+       * One tab, judged at stash strictness. **One request, about a second** — and
+       * none at all when the tab is remove-only and already cached.
+       */
+      tab(
+        tabIndex: number,
+        args: { league?: string | null; strictness?: 'generous' | 'strict' | null; refresh?: boolean } = {},
+      ): Promise<TabAppraisalPayload> {
+        return transport.call<TabAppraisalPayload>('appraisal.appraise_tab', {
+          tab_index: tabIndex,
+          league: args.league ?? null,
+          strictness: args.strictness ?? null,
+          refresh: args.refresh ?? false,
         })
       },
       settings(): Promise<Record<string, unknown>> {

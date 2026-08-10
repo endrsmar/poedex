@@ -363,6 +363,8 @@ export const ItemGrid: ItemGridComponent = ({
       role="grid"
       aria-label={name}
       aria-busy={dimmed}
+      data-cols={columns}
+      data-rows={rowCount}
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,

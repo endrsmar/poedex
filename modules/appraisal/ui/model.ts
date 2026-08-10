@@ -15,6 +15,9 @@ import type {
   ModOptionPayload,
   PriceCheckPayload,
   PricePayload,
+  StashDigestPayload,
+  StashTabPayload,
+  TabAppraisalPayload,
 } from '@poedex/core'
 import type {
   BarModel,
@@ -499,4 +502,166 @@ export function priceLine(result: PriceCheckPayload): string {
 export function checkNote(result: PriceCheckPayload): string {
   const spent = `${result.spent} trade request${result.spent === 1 ? '' : 's'}`
   return `${result.reason} · ${spent}`
+}
+
+/* -- Phase 10: the stash ------------------------------------------------------ */
+
+/**
+ * One tab as a row of the stash list.
+ *
+ * The whole difficulty of this screen is in the price column, and it has **three**
+ * states that are not "a number":
+ *
+ * * a tab nobody has read — its value is *unknown*, and `null` is how `PriceModel`
+ *   says so. `0` here would be indistinguishable from an empty tab, and the reader
+ *   would decide not to walk to the stash on the strength of a number nobody
+ *   computed. This is the failure mode Phase 10 was warned about, in one field.
+ * * a map tab — unreadable for a different reason, and marked as such.
+ * * a tab that *has* been read but holds unpriceable rows or unchecked rares — a
+ *   real number that is a floor, and the mark says which.
+ */
+export function tabRow(tab: StashTabPayload): ItemRowModel {
+  return {
+    uid: String(tab.index),
+    name: tab.name || `tab ${tab.index}`,
+    rarity: 'normal',
+    verdict: tabVerdict(tab),
+    subtitle: tabSubtitle(tab),
+    quantity: tab.item_count ?? undefined,
+    price: {
+      chaos: tab.known ? tab.total_chaos : null,
+      provenance: tab.known ? 'bulk' : 'unpriceable',
+      detail: tabDetail(tab),
+    },
+    reason: tab.unsupported_reason ?? undefined,
+    marks: tabMarks(tab),
+  }
+}
+
+/**
+ * Which colour a tab row wears.
+ *
+ * `unpriceable` for both kinds of hole — unread and unreadable — because that is
+ * exactly what the verdict means everywhere else in this tool: *we do not know, and
+ * it is not zero*. Reusing it rather than inventing a sixth state keeps one
+ * vocabulary across the two screens.
+ */
+export function tabVerdict(tab: StashTabPayload): Verdict {
+  if (!tab.supported || !tab.known) return 'unpriceable'
+  if (tab.highlighted > 0) return 'check'
+  if (tab.total_chaos > 0) return 'keep'
+  return 'trash'
+}
+
+function tabSubtitle(tab: StashTabPayload): string {
+  const shape = tab.grid ? `${tab.cols}x${tab.rows}` : 'special layout'
+  const parts = [tab.kind, shape]
+  if (tab.known && tab.composition) parts.push(tab.composition)
+  return parts.join(' · ')
+}
+
+function tabDetail(tab: StashTabPayload): string {
+  if (!tab.supported) return 'not supported yet'
+  if (!tab.known) return 'not read yet — unknown, not zero'
+  if (tab.permanent) return 'remove-only: cached once, and correct forever'
+  return `read ${describeAge(tab.age_seconds)}`
+}
+
+function tabMarks(tab: StashTabPayload): RowMark[] {
+  const marks: RowMark[] = []
+  if (!tab.supported) {
+    marks.push({
+      id: 'unsupported',
+      label: 'not supported',
+      tone: 'warn',
+      detail: tab.unsupported_reason ?? undefined,
+    })
+  } else if (!tab.known) {
+    marks.push({
+      id: 'unread',
+      label: 'not read',
+      tone: 'quiet',
+      detail: 'nobody has opened this tab; its value is unknown, not zero',
+    })
+  }
+  if (tab.remove_only) {
+    marks.push({
+      id: 'remove-only',
+      label: 'remove-only',
+      tone: 'quiet',
+      detail: 'this tab can never gain items, so one fetch is correct forever',
+    })
+  }
+  if (tab.hidden) marks.push({ id: 'hidden', label: 'hidden', tone: 'quiet' })
+  if (tab.highlighted > 0) {
+    marks.push({
+      id: 'highlighted',
+      label: `${tab.highlighted} to check`,
+      tone: 'warn',
+      detail: 'rows the strict gate flagged — a price check is what settles them',
+    })
+  }
+  if (tab.unpriceable_count > 0) {
+    marks.push({
+      id: 'unpriced',
+      label: `${tab.unpriceable_count} unpriced`,
+      tone: 'accent',
+      detail: 'the price index does not carry these — a hole in the total, not a zero',
+    })
+  }
+  if (tab.stale && !tab.permanent && tab.known) {
+    marks.push({ id: 'stale', label: 'stale', tone: 'quiet', detail: tabDetail(tab) })
+  }
+  return marks
+}
+
+/** `45s ago`, `3d ago`, `never`. */
+export function describeAge(seconds: number | null): string {
+  if (seconds === null) return 'never'
+  if (seconds < 90) return `${Math.round(seconds)}s ago`
+  if (seconds < 5400) return `${Math.round(seconds / 60)}m ago`
+  if (seconds < 172_800) return `${Math.round(seconds / 3600)}h ago`
+  return `${Math.round(seconds / 86_400)}d ago`
+}
+
+/**
+ * A tab's items as grid cells — **only** where the tab has a lattice.
+ *
+ * Empty for a currency, essence, fragment or divination tab: their `x`/`y` are
+ * bespoke slot coordinates rather than inventory cells, so placing them on an
+ * invented 12x12 produces a picture that looks right and is not. The screen draws
+ * the list instead, which shows every item.
+ */
+export function tabCells(tab: TabAppraisalPayload): GridCellModel[] {
+  if (!tab.tab.grid) return []
+  const cells: GridCellModel[] = []
+  for (const item of tab.items) {
+    const cell = toGridCell(item)
+    if (cell) cells.push(cell)
+  }
+  return cells
+}
+
+/** The stash total and what it leaves out — the digest's answer to `floorNote`. */
+export function stashNote(digest: StashDigestPayload): string | null {
+  const parts: string[] = []
+  const plural = (n: number) => (n === 1 ? '' : 's')
+  if (digest.unread_count > 0) {
+    parts.push(
+      `${digest.unread_count} tab${plural(digest.unread_count)} have never been read — ` +
+        `their value is unknown, not zero`,
+    )
+  }
+  if (digest.unsupported_count > 0) {
+    parts.push(
+      `${digest.unsupported_count} tab${plural(digest.unsupported_count)} cannot be read at all`,
+    )
+  }
+  if (parts.length === 0) return null
+  return `${parts.join('; ')}. This is a floor, not a value.`
+}
+
+/** What a full refresh costs, in one sentence a player can decide on. */
+export function costNote(digest: StashDigestPayload): string {
+  return digest.cost.warning
 }

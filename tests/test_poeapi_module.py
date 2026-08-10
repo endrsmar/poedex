@@ -236,8 +236,11 @@ async def test_a_refusal_with_no_cache_raises_rather_than_queueing(api: PoeApi, 
     server.header_file = "headers-items-restricted.json"
     with pytest.raises(RateLimitedError) as excinfo:
         # First call learns the (already restricted) policy, second is refused.
-        await api.get_stash_items(3, "Standard")
-        await api.get_stash_items(4, "Standard")
+        # Two *ordinary* tabs: a remove-only one would be served from cache the
+        # second time and a map tab would never be requested at all, and neither of
+        # those is the path this test is about.
+        await api.get_stash_items(1, "Standard")
+        await api.get_stash_items(2, "Standard")
     assert excinfo.value.retry_after > 0
 
 
@@ -331,6 +334,10 @@ async def test_every_registered_method_returns_plain_json(stack: Registry, api: 
         "poeapi.get_items",
         "poeapi.get_stash_items",
         "poeapi.get_stash_tabs",
+        # Phase 10. `crawl_stash` is deliberately **not** registered: a crawl spends
+        # the whole item budget over minutes, and a registered method is something any
+        # surface can start with one dispatch (SPEC §6.6, "never auto-crawl").
+        "poeapi.stash_state",
         "poeapi.limits",
     }
     payload = await methods.call("poeapi.get_items", "PlaceholderWarden")

@@ -81,13 +81,18 @@ from modules.appraisal.backend.api import (
     ItemVerdict,
     PriceCheck,
     Selection,
+    StashDigest,
     Strictness,
+    TabAppraisal,
+    TabSummary,
+    Verdict,
 )
 from modules.appraisal.backend.gate import SOUGHT_AFTER_BASES, evaluate, report_for
 from modules.appraisal.backend.highlight import build as build_highlight
+from modules.appraisal.backend.stash import STASH_STRICTNESS, classify
 from modules.appraisal.backend.verdict import appraise_bag, appraise_one
 from modules.moddb.backend.api import ModDbApi, ModDbError
-from modules.poeapi.backend.api import NormalizedItem, PoeApi, Source
+from modules.poeapi.backend.api import ItemSet, NormalizedItem, PoeApi, Source, TabState
 from modules.prices.backend.api import (
     PricesApi,
     TradeQuote,
@@ -164,6 +169,12 @@ class AppraisalModule:
             "highlight": self.highlight_json,
             "price_check": self.price_check_json,
             "settings": self.settings_json,
+            # Phase 10. `stash_digest` spends no item requests; `appraise_tab` spends
+            # exactly one, for the tab the player opened, which is the lazy path
+            # SPEC §6.6 makes primary. There is no crawl method: a crawl is minutes
+            # long and belongs behind a press, not behind a dispatch.
+            "stash_digest": self.stash_digest_json,
+            "appraise_tab": self.appraise_tab_json,
         }
 
     def settings_schema(self) -> dict[str, Any]:
@@ -213,6 +224,19 @@ class AppraisalModule:
                     "0.2 searches '+103 to maximum Life' as '≥ 82'. An exact-value "
                     "filter on a random roll matches almost nothing — that is what "
                     "returned zero listings for two of three rares in a real bag."
+                ),
+            },
+            "stash_strictness": {
+                "type": "str",
+                "default": STASH_STRICTNESS.value,
+                "choices": [s.value for s in Strictness],
+                "label": "Tier-2 gate strictness for the stash",
+                "description": (
+                    "Separate from the bag's, because the two have opposite failure "
+                    "costs. A stash item is already safe, so 'strict' accepts only "
+                    "hard signals — influence mods, six links, fractured, "
+                    "synthesised, a top-tier base at its ilvl ceiling, T1 rolls. "
+                    "'generous' over 800 items is what SPEC §5.2 calls all noise."
                 ),
             },
             "extra_sought_after_bases": {
@@ -375,6 +399,136 @@ class AppraisalModule:
     # requests, or a rate read from tables that may belong to another league. The bag
     # payload already carries the rate; a surface converts with the one it is showing.
 
+    # -- the stash (Phase 10) --------------------------------------------------
+
+    def stash_strictness(self) -> Strictness:
+        """The gate the stash is judged at — **strict**, and separately settable.
+
+        Not ``self.strictness()``. That setting is the bag's, and a player who
+        loosened the bag gate has said nothing about whether they want a generous
+        gate over 818 stash items, which is the case SPEC §5.2 calls "all noise".
+        """
+        raw = str(self._setting("stash_strictness", STASH_STRICTNESS.value))
+        try:
+            return Strictness(raw)
+        except ValueError:
+            self._log().warning("unknown stash strictness %r; using strict", raw)
+            return STASH_STRICTNESS
+
+    async def stash_digest(
+        self, league: str | None = None, *, refresh: bool = False
+    ) -> StashDigest:
+        """Every tab, priced from what is already on disk. **No item requests.**
+
+        The one request this can make is the tab list, and only when its 15-minute
+        TTL has passed. Everything else is ``cached_stash_items``, which returns
+        ``None`` rather than fetching — so opening a stash screen can never turn into
+        a crawl, no matter how many tabs the account has.
+        """
+        poeapi = self._require_poeapi()
+        prices = self._require_prices()
+        state = await poeapi.stash_state(league, refresh=refresh)
+        choice = prices.league_choice(state.league)
+        await prices.ensure_tables(choice.league)
+        level = self.stash_strictness()
+
+        summaries: list[TabSummary] = []
+        for tab_state in state.tabs:
+            summaries.append(
+                await self._summarize(tab_state, league=state.league, strictness=level)
+            )
+        # The divine rate is a property of the loaded tables, not of any tab, so it
+        # is read off an empty valuation rather than from whichever tab happened to
+        # be cached. `PricesApi` publishes no rate accessor and this phase is not the
+        # place to widen that surface for one number.
+        rate = (await self.appraise([], strictness=level, league=state.league)).divine_rate
+        return StashDigest(
+            summaries,
+            league=state.league,
+            strictness=level,
+            cost=state.cost,
+            divine_rate=rate,
+        )
+
+    async def appraise_tab(
+        self,
+        tab_index: int,
+        *,
+        league: str | None = None,
+        strictness: Strictness | None = None,
+        refresh: bool = False,
+        override: str | None = None,
+    ) -> TabAppraisal:
+        """One tab, fetched if needed, judged at stash strictness.
+
+        One request and about a second — and **zero** requests when the tab is
+        remove-only and already cached, which is 86% of the measured Standard stash.
+        """
+        poeapi = self._require_poeapi()
+        prices = self._require_prices()
+        items = await poeapi.get_stash_items(tab_index, league, refresh=refresh)
+        state = await self._tab_state(tab_index, items.league or league)
+        level = strictness or self.stash_strictness()
+        choice = prices.league_choice(items.league, explicit=override)
+        await prices.ensure_tables(choice.league)
+
+        if items.unsupported:
+            # Zero items, and the reason attached. Never an empty tab: an empty tab
+            # is a fact and this is an admission.
+            empty = await self.appraise(
+                [], strictness=level, league=items.league, override=override
+            )
+            return TabAppraisal(
+                TabSummary(state, composition=None),
+                empty,
+                unsupported=items.unsupported,
+            )
+
+        appraisal = await self.appraise(
+            items.items, strictness=level, league=items.league, override=override
+        )
+        return TabAppraisal(self._summary_from(state, items, appraisal), appraisal)
+
+    async def _summarize(
+        self, state: TabState, *, league: str | None, strictness: Strictness
+    ) -> TabSummary:
+        """One digest row, from cache alone. An unread tab stays unread."""
+        if not state.tab.supported:
+            return TabSummary(state, composition=None)
+        items = await self._require_poeapi().cached_stash_items(state.tab.index, league)
+        if items is None:
+            return TabSummary(state, composition=None)
+        appraisal = await self.appraise(items.items, strictness=strictness, league=items.league)
+        return self._summary_from(state, items, appraisal)
+
+    def _summary_from(
+        self, state: TabState, items: ItemSet, appraisal: BagAppraisal
+    ) -> TabSummary:
+        composition = classify(items.items)
+        return TabSummary(
+            state.model_copy(update={"item_count": len(items.items)}),
+            composition=composition,
+            total_chaos=appraisal.total_chaos,
+            highlighted=len(appraisal.highlighted),
+            unpriceable_count=len(appraisal.of(Verdict.UNPRICEABLE)),
+            units=sum(item.stack_size for item in items.items),
+        )
+
+    async def _tab_state(self, tab_index: int, league: str | None) -> TabState:
+        """The tab's own row of :meth:`PoeApi.stash_state`, or a bare stand-in.
+
+        The stand-in exists because a tab list can be momentarily unavailable while a
+        tab's items are cached, and answering "tab 7" with an exception because the
+        *list* is missing would be refusing to show data the tool is holding.
+        """
+        state = await self._require_poeapi().stash_state(league)
+        for candidate in state.tabs:
+            if candidate.tab.index == tab_index:
+                return candidate
+        from modules.poeapi.backend.api import StashTab
+
+        return TabState(tab=StashTab(index=tab_index))
+
     async def appraise_item(
         self,
         item: NormalizedItem,
@@ -420,19 +574,51 @@ class AppraisalModule:
         payload["stale"] = bag.meta.stale
         return payload
 
-    async def gate_json(
-        self, uid: str, character: str | None = None, strictness: str | None = None
+    async def stash_digest_json(
+        self, league: str | None = None, refresh: bool = False
     ) -> dict[str, Any]:
-        """Tier 2 for one item of the current bag, by uid. No pricing, no requests
-        beyond the bag fetch `poeapi` may already have cached."""
-        item = await self._find(uid, character)
+        return (await self.stash_digest(league, refresh=refresh)).to_json()
+
+    async def appraise_tab_json(
+        self,
+        tab_index: int,
+        league: str | None = None,
+        strictness: str | None = None,
+        refresh: bool = False,
+    ) -> dict[str, Any]:
+        result = await self.appraise_tab(
+            tab_index,
+            league=league,
+            strictness=_parse_strictness(strictness),
+            refresh=refresh,
+        )
+        return result.to_json()
+
+    async def gate_json(
+        self,
+        uid: str,
+        character: str | None = None,
+        strictness: str | None = None,
+        tab_index: int | None = None,
+    ) -> dict[str, Any]:
+        """Tier 2 for one item of the bag — or of a stash tab. No pricing, no
+        requests beyond what `poeapi` may already have cached."""
+        item = await self._find(uid, character, tab_index)
         return self.gate(item, strictness=_parse_strictness(strictness)).to_json()
 
     async def highlight_json(
-        self, uid: str, character: str | None = None, strictness: str | None = None
+        self,
+        uid: str,
+        character: str | None = None,
+        strictness: str | None = None,
+        tab_index: int | None = None,
     ) -> dict[str, Any]:
-        """The checkbox list for one item of the current bag. Costs nothing."""
-        item = await self._find(uid, character)
+        """The checkbox list for one item of the bag or of a stash tab. Costs nothing.
+
+        The same method for both, which is the point of Phase 10: an item does not
+        become a different question because of where it is sitting.
+        """
+        item = await self._find(uid, character, tab_index)
         return self.highlight(item, strictness=_parse_strictness(strictness)).to_json()
 
     async def price_check_json(
@@ -443,15 +629,17 @@ class AppraisalModule:
         open_suffixes: int | None = None,
         character: str | None = None,
         league: str | None = None,
+        tab_index: int | None = None,
     ) -> dict[str, Any]:
-        """Run the player's query for one item of the current bag.
+        """Run the player's query for one item of the bag, or of a stash tab.
 
         Takes a **uid and a list of indexes**, never an item and never mod text, so
         the frontend cannot submit an item it invented or a filter the panel never
         showed. ``mods`` of ``None`` means "the pre-ticked set", which is what the
-        button does before anything is unticked.
+        button does before anything is unticked. ``tab_index`` says where to look for
+        the uid; everything after that is identical to the bag path, deliberately.
         """
-        item = await self._find(uid, character)
+        item = await self._find(uid, character, tab_index)
         proposal = self.highlight(item)
         selection = proposal.selection(
             mods,
@@ -472,7 +660,28 @@ class AppraisalModule:
             "moddb": self._describe_db(),
         }
 
-    async def _find(self, uid: str, character: str | None) -> NormalizedItem:
+    async def _find(
+        self, uid: str, character: str | None, tab_index: int | None = None
+    ) -> NormalizedItem:
+        """The item behind a uid, from the bag or from one named stash tab.
+
+        ``tab_index`` is required to reach a stash item rather than optional-with-a-
+        search: scanning every tab for a uid would be up to 117 requests behind a
+        method that looks free, which is the auto-crawl in disguise. A surface that
+        showed the item knows which tab it was in.
+        """
+        if tab_index is not None:
+            tab = await self._require_poeapi().cached_stash_items(tab_index)
+            if tab is None:
+                tab = await self._require_poeapi().get_stash_items(tab_index)
+            if tab.unsupported:
+                # Not "no such item": the tab could not be read at all, and saying so
+                # is the difference between "you mistyped" and "we cannot see in there".
+                raise AppraisalError(tab.unsupported)
+            for item in tab.items:
+                if item.uid == uid:
+                    return item
+            raise AppraisalError(f"no item {uid!r} in stash tab {tab_index}")
         bag = await self._require_poeapi().get_items(character)
         for item in bag.items:
             if item.uid == uid:

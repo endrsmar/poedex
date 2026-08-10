@@ -28,6 +28,8 @@ from transports.wire import (
     ItemHighlightPayload,
     PriceCheckPayload,
     ServerMeta,
+    StashDigestPayload,
+    TabAppraisalPayload,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +52,43 @@ def test_the_checked_in_price_check_fixture_validates():
     PriceCheckPayload.model_validate(
         json.loads((FIXTURES / "price-check.json").read_text(encoding="utf-8"))
     )
+
+
+def test_the_checked_in_stash_fixtures_validate():
+    StashDigestPayload.model_validate(
+        json.loads((FIXTURES / "stash-digest.json").read_text(encoding="utf-8"))
+    )
+    TabAppraisalPayload.model_validate(
+        json.loads((FIXTURES / "stash-tab.json").read_text(encoding="utf-8"))
+    )
+
+
+async def test_a_real_stash_digest_validates_against_the_wire_model(stash_appraiser):
+    """The live code path, over the fixture stash, as a browser would receive it."""
+    digest = await stash_appraiser.stash_digest("Standard")
+    StashDigestPayload.model_validate(digest.to_json())
+
+
+async def test_a_real_tab_appraisal_validates_against_the_wire_model(stash_appraiser):
+    for index in (0, 1, 4):  # bulk, gear, and the one that cannot be read
+        result = await stash_appraiser.appraise_tab(index, league="Standard")
+        TabAppraisalPayload.model_validate(result.to_json())
+
+
+def test_the_stash_fixture_carries_every_state_the_screen_must_draw(
+):
+    """A digest fixture with no holes in it would let the screen pass its tests while
+    quietly rendering an unread tab as 0c — which is this phase's whole failure mode."""
+    digest = json.loads((FIXTURES / "stash-digest.json").read_text(encoding="utf-8"))
+    rows = digest["tabs"]
+    assert any(row["known"] is False and row["supported"] for row in rows), "an unread tab"
+    assert any(row["supported"] is False for row in rows), "a map tab"
+    assert any(row["grid"] and row["cols"] == 24 for row in rows), "a quad"
+    assert any(row["grid"] is False for row in rows), "a special tab"
+    assert any(row["permanent"] for row in rows), "a remove-only tab"
+    assert any(row["unpriceable_count"] > 0 for row in rows), "a tab with a hole in it"
+    assert any(row["highlighted"] > 0 for row in rows), "a tab with something to check"
+    assert digest["total_is_floor"] is True
 
 
 def test_a_real_highlight_validates_against_the_wire_model(appraiser, loot):

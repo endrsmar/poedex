@@ -1,0 +1,35 @@
+{
+ "items": [
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "8924da487eaa3d1f99cccaa52f4efc28f67fc258e0debf306ebe3804ecf76c5a",
+   "identified": true,
+   "ilvl": 0,
+   "x": 0,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/Scarabs/DivinationScarabPilfering.png",
+   "name": "",
+   "typeLine": "Veiled Scarab",
+   "baseType": "Veiled Scarab",
+   "frameType": 5,
+   "stackSize": 170,
+   "maxStackSize": 10,
+   "properties": [
+    {
+     "name": "Stack Size",
+     "values": [
+      [
+       "23/10",
+       0
+      ]
+     ],
+     "displayMode": 0
+    }
+   ]
+  }
+ ]
+}

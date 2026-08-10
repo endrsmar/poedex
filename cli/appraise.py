@@ -189,8 +189,13 @@ def render_appraisal(result: BagAppraisal, *, show_all: bool = False, colour: bo
     return "\n".join(lines).rstrip("\n")
 
 
-def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
-    """The bottom line. Four counts, a total, and what the total leaves out."""
+def render_summary(result: BagAppraisal, *, colour: bool = False, label: str = "bag") -> str:
+    """The bottom line. Four counts, a total, and what the total leaves out.
+
+    ``label`` is the container the total is *of*. Phase 10 reuses this renderer for a
+    stash tab, and a stash tab's footer reading "bag total" would be the small kind of
+    wrong that makes a reader distrust the large numbers above it.
+    """
     counts = result.counts
     tally = "  ".join(
         paint(f"{verdict.value} {counts[verdict.value]}", verdict, colour=colour)
@@ -203,7 +208,7 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
     # SPEC §5.3: while a tier-3 query is outstanding the total is a lower bound, and
     # the output has to say so in the number rather than only in a footnote.
     prefix = "≥ " if result.total_is_floor else ""
-    lines = [RULE, "bag total:  " + prefix + "  ·  ".join(money)]
+    lines = [RULE, f"{label + ' total:':<12}" + prefix + "  ·  ".join(money)]
     unpriceable = result.of(Verdict.UNPRICEABLE)
     if unpriceable:
         lines.append(
