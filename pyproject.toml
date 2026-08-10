@@ -9,7 +9,17 @@ description = "A modular Path of Exile assistant for Steam Deck gaming mode and 
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-dependencies = []
+# Phase 2. Both have to be vendorable into `py_modules/` for the Decky backend,
+# which has no pip at install time (CLAUDE.md).
+#   httpx         — pure Python, plus its own pure-Python deps (httpcore, h11, ...)
+#   pydantic v2   — NOT pure Python: `pydantic-core` is a compiled Rust extension.
+#                   A manylinux x86_64 wheel exists and the Deck is x86_64, so
+#                   vendoring works, but it is a binary artefact pinned to a CPython
+#                   ABI and Phase 7 has to check it against the Deck's Python.
+dependencies = [
+  "httpx>=0.27",
+  "pydantic>=2.7",
+]
 
 [project.optional-dependencies]
 dev = [

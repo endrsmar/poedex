@@ -66,6 +66,46 @@ stands when the panel matters.
 **Inventory is owner-only.** Unauthenticated `get-items` across nine public profiles returned
 equipped gear and flasks, zero `MainInventory` items.
 
+### 2.1 Closing the last 10% — `poedex selftest freshness`
+
+The measurement above is observational: someone else's character, whose zone transitions we could
+not see. The remaining doubt is exactly the part that cannot be automated, because it needs a
+hand on the controller. Phase 2 ships the experiment as a command.
+
+```bash
+poedex selftest freshness [--character NAME] [--interval 5] [--seconds 240]
+```
+
+It polls `get-items`, hashes the **normalized** item set (raw JSON churns on fields unrelated to
+the inventory), and prints one timestamped row per poll, marking every hash change. Refusals from
+the rate limiter are printed as rows too rather than slept through — a run that is never refused
+was not polling hard enough to prove anything.
+
+**Procedure.** Read all of it before starting; the timing is the experiment.
+
+1. Be in a **map**, mid-run, with at least one free inventory slot.
+2. Start the command. Let it print two or three baseline rows with an unchanged hash.
+3. **Pick up an item** off the floor. Note the wall-clock time.
+4. Keep watching for ~60 s. **Expected: the hash does not move.**
+5. Take a **portal to your hideout**.
+6. Within ~0–5 s of loading in, the hash should change and the item count go up by one.
+
+**Reading the result.**
+
+| Outcome | Meaning |
+|---|---|
+| Hash moves only after the portal | SPEC §4.3 confirmed. Sync on zone entry; no timer. |
+| Hash moves while still in the map | The endpoint is live. That invalidates the event-driven sync model of SPEC §4.4 — raise it before Phase 6 rather than building the log watcher on a false premise. |
+| Hash never moves | Wrong character, or the pickup did not land in `MainInventory`. Check the item-count column. |
+
+**Cost.** A 5 s interval is 12 requests a minute against a `30:60` Account bucket and a
+`100:1800` one. A 240 s run can spend nearly half the 30-minute budget, and the same POESESSID is
+the user's live browser session. Run it once, deliberately.
+
+**Status: not yet run.** It needs a human in the game and was not executed during Phase 2.
+Record the outcome here when it is — the wall-clock time of the pickup, of the portal and of the
+first changed row, plus which fields moved.
+
 ---
 
 ## 3. Rate limits — measured

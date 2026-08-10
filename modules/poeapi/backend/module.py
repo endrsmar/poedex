@@ -1,0 +1,592 @@
+"""The `poeapi` core module: endpoints, normalization, cache.
+
+Core because it holds no feature opinion. It fetches what SPEC §4.2 lists, turns it
+into the model of SPEC §4.5, and reports honestly how fresh the answer is. What to
+*do* with a stale bag is a feature decision.
+
+Three behaviours here exist to protect the account rather than to serve a caller:
+
+* **``get-characters`` has a hard minimum interval** that ``refresh=True`` cannot
+  override. It is the tightest endpoint on the account (``10:60``, ``50:1800``) and
+  the data — a character's name and league — changes about once a league.
+* **A refused fetch degrades to cached data**, flagged ``stale`` with the retry
+  time, instead of either raising or quietly queueing. The UI can then say "as of
+  four minutes ago, refresh available in 12 s", which is true.
+* **A 401/403 tells `credentials` before it reaches the caller**, so the stored
+  state and the error the surface sees can never disagree.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime
+from typing import Any, ClassVar
+
+from modules.credentials.backend.api import CredentialsApi, CredentialState
+from modules.net.backend.api import AuthRejected, HttpStatusError, NetApi, NetError, RateLimited
+from modules.poeapi.backend.api import (
+    CHARACTERS_PATH,
+    ITEMS_PATH,
+    STASH_PATH,
+    SYNC_COMPLETE,
+    AccountUnknownError,
+    Character,
+    CharacterList,
+    ItemSet,
+    Meta,
+    PoeApi,
+    PoeApiError,
+    RateLimitedError,
+    SessionRejectedError,
+    Source,
+    StashTab,
+    StashTabList,
+)
+from modules.poeapi.backend.cache import CacheEntry, ResponseCache
+from modules.poeapi.backend.normalize import normalize_items, strip_set_tokens
+from runtime.context import ModuleContext
+from runtime.errors import ModuleNotStartedError
+from runtime.log import get_logger
+
+__all__ = ["MODULE", "PoeApiModule"]
+
+_fallback_log = get_logger("module.poeapi")
+
+REALM = "pc"
+
+# `get-items` and `get-stash-items` share `backend-item-request-limit`, so they share
+# buckets automatically once the policy is learned. The route names below only decide
+# which *seed* budget applies before the first response teaches us anything, which is
+# why the two item endpoints share one and characters gets its own.
+ITEM_ROUTE = "character-window:items"
+CHARACTER_ROUTE = "character-window:characters"
+
+# `refresh=True` cannot go below this on the character endpoint. SPEC §4.4: cache
+# hard, never poll.
+CHARACTERS_MIN_INTERVAL = 60.0
+
+DEFAULT_CHARACTERS_TTL = 3600
+DEFAULT_ITEMS_TTL = 0
+DEFAULT_STASH_TABS_TTL = 900
+DEFAULT_STASH_ITEMS_TTL = 20
+DEFAULT_LEAGUE = "Standard"
+
+# How stale the credential's "last confirmed" timestamp may get before a successful
+# fetch refreshes it. Every refresh is a disk write plus a `credential_changed`
+# event, and the fact being recorded barely changes.
+MARK_OK_INTERVAL = 300.0
+
+
+class PoeApiModule:
+    id = "poeapi"
+    name = "Path of Exile API"
+    kind = "core"
+    requires: ClassVar[list[str]] = ["credentials", "net"]
+    provides: type | None = PoeApi
+
+    def __init__(self, *, cache: ResponseCache | None = None) -> None:
+        self._cache = cache
+        self._ctx: ModuleContext | None = None
+        self._net: NetApi | None = None
+        self._credentials: CredentialsApi | None = None
+        self._hashes: dict[str, str] = {}
+
+    # -- lifecycle -------------------------------------------------------------
+
+    async def start(self, ctx: ModuleContext) -> None:
+        self._ctx = ctx
+        self._net = ctx.require(NetApi)
+        self._credentials = ctx.require(CredentialsApi)
+        if self._cache is None:
+            self._cache = ResponseCache(ctx.storage)
+        ctx.logger.info("poeapi ready: league=%s", self._league(None))
+
+    async def stop(self) -> None:
+        self._ctx = None
+        self._net = None
+        self._credentials = None
+
+    def methods(self) -> dict[str, Callable[..., Any]]:
+        return {
+            "get_characters": self.get_characters_json,
+            "get_items": self.get_items_json,
+            "get_stash_tabs": self.get_stash_tabs_json,
+            "get_stash_items": self.get_stash_items_json,
+            "limits": self.limits_json,
+        }
+
+    def settings_schema(self) -> dict[str, Any]:
+        return {
+            "league": {
+                "type": "str",
+                "default": DEFAULT_LEAGUE,
+                "label": "League",
+                "description": "Which league's stash to read.",
+            },
+            "account": {
+                "type": "str",
+                "default": "",
+                "label": "Account name",
+                "description": (
+                    "Required by get-items. Falls back to the name stored with the "
+                    "credential; set it here to override."
+                ),
+            },
+            "characters_ttl_seconds": {
+                "type": "int",
+                "default": DEFAULT_CHARACTERS_TTL,
+                "min": int(CHARACTERS_MIN_INTERVAL),
+                "max": 86400,
+                "label": "Character list cache",
+                "description": (
+                    "get-characters is the tightest endpoint on the account "
+                    "(10:60, 50:1800). Lowering this buys nothing: character names "
+                    "change about once a league."
+                ),
+            },
+            "items_ttl_seconds": {
+                "type": "int",
+                "default": DEFAULT_ITEMS_TTL,
+                "min": 0,
+                "max": 3600,
+                "label": "Inventory cache",
+                "description": (
+                    "0 means every call fetches. The endpoint commits at zone "
+                    "transitions, so syncing is event-driven and a TTL here would "
+                    "only delay the one sync that matters."
+                ),
+            },
+            "stash_tabs_ttl_seconds": {
+                "type": "int",
+                "default": DEFAULT_STASH_TABS_TTL,
+                "min": 0,
+                "max": 86400,
+                "label": "Stash tab list cache",
+            },
+            "stash_items_ttl_seconds": {
+                "type": "int",
+                "default": DEFAULT_STASH_ITEMS_TTL,
+                "min": 0,
+                "max": 3600,
+                "label": "Stash tab cache",
+            },
+        }
+
+    # -- PoeApi ----------------------------------------------------------------
+
+    async def get_characters(self, *, refresh: bool = False) -> CharacterList:
+        cache_key = "characters"
+        ttl = float(self._setting("characters_ttl_seconds", DEFAULT_CHARACTERS_TTL))
+        payload, meta = await self._fetch(
+            path=CHARACTERS_PATH,
+            route=CHARACTER_ROUTE,
+            params={"realm": REALM},
+            cache_key=cache_key,
+            ttl=ttl,
+            refresh=refresh,
+            min_interval=CHARACTERS_MIN_INTERVAL,
+        )
+        return CharacterList(characters=_characters_from(payload), meta=meta)
+
+    async def get_items(
+        self,
+        character: str | None = None,
+        *,
+        account: str | None = None,
+        refresh: bool = False,
+    ) -> ItemSet:
+        name = character or await self._default_character()
+        account_name = await self._account(account)
+        payload, meta = await self._fetch(
+            path=ITEMS_PATH,
+            route=ITEM_ROUTE,
+            params={"accountName": account_name, "character": name, "realm": REALM},
+            cache_key=f"items:{account_name}:{name}",
+            ttl=float(self._setting("items_ttl_seconds", DEFAULT_ITEMS_TTL)),
+            refresh=refresh,
+        )
+        raw_items = payload.get("items") if isinstance(payload, Mapping) else None
+        items = normalize_items(raw_items or [], source=Source.BAG, split_equipment=True)
+        result = ItemSet(items=items, source=Source.BAG, character=name, meta=meta)
+        await self._announce(f"items:{name}", result)
+        return result
+
+    async def get_stash_tabs(
+        self, league: str | None = None, *, refresh: bool = False
+    ) -> StashTabList:
+        league_name = self._league(league)
+        account_name = await self._account(None)
+        payload, meta = await self._fetch(
+            path=STASH_PATH,
+            route=ITEM_ROUTE,
+            params={
+                "accountName": account_name,
+                "league": league_name,
+                "tabs": 1,
+                "tabIndex": 0,
+                "realm": REALM,
+            },
+            cache_key=f"stash-tabs:{account_name}:{league_name}",
+            ttl=float(self._setting("stash_tabs_ttl_seconds", DEFAULT_STASH_TABS_TTL)),
+            refresh=refresh,
+        )
+        return StashTabList(league=league_name, tabs=_tabs_from(payload), meta=meta)
+
+    async def get_stash_items(
+        self,
+        tab_index: int,
+        league: str | None = None,
+        *,
+        refresh: bool = False,
+    ) -> ItemSet:
+        league_name = self._league(league)
+        account_name = await self._account(None)
+        payload, meta = await self._fetch(
+            path=STASH_PATH,
+            route=ITEM_ROUTE,
+            params={
+                "accountName": account_name,
+                "league": league_name,
+                "tabs": 0,
+                "tabIndex": tab_index,
+                "realm": REALM,
+            },
+            cache_key=f"stash-items:{account_name}:{league_name}:{tab_index}",
+            ttl=float(self._setting("stash_items_ttl_seconds", DEFAULT_STASH_ITEMS_TTL)),
+            refresh=refresh,
+        )
+        raw_items = payload.get("items") if isinstance(payload, Mapping) else None
+        tab_name = _tab_name(payload, tab_index)
+        items = normalize_items(
+            raw_items or [],
+            source=Source.STASH,
+            tab_index=tab_index,
+            tab_name=tab_name,
+        )
+        result = ItemSet(
+            items=items,
+            source=Source.STASH,
+            league=league_name,
+            tab_index=tab_index,
+            tab_name=tab_name,
+            meta=meta,
+        )
+        await self._announce(f"stash:{league_name}:{tab_index}", result)
+        return result
+
+    def limits(self) -> list[dict[str, Any]]:
+        return [snapshot.to_json() for snapshot in self._require_net().limits()]
+
+    # -- JSON wrappers for the method registry ---------------------------------
+
+    async def get_characters_json(self, refresh: bool = False) -> dict[str, Any]:
+        return (await self.get_characters(refresh=refresh)).to_json()
+
+    async def get_items_json(
+        self, character: str | None = None, refresh: bool = False
+    ) -> dict[str, Any]:
+        return (await self.get_items(character, refresh=refresh)).to_json()
+
+    async def get_stash_tabs_json(
+        self, league: str | None = None, refresh: bool = False
+    ) -> dict[str, Any]:
+        return (await self.get_stash_tabs(league, refresh=refresh)).to_json()
+
+    async def get_stash_items_json(
+        self, tab_index: int, league: str | None = None, refresh: bool = False
+    ) -> dict[str, Any]:
+        return (await self.get_stash_items(tab_index, league, refresh=refresh)).to_json()
+
+    async def limits_json(self) -> list[dict[str, Any]]:
+        return self.limits()
+
+    # -- the one fetch path ----------------------------------------------------
+
+    async def _fetch(
+        self,
+        *,
+        path: str,
+        route: str,
+        params: Mapping[str, Any],
+        cache_key: str,
+        ttl: float,
+        refresh: bool,
+        min_interval: float = 0.0,
+    ) -> tuple[Any, Meta]:
+        """Cache, fetch, or degrade — and say which happened.
+
+        Returns the raw payload plus the :class:`Meta` describing its freshness.
+        Normalization happens in the caller, because a cached payload and a fresh one
+        must go through exactly the same code.
+        """
+        cache = self._require_cache()
+        entry = cache.get(cache_key)
+        age = entry.age(cache.now()) if entry else None
+
+        if entry is not None and age is not None:
+            if not refresh and age < ttl:
+                return entry.payload, _cached_meta(entry, note=f"cached {age:.0f}s ago")
+            if refresh and age < min_interval:
+                # The floor `refresh=True` cannot cross.
+                return entry.payload, _cached_meta(
+                    entry,
+                    note=(
+                        f"refresh ignored: this endpoint is limited to one call per "
+                        f"{min_interval:.0f}s"
+                    ),
+                    retry_after=min_interval - age,
+                )
+
+        try:
+            payload = await self._require_net().get_json(path, params=params, route=route)
+        except AuthRejected as exc:
+            raise SessionRejectedError(await self._reject(exc)) from None
+        except RateLimited as exc:
+            if entry is not None:
+                self._log().info(
+                    "%s refused for %.0fs; serving cache from %.0fs ago",
+                    path,
+                    exc.retry_after,
+                    entry.age(cache.now()),
+                )
+                return entry.payload, _cached_meta(
+                    entry,
+                    stale=True,
+                    retry_after=exc.retry_after,
+                    note=exc.reason or "rate limited",
+                )
+            raise RateLimitedError(exc.retry_after, exc.reason) from None
+        except HttpStatusError as exc:
+            if entry is not None:
+                return entry.payload, _cached_meta(
+                    entry, stale=True, note=f"HTTP {exc.status}; showing cached data"
+                )
+            raise PoeApiError(str(exc)) from None
+        except NetError as exc:
+            if entry is not None:
+                return entry.payload, _cached_meta(
+                    entry, stale=True, note=f"{type(exc).__name__}; showing cached data"
+                )
+            raise PoeApiError(str(exc)) from None
+
+        stored = cache.put(cache_key, payload)
+        await self._accept()
+        return payload, Meta(fetched_at=_as_datetime(stored.fetched_at))
+
+    # -- internals -------------------------------------------------------------
+
+    async def _default_character(self) -> str:
+        characters = await self.get_characters()
+        current = characters.current()
+        if current is None:
+            raise PoeApiError("the account has no characters in any league")
+        return current.name
+
+    async def _account(self, explicit: str | None) -> str:
+        """The account name ``get-items`` needs, in order of authority.
+
+        There is no way to look this up: ``get-characters`` does not return it, and
+        an account name that is merely *wrong* produces the same 403 as an expired
+        session. So it is asked for, and its absence is a distinct error with an
+        instruction attached rather than a mystery auth failure.
+        """
+        if explicit and explicit.strip():
+            return explicit.strip()
+        configured = str(self._setting("account", "")).strip()
+        if configured:
+            return configured
+        if self._credentials is not None:
+            status = await self._credentials.status()
+            if status.account:
+                return status.account
+        raise AccountUnknownError(
+            "no account name on record. Run 'poedex auth set --account <name>' or set "
+            "the poeapi.account setting."
+        )
+
+    def _league(self, explicit: str | None) -> str:
+        if explicit and explicit.strip():
+            return explicit.strip()
+        return str(self._setting("league", DEFAULT_LEAGUE)) or DEFAULT_LEAGUE
+
+    def _setting(self, key: str, default: Any) -> Any:
+        if self._ctx is None:
+            return default
+        return self._ctx.settings.get(key, default)
+
+    async def _accept(self) -> None:
+        """Record that the session still works — but not on every single request.
+
+        ``mark_ok`` writes the session file and emits ``credential_changed``. Doing
+        that on every sync means a disk write and a UI notification per zone
+        transition, to record something that has not changed. Once every few minutes
+        is enough to keep the "last confirmed" timestamp honest.
+        """
+        if self._credentials is None:
+            return
+        status = await self._credentials.status()
+        if status.state is CredentialState.OK and status.last_ok_at is not None:
+            age = (datetime.now(UTC) - status.last_ok_at).total_seconds()
+            if age < MARK_OK_INTERVAL:
+                return
+        await self._credentials.mark_ok()
+
+    async def _reject(self, exc: AuthRejected) -> str:
+        """Tell `credentials` first, then describe the situation truthfully.
+
+        "Your session expired" and "you never paired" are different problems with
+        different fixes, and showing the first when the second is true is how a user
+        concludes the tool is broken. The distinction is available — `credentials`
+        knows whether anything is stored — so it gets made.
+        """
+        if self._credentials is None:  # pragma: no cover - only without a context
+            return "the API rejected the request"
+        before = await self._credentials.status()
+        if before.state is CredentialState.NEVER_SET:
+            return "no credential is stored. Run 'poedex auth set'."
+        # The note is built from a status code and a path, never from the value.
+        await self._credentials.mark_rejected(f"HTTP {exc.status} from {exc.path}")
+        return "the API rejected the stored session; it has expired or was revoked"
+
+    async def _announce(self, key: str, result: ItemSet) -> None:
+        """Emit ``sync_complete`` with the normalized hash (SPEC §4.4).
+
+        The hash is over normalized items, so "unchanged" means the bag really is
+        unchanged rather than that the bytes happened to match.
+        """
+        if self._ctx is None or result.meta.stale or result.meta.from_cache:
+            return
+        digest = result.content_hash
+        changed = self._hashes.get(key) != digest
+        self._hashes[key] = digest
+        await self._ctx.events.emit(
+            SYNC_COMPLETE,
+            {
+                "key": key,
+                "source": result.source.value,
+                "items": len(result.items),
+                "content_hash": digest,
+                "changed": changed,
+                "fetched_at": result.meta.fetched_at.isoformat(),
+            },
+            source=self.id,
+        )
+
+    def _log(self) -> Any:
+        return self._ctx.logger if self._ctx else _fallback_log
+
+    def _require_net(self) -> NetApi:
+        if self._net is None:
+            raise ModuleNotStartedError("poeapi has not been started")
+        return self._net
+
+    def _require_cache(self) -> ResponseCache:
+        if self._cache is None:
+            raise ModuleNotStartedError("poeapi has not been started")
+        return self._cache
+
+    def __repr__(self) -> str:
+        return f"PoeApiModule(started={self._net is not None})"
+
+
+# -- payload readers ------------------------------------------------------------
+#
+# Kept as free functions so a test can feed them a fixture without a module.
+
+
+def _characters_from(payload: Any) -> list[Character]:
+    """``get-characters`` returns a bare array."""
+    entries = payload if isinstance(payload, list) else []
+    out: list[Character] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        name = strip_set_tokens(entry.get("name"))
+        if not name:
+            continue
+        out.append(
+            Character(
+                name=name,
+                league=entry.get("league") if isinstance(entry.get("league"), str) else None,
+                class_name=entry.get("class") if isinstance(entry.get("class"), str) else None,
+                level=_int(entry.get("level")),
+                experience=_int(entry.get("experience")),
+                current=bool(entry.get("current", False)),
+            )
+        )
+    return out
+
+
+def _tabs_from(payload: Any) -> list[StashTab]:
+    if not isinstance(payload, Mapping):
+        return []
+    entries = payload.get("tabs")
+    if not isinstance(entries, list):
+        return []
+    out: list[StashTab] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, Mapping):
+            continue
+        name = strip_set_tokens(entry.get("n") or entry.get("name"))
+        colour = None
+        metadata = entry.get("colour")
+        if isinstance(metadata, Mapping):
+            red = _int(metadata.get("r")) & 0xFF
+            green = _int(metadata.get("g")) & 0xFF
+            blue = _int(metadata.get("b")) & 0xFF
+            colour = f"#{red:02x}{green:02x}{blue:02x}"
+        out.append(
+            StashTab(
+                index=_int(entry.get("i"), index),
+                id=entry.get("id") if isinstance(entry.get("id"), str) else None,
+                name=name,
+                type=str(entry.get("type") or ""),
+                colour=colour,
+                hidden=bool(entry.get("hidden", False)),
+                # Remove-only tabs are named "(Remove-only) …" by GGG. They can never
+                # gain items, which is the highest-leverage caching rule in the
+                # feature (research-notes §7) — but acting on it belongs to Phase 3+.
+                remove_only="remove-only" in name.casefold(),
+            )
+        )
+    return out
+
+
+def _tab_name(payload: Any, tab_index: int) -> str | None:
+    if not isinstance(payload, Mapping):
+        return None
+    entries = payload.get("tabs")
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, Mapping) and _int(entry.get("i"), -1) == tab_index:
+                return strip_set_tokens(entry.get("n") or entry.get("name")) or None
+    return None
+
+
+def _cached_meta(
+    entry: CacheEntry,
+    *,
+    stale: bool = False,
+    retry_after: float | None = None,
+    note: str | None = None,
+) -> Meta:
+    return Meta(
+        fetched_at=_as_datetime(entry.fetched_at),
+        from_cache=True,
+        stale=stale,
+        retry_after=retry_after,
+        note=note,
+    )
+
+
+def _as_datetime(epoch: float) -> datetime:
+    return datetime.fromtimestamp(epoch, tz=UTC)
+
+
+def _int(value: Any, default: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return int(value)
+
+
+MODULE = PoeApiModule()

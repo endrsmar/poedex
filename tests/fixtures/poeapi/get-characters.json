@@ -1,0 +1,33 @@
+[
+  {
+    "name": "PlaceholderWarden",
+    "league": "Standard",
+    "classId": 6,
+    "ascendancyClass": 1,
+    "class": "Warden",
+    "level": 97,
+    "experience": 3827942501,
+    "realm": "pc",
+    "current": true
+  },
+  {
+    "name": "PlaceholderHierophant",
+    "league": "Allflame",
+    "classId": 4,
+    "ascendancyClass": 2,
+    "class": "Hierophant",
+    "level": 90,
+    "experience": 2001231122,
+    "realm": "pc"
+  },
+  {
+    "name": "PlaceholderJuggernaut",
+    "league": "Solo Self-Found",
+    "classId": 1,
+    "ascendancyClass": 1,
+    "class": "Juggernaut",
+    "level": 86,
+    "experience": 1102340000,
+    "realm": "pc"
+  }
+]

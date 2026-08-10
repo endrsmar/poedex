@@ -14,14 +14,20 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phase 1 done.** `runtime/` (registry, context, events, storage, settings, methods, redacting
-log), `modules/credentials/backend/`, a `poedex` CLI, and the boundary tests. Next action is
-**Phase 2** (`net` and `poeapi`).
+**Phases 1–2 done.** `runtime/` (registry, context, events, storage, settings, methods,
+redacting log), `modules/credentials/`, `modules/net/` (header-driven limiter + httpx),
+`modules/poeapi/` (endpoints, normalization, cache), a `poedex` CLI, and the boundary tests.
+Next action is **Phase 3** (`prices`).
+
+Outstanding from Phase 2: `poedex selftest freshness` exists but **has not been run** — it needs
+a human in the game (research-notes §2.1).
 
 ```bash
-python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/pytest        # everything offline
 .venv/bin/ruff check .
+poedex sync             # normalized bag; spends real rate-limit budget
+poedex limits           # what the limiter has learned
 ```
 
 Module layout is fixed by the registry: `modules/<id>/backend/module.py` exports `MODULE`, a

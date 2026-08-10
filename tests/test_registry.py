@@ -305,10 +305,11 @@ async def test_one_module_failing_to_stop_does_not_block_the_others(registry, fa
 # -- discovery -----------------------------------------------------------------
 
 
-def test_discovery_finds_the_credentials_module():
+def test_discovery_finds_every_shipped_module():
+    """The inventory. Spelled out so a module that stops being discovered is loud."""
     found = discover(REPO_ROOT / "modules")
-    assert [m.id for m in found] == ["credentials"]
-    assert found[0].kind == "core"
+    assert [m.id for m in found] == ["credentials", "net", "poeapi"]
+    assert all(m.kind == "core" for m in found)
 
 
 def test_discovery_of_an_empty_tree_is_not_an_error(tmp_path):
@@ -328,8 +329,9 @@ def test_a_module_without_the_module_attribute_is_an_error(tmp_path, monkeypatch
         discover(tmp_path / "pkg", package="pkg")
 
 
-def test_build_from_the_real_tree_starts_credentials():
+def test_build_from_the_real_tree_resolves_in_dependency_order():
     registry = Registry()
     registry.load(REPO_ROOT / "modules")
-    assert registry.resolve() == ["credentials"]
+    # poeapi requires net requires credentials, so the order is forced, not alphabetical.
+    assert registry.resolve() == ["credentials", "net", "poeapi"]
     assert registry.record("credentials").state is ModuleState.REGISTERED

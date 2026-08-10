@@ -302,9 +302,16 @@ def check_all(root: Path) -> list[Violation]:
 def test_checker_actually_sees_the_source_tree():
     """Guard against a checker that passes because it found nothing to check."""
     assert len(list(python_files(REPO_ROOT / RUNTIME_DIR))) >= 5
-    assert set(manifests(REPO_ROOT)) == {"credentials"}
+    assert set(manifests(REPO_ROOT)) == {"credentials", "net", "poeapi"}
     creds = REPO_ROOT / MODULES_DIR / "credentials" / "backend" / "module.py"
     assert any(dotted.startswith("runtime.") for _, dotted in imports_of(creds, REPO_ROOT))
+    # A real cross-module edge has to be visible to the checker, or the api.py rule
+    # is only ever proved against a synthetic tree.
+    poeapi = REPO_ROOT / MODULES_DIR / "poeapi" / "backend" / "module.py"
+    assert any(
+        dotted.startswith("modules.net.backend.api")
+        for _, dotted in imports_of(poeapi, REPO_ROOT)
+    )
 
 
 def test_real_tree_is_clean():
@@ -487,4 +494,14 @@ def test_assembled_real_registry_has_no_boundary_problems():
     real = Registry()
     real.load(REPO_ROOT / MODULES_DIR)
     assert real.check_boundaries() == []
-    assert real.resolve() == ["credentials"]
+    assert real.resolve() == ["credentials", "net", "poeapi"]
+
+
+def test_every_shipped_module_is_core_for_now():
+    """Phases 1 and 2 ship only core modules; the first feature module lands in Phase 3.
+
+    Stated as a test because "core may not depend on a feature" is unfalsifiable
+    while no feature module exists, and it should be obvious when that changes.
+    """
+    kinds = {mid: m.kind for mid, m in manifests(REPO_ROOT).items()}
+    assert kinds == {"credentials": "core", "net": "core", "poeapi": "core"}
