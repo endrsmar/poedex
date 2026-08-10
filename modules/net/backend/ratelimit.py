@@ -99,10 +99,16 @@ BACKOFF_CAP = 900.0
 # so there is nothing to learn and the seed budget — one request per ten seconds —
 # would stretch a sixteen-table prefetch across three minutes for no reason.
 #
-# 40 per minute is sized to fit two full sixteen-table passes with headroom, which is
-# the worst honest burst: a prefetch at start followed by a user asking for a forced
-# refresh. Steady state is one pass per thirty minutes.
-DEFAULT_COURTESY_MAX_HITS = 40
+# 90 per minute is sized to fit the worst honest burst, which Phase 4b enlarged: a
+# table-discovery pass is one sitemap read plus a probe of all 38 candidate types
+# (39 requests), and a user can ask for a forced refresh of the ~30 served ones
+# immediately afterwards. 39 + 38 = 77, under an effective maximum of 87.
+#
+# It was 40, "sized to fit two full sixteen-table passes" — a number exactly as stale
+# as the sixteen-table catalogue it was sized against. Steady state is unchanged and
+# is not the binding case: one conditional pass per thirty minutes, nearly all 304s,
+# which averages a little over one request a minute.
+DEFAULT_COURTESY_MAX_HITS = 90
 DEFAULT_COURTESY_PERIOD = 60
 COURTESY_RULE = "courtesy"
 

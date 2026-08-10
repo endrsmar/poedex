@@ -22,6 +22,7 @@ from modules.prices.backend.api import (
 from modules.prices.backend.module import PricesModule
 from modules.prices.backend.ninja import PREFETCH
 from runtime.errors import KindViolationError, ModuleNotStartedError
+from tests.conftest import DISCOVERY_REQUESTS, SERVED_TABLES
 
 NINJA = "poe.ninja"
 GGG = "www.pathofexile.com"
@@ -58,11 +59,18 @@ async def test_it_refuses_to_work_before_it_starts():
 
 
 async def test_start_prefetches_every_wanted_table(priced_stack, server, prices_module):
+    """A cold league costs one discovery pass, and keeps what it found.
+
+    The pass is one sitemap read plus a probe of every candidate type; only the ones
+    that came back with lines are held, and only those are asked for again. The
+    fixture set has sixteen, which is also what the old hardcoded list had — the
+    difference is that this number was measured rather than assumed."""
     fetched = [r for r in server.to_host(NINJA)]
-    assert len(fetched) == len(PREFETCH)
+    assert len(fetched) == DISCOVERY_REQUESTS
     status = prices_module.status()
-    assert status.loaded == len(PREFETCH) == status.requested
+    assert status.loaded == SERVED_TABLES == status.requested
     assert status.healthy
+    assert status.discovery and status.discovery.startswith("asked Standard:")
 
 
 async def test_the_prefetch_runs_in_the_background_at_start(stack_factory, server, cache_clock):
@@ -151,8 +159,11 @@ async def test_force_ignores_both_the_ttl_and_the_etag(
     clock.advance(61)
     await prices_module.refresh(force=True)
     forced = server.to_host(NINJA)[before:]
-    assert len(forced) == len(PREFETCH)
-    assert all("if-none-match" not in r.headers for r in forced)
+    # Forcing re-runs discovery too: "give me today's prices" and "and check the
+    # table list is still right" are the same instruction from a user's side.
+    assert len(forced) == DISCOVERY_REQUESTS
+    tables = [r for r in forced if r.url.path != "/sitemap.xml"]
+    assert all("if-none-match" not in r.headers for r in tables)
 
 
 async def test_a_long_outage_is_reported_as_stale_rather_than_hidden(
@@ -205,7 +216,10 @@ async def test_poe_ninja_does_not_touch_the_ggg_buckets(priced_stack, server):
     assert "host:poe.ninja" in policies
     ninja = [s for s in net.limits() if s.policy == "host:poe.ninja"]
     assert len(ninja) == 1
-    assert ninja[0].hits == len(PREFETCH)
+    assert ninja[0].hits == DISCOVERY_REQUESTS
+    # ...and one full discovery pass fits inside the courtesy budget with room for
+    # a forced refresh on top, which is the worst honest burst.
+    assert ninja[0].hits < ninja[0].effective_max
     # Nothing GGG-shaped has been touched by the prefetch.
     assert not any(p.startswith("backend-") for p in policies if p != "host:poe.ninja")
 
@@ -218,7 +232,7 @@ async def test_the_ggg_and_ninja_buckets_stay_separate_once_both_are_used(priced
         by_policy.setdefault(snap.policy, []).append(snap)
     assert "backend-item-request-limit" in by_policy
     assert "host:poe.ninja" in by_policy
-    assert by_policy["host:poe.ninja"][0].hits == len(PREFETCH)
+    assert by_policy["host:poe.ninja"][0].hits == DISCOVERY_REQUESTS
     assert all(s.hits <= 2 for s in by_policy["backend-item-request-limit"])
 
 
@@ -237,30 +251,46 @@ async def test_the_requests_go_to_the_measured_routes(priced_stack, server):
     assert paths == {
         "/poe1/api/economy/exchange/current/overview",
         "/poe1/api/economy/stash/current/item/overview",
+        # The category index. Measured, and the only one poe.ninja publishes: there
+        # is no types endpoint (research-notes §9.6 records the four 404s).
+        "/sitemap.xml",
     }
-    types = {r.url.params.get("type") for r in server.to_host(NINJA)}
+    overviews = [r for r in server.to_host(NINJA) if r.url.path != "/sitemap.xml"]
+    types = {r.url.params.get("type") for r in overviews}
     assert "Currency" in types and "UniqueWeapon" in types
-    assert all(r.url.params.get("league") == "Standard" for r in server.to_host(NINJA))
+    assert all(r.url.params.get("league") == "Standard" for r in overviews)
 
 
 # -- valuation through the module ------------------------------------------------------
 
 
 async def test_valuing_the_bag_makes_no_request_at_all(priced_stack, priced, server):
+    """With the tier-1b fallback off, a valuation still cannot reach a socket.
+
+    This is the guarantee Phase 3 shipped and Phase 4b narrowed rather than dropped:
+    ``PriceIndex`` has no network handle, so ``exchange=False`` is provably offline.
+    The next test covers what turning it on costs."""
     bag = await priced_stack.api(PoeApi).get_items()
     before = len(server.requests)
-    result = await priced.value_all(bag.by_source(Source.BAG))
+    result = await priced.value_all(bag.by_source(Source.BAG), exchange=False)
     assert len(server.requests) == before
     assert result.total_chaos > 0
     assert result.trade_requests == 0
+    assert result.exchange_requests == 0
 
 
-async def test_a_valuation_pass_issues_zero_trade_requests(priced_stack, priced, server):
-    """The counter *and* the wire, because either alone could be lying."""
+async def test_a_valuation_pass_issues_zero_trade_searches(priced_stack, priced, server):
+    """The counter *and* the wire, because either alone could be lying.
+
+    Tier 3 is a *search*, and a valuation pass must never start one — that is what
+    "never eager" protects, and it is unchanged. The bulk-exchange requests below it
+    live on a different policy and are the tier-1b fallback doing its job."""
     bag = await priced_stack.api(PoeApi).get_items()
     await priced.value_all(bag.by_source(Source.BAG))
     await priced.value(bag.by_source(Source.BAG)[0])
-    assert server.trade_requests() == []
+    paths = [r.url.path for r in server.trade_requests()]
+    assert not any(p.startswith(("/api/trade/search/", "/api/trade/fetch/")) for p in paths)
+    assert priced.trade_requests == 0
 
 
 async def test_the_bag_totals_are_believable(priced_stack, priced):
@@ -270,18 +300,21 @@ async def test_the_bag_totals_are_believable(priced_stack, priced):
     assert {"Chaos Orb", "Divine Orb", "Tabula Rasa", "Headhunter"} <= names
     assert {v.name for v in result.unpriceable} >= {"Veiled Scarab"}
     assert result.divine_rate and result.total_divine
-    assert result.table is not None and result.table.loaded == len(PREFETCH)
+    assert result.table is not None and result.table.loaded == SERVED_TABLES
     # Worn gear is not in the bag and must not be in the total.
     assert len(result.items) == len(bag.by_source(Source.BAG))
 
 
 async def test_the_json_method_surface_works(priced_stack, prices_module):
     methods = prices_module.methods()
-    assert set(methods) == {"value_bag", "status", "refresh", "quote"}
+    assert set(methods) == {"value_bag", "status", "refresh", "quote", "catalogue"}
     payload = await methods["value_bag"]()
     assert payload["priced_count"] > 0
     assert payload["trade_requests"] == 0
-    assert (await methods["status"]())["loaded"] == len(PREFETCH)
+    assert (await methods["status"]())["loaded"] == SERVED_TABLES
+    catalogue = await methods["catalogue"]()
+    assert catalogue["source"] == "probed"
+    assert set(catalogue["served"]) == set(PREFETCH)
 
 
 # -- bulk() -----------------------------------------------------------------------------

@@ -52,6 +52,7 @@ a different host from GGG, so it also costs zero of the account's request budget
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -63,21 +64,28 @@ from runtime.log import get_logger
 from runtime.storage import Storage
 
 __all__ = [
+    "CANDIDATES",
     "CATALOGUE",
     "DEFAULT_TTL",
     "EXCHANGE_PATH",
+    "IRREGULAR_SLUGS",
     "ITEM_PATH",
     "LEAGUES_PATH",
+    "NEVER_PREFETCH",
     "NINJA_BASE_URL",
     "NINJA_ROUTE",
     "PREFETCH",
+    "SITEMAP_PATH",
     "NinjaCategory",
     "NinjaClient",
     "PriceLine",
     "PriceTable",
     "TableStore",
+    "key_for_type",
     "parse_exchange",
     "parse_item_overview",
+    "slug_to_type",
+    "types_from_sitemap",
 ]
 
 _log = get_logger("module.prices.ninja")
@@ -86,6 +94,16 @@ NINJA_BASE_URL = "https://poe.ninja"
 LEAGUES_PATH = "/poe1/api/economy/leagues"
 EXCHANGE_PATH = "/poe1/api/economy/exchange/current/overview"
 ITEM_PATH = "/poe1/api/economy/stash/current/item/overview"
+SITEMAP_PATH = "/sitemap.xml"
+"""The only machine-readable list of *categories* poe.ninja publishes.
+
+There is no per-league type index — measured 2026-08-10, ``/poe1/api/economy/types``,
+``…/exchange/current/types``, ``…/index`` and ``/poe1/api/economy/categories`` all
+404, and the only sibling of ``/leagues`` that answers is ``/leagues`` itself. The
+sitemap is the fallback: it carries one ``/poe1/economy/{league}/{slug}`` URL per
+category per league, so a mechanic that gets a page gets a slug, whether or not
+anybody has typed its ``type`` name into :data:`CATALOGUE`. See
+:func:`types_from_sitemap`."""
 
 NINJA_ROUTE = "poe.ninja"
 """One rate-limit route for every poe.ninja call. `net` maps it to a ``host:``
@@ -124,12 +142,31 @@ def _cat(key: str, kind: str, type_: str, label: str) -> NinjaCategory:
     return NinjaCategory(key=key, kind=kind, type=type_, label=label)
 
 
-# Every table this module knows how to read. `PREFETCH` is the subset loaded at
-# start; the rest are reachable through `PricesApi.bulk` for a caller that asks by
-# name, and cost nothing until then.
+def key_for_type(type_: str) -> str:
+    """``UniqueAccessory`` → ``unique_accessory``. The catalogue key for a type name.
+
+    Used for types this file has never heard of: discovery can turn a slug it found
+    in the sitemap into a working category without anybody adding a line here.
+    """
+    out: list[str] = []
+    for index, char in enumerate(type_):
+        if char.isupper() and index and not type_[index - 1].isupper():
+            out.append("_")
+        out.append(char.lower())
+    return "".join(out)
+
+
+# Every table this module knows how to read — **all 44 types poe.ninja documents**
+# (`https://poe.ninja/docs/api`, cross-checked against the 44 category slugs in its
+# sitemap, 2026-08-10). It used to be 26, hand-typed, and the eighteen missing ones
+# are the reason a bag full of ducats came back unpriceable: `Ducat` has been a live
+# exchange type all along, with eleven priced lines in Allflame, and this module
+# simply never asked for it. That is what :mod:`.discovery` exists to stop
+# happening again — a hardcoded list is a list that goes stale between leagues.
 CATALOGUE: dict[str, NinjaCategory] = {
     c.key: c
     for c in (
+        # -- exchange overviews (18) --
         _cat("currency", "exchange", "Currency", "Currency"),
         _cat("fragment", "exchange", "Fragment", "Fragments"),
         _cat("scarab", "exchange", "Scarab", "Scarabs"),
@@ -144,20 +181,76 @@ CATALOGUE: dict[str, NinjaCategory] = {
         _cat("tattoo", "exchange", "Tattoo", "Tattoos"),
         _cat("allflame_ember", "exchange", "AllflameEmber", "Allflame Embers"),
         _cat("runegraft", "exchange", "Runegraft", "Runegrafts"),
+        _cat("ducat", "exchange", "Ducat", "Ducats"),
+        _cat("djinn_coin", "exchange", "DjinnCoin", "Djinn Coins"),
+        _cat("enshrouding_crystal", "exchange", "EnshroudingCrystal", "Enshrouding Crystals"),
+        _cat("astrolabe", "exchange", "Astrolabe", "Astrolabes"),
+        # -- stash item overviews (26) --
         _cat("incubator", "item", "Incubator", "Incubators"),
         _cat("map", "item", "Map", "Maps"),
         _cat("unique_map", "item", "UniqueMap", "Unique Maps"),
         _cat("blighted_map", "item", "BlightedMap", "Blighted Maps"),
+        _cat("blight_ravaged_map", "item", "BlightRavagedMap", "Blight-Ravaged Maps"),
+        _cat("valdo_map", "item", "ValdoMap", "Valdo's Maps"),
         _cat("unique_weapon", "item", "UniqueWeapon", "Unique Weapons"),
         _cat("unique_armour", "item", "UniqueArmour", "Unique Armours"),
         _cat("unique_accessory", "item", "UniqueAccessory", "Unique Accessories"),
         _cat("unique_flask", "item", "UniqueFlask", "Unique Flasks"),
         _cat("unique_jewel", "item", "UniqueJewel", "Unique Jewels"),
+        _cat("unique_tincture", "item", "UniqueTincture", "Unique Tinctures"),
+        _cat("unique_relic", "item", "UniqueRelic", "Unique Relics"),
+        _cat("forbidden_jewel", "item", "ForbiddenJewel", "Forbidden Jewels"),
         _cat("cluster_jewel", "item", "ClusterJewel", "Cluster Jewels"),
+        _cat("shrine_belt", "item", "ShrineBelt", "Shrine Belts"),
+        _cat("wombgift", "item", "Wombgift", "Wombgifts"),
+        _cat("skill_gem", "item", "SkillGem", "Skill Gems"),
+        _cat("imbued_gem", "item", "ImbuedGem", "Imbued Gems"),
+        _cat("invitation", "item", "Invitation", "Invitations"),
+        _cat("memory", "item", "Memory", "Memories"),
+        _cat("incursion_temple", "item", "IncursionTemple", "Incursion Temples"),
+        _cat("base_type", "item", "BaseType", "Base Types"),
+        _cat("flask", "item", "Flask", "Flasks"),
         _cat("beast", "item", "Beast", "Beasts"),
         _cat("vial", "item", "Vial", "Vials"),
     )
 }
+
+NEVER_PREFETCH: dict[str, str] = {
+    "skill_gem": "4.0 MB, 7,508 lines; needs level/quality/corruption matching we do not do",
+    "imbued_gem": "2.4 MB; the same variant problem as skill gems",
+    "base_type": "9.4 MB, 20,165 lines; priced per ilvl and influence, which we cannot match",
+    "valdo_map": "1.6 MB, 1,509 variant lines; a wrong variant is a wrong order of magnitude",
+    "cluster_jewel": "850 lines keyed by enchantment; `choose_line` does not score variants",
+    "forbidden_jewel": "330 lines keyed by ascendancy notable; same variant problem",
+}
+"""Types discovery must never add to the refresh set, and why.
+
+Sizes measured against Allflame and Standard on 2026-08-10. Every entry is either
+too large to fetch on a 30-minute cycle or priced by a variant field
+:func:`~modules.prices.backend.valuation.choose_line` does not read — and an item
+priced as the wrong variant is worse than an item left unpriced, which is the same
+rule that has kept skill gems out since Phase 3."""
+
+CANDIDATES: tuple[str, ...] = tuple(
+    key for key in CATALOGUE if key not in NEVER_PREFETCH
+)
+"""What :mod:`.discovery` probes for a league. 38 of the 44 documented types; the
+other six are :data:`NEVER_PREFETCH`. Measured cost of one full pass: 3.4 MB for
+Allflame, 4.0 MB for Standard, against 3.0 MB for the old sixteen-table prefetch —
+and every byte of it is a table we keep, so the pass *is* the refresh."""
+
+BY_TYPE: dict[str, NinjaCategory] = {c.type.casefold(): c for c in CATALOGUE.values()}
+"""``type`` → category, because our keys are not always the derived name.
+
+``DivinationCard`` has been keyed ``card`` since Phase 3. Matching a discovered type
+on the *key* would therefore have produced a second, duplicate ``divination_card``
+category and fetched the same 116 kB table twice — which is what the fixture server
+caught the first time this ran."""
+
+IRREGULAR_SLUGS: dict[str, str] = {
+    "temples": "IncursionTemple",
+}
+"""Sitemap slugs :func:`slug_to_type` cannot derive. Exactly one, of 44."""
 
 PREFETCH: tuple[str, ...] = (
     "currency",
@@ -177,10 +270,12 @@ PREFETCH: tuple[str, ...] = (
     "unique_flask",
     "unique_jewel",
 )
-"""The sixteen tables SPEC §5.1 asks for. Skill gems are deliberately absent: that
-one table is 360 kB and 7,500 lines against ~2 kB for an essence table, and gem
-pricing needs level/quality/corruption matching that this phase does not do. An
-unpriced gem is honest; a gem priced as the wrong variant is not."""
+"""The static fallback: the sixteen tables SPEC §5.1 named, used only when
+:mod:`.discovery` is switched off or could not run.
+
+It is *not* the normal path any more, and it should not be read as a list of what
+exists. It omitted ``Ducat`` for a whole league. What a league serves is discovered;
+this is what to hold when the league could not be asked."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,6 +396,78 @@ class PriceTable:
             fetched_at=float(fetched_at),
             etag=data.get("etag") if isinstance(data.get("etag"), str) else None,
         )
+
+
+# -- the sitemap, and the slugs in it ---------------------------------------------
+
+
+def _singular(word: str) -> str:
+    if word.endswith("ies"):
+        return word[:-3] + "y"
+    if word.endswith("sses") or word.endswith("shes") or word.endswith("ches"):
+        return word[:-2]
+    if word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def slug_to_type(slug: str) -> str | None:
+    """``unique-accessories`` → ``UniqueAccessory``. The API ``type`` for a page slug.
+
+    De-pluralize the last word, then PascalCase. Checked against all 44 slugs in
+    poe.ninja's sitemap on 2026-08-10: it derives 43 of them, and the one exception
+    (``temples`` → ``IncursionTemple``) is in :data:`IRREGULAR_SLUGS`. ``None`` for a
+    slug that is empty or not a category.
+
+    This function is the whole reason discovery can find a type nobody has typed
+    into :data:`CATALOGUE`. A rule that only recognised known names would have
+    reproduced the ``Ducat`` bug exactly.
+    """
+    slug = slug.strip().strip("/").casefold()
+    if not slug or "/" in slug:
+        return None
+    known = IRREGULAR_SLUGS.get(slug)
+    if known:
+        return known
+    parts = [part for part in slug.split("-") if part]
+    if not parts:
+        return None
+    parts[-1] = _singular(parts[-1])
+    return "".join(part[:1].upper() + part[1:] for part in parts)
+
+
+def types_from_sitemap(xml: str, league: str) -> list[str]:
+    """Category slugs poe.ninja publishes a page for, in ``league``.
+
+    Parsed with a regex rather than an XML parser on purpose: the document is 1,100+
+    URLs of a shape we have measured, we want exactly one path segment out of it, and
+    an XML parser on a network-supplied document is a larger attack surface than the
+    job justifies.
+
+    The league appears in the URL lowercased and space-stripped
+    (``Hardcore Allflame`` → ``allflamehc``… and that is *not* derivable, so both the
+    obvious form and a space-free form are accepted, and an empty answer is a normal
+    outcome the caller falls back from).
+    """
+    wanted = {
+        league.casefold().replace(" ", "-"),
+        league.casefold().replace(" ", ""),
+    }
+    slugs: list[str] = []
+    seen: set[str] = set()
+    for match in _SITEMAP_URL.finditer(xml):
+        if match.group("league").casefold() not in wanted:
+            continue
+        slug = match.group("slug").casefold()
+        if slug and slug not in seen:
+            seen.add(slug)
+            slugs.append(slug)
+    return slugs
+
+
+_SITEMAP_URL = re.compile(
+    r"poe\.ninja/poe1/economy/(?P<league>[^/<\s]+)/(?P<slug>[a-z0-9-]+)(?=[/<\s]|$)"
+)
 
 
 # -- parsing --------------------------------------------------------------------
@@ -490,6 +657,16 @@ class NinjaClient:
             if isinstance(entry, Mapping) and isinstance(entry.get("id"), str):
                 out.append(entry["id"])
         return out
+
+    async def sitemap_slugs(self, league: str) -> list[str]:
+        """Category slugs poe.ninja publishes for ``league``. ``[]`` if it cannot say.
+
+        One request, ~200 kB, made once per league per discovery window. Never fatal:
+        the sitemap is a *supplement* to :data:`CATALOGUE`, so a 500 here costs the
+        eighteen types nobody had typed in, not the thirty-eight that are.
+        """
+        response = await self._get(SITEMAP_PATH)
+        return types_from_sitemap(response.text, league)
 
     async def fetch(
         self,

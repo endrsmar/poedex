@@ -123,7 +123,13 @@ class LeagueChoice:
 
 
 class PriceSource(StrEnum):
-    """Which tier produced a number. SPEC §5."""
+    """Which tier produced a number. SPEC §5.
+
+    Five values for four tiers, because tier 1 has two sources now and they are not
+    interchangeable: a poe.ninja line is a whole-market index refreshed every fifteen
+    minutes, and an exchange rate is the median of ten live offers on a thin market.
+    Collapsing them would leave a surface unable to say which of those it is showing.
+    """
 
     NOTE = "note"
     """Tier 0 — the player's own ``~price`` / ``~b/o`` tag. Free with every fetch."""
@@ -131,8 +137,12 @@ class PriceSource(StrEnum):
     BULK = "bulk"
     """Tier 1 — a poe.ninja overview table."""
 
+    EXCHANGE = "exchange"
+    """Tier 1b — GGG's bulk exchange, for currency the bulk index does not carry."""
+
     TRADE = "trade"
-    """Tier 3 — a live trade query. On demand only; never during a valuation pass."""
+    """Tier 3 — a live trade search. Eager for a bag's gated rares, never for a
+    stash (SPEC §5.3)."""
 
     NONE = "unpriceable"
     """No tier resolved. **Not** the same as zero."""
@@ -205,6 +215,7 @@ class Valuation:
         "name",
         "note_price",
         "price",
+        "pricing",
         "reason",
         "stack_size",
         "uid",
@@ -222,6 +233,7 @@ class Valuation:
         note_price: Price | None = None,
         market: Price | None = None,
         reason: str | None = None,
+        pricing: bool = False,
     ) -> None:
         self.uid = uid
         self.name = name
@@ -236,10 +248,37 @@ class Valuation:
         """Tier 1, kept even when the note won, for the same reason."""
 
         self.reason = reason
+        self.pricing = pricing
+        """A tier-3 query for this item is **outstanding**: it was started and had not
+        answered when the pass returned. SPEC §5.3 asks for a per-item ``pricing…``
+        state that never gates the grid, and this is it.
+
+        Deliberately not a third state of :attr:`price`. "We are still looking" and
+        "we looked and found nothing" want different words on screen, and a caller
+        that only reads :attr:`unpriceable` still gets the safe answer."""
 
     @property
     def unpriceable(self) -> bool:
         return self.price is None
+
+    def replace_price(self, price: Price, *, reason: str | None = None) -> Valuation:
+        """A copy carrying ``price``. Used when tier 3 lands after tier 1 missed.
+
+        A copy rather than a mutation because ``value_all`` fans one resolution out
+        across every row that shares a :func:`~modules.prices.backend.valuation.price_key`,
+        and those rows differ in ``uid`` and stack size.
+        """
+        return Valuation(
+            uid=self.uid,
+            name=self.name,
+            base_type=self.base_type,
+            category=self.category,
+            stack_size=self.stack_size,
+            price=price,
+            note_price=self.note_price,
+            market=self.market,
+            reason=reason,
+        )
 
     @property
     def source(self) -> PriceSource:
@@ -265,6 +304,7 @@ class Valuation:
             "category": self.category,
             "stack_size": self.stack_size,
             "unpriceable": self.unpriceable,
+            "pricing": self.pricing,
             "source": self.source.value,
             "total_chaos": round(self.total_chaos, 4),
             "price": self.price.to_json() if self.price else None,
@@ -284,6 +324,7 @@ class BagValuation:
 
     __slots__ = (
         "divine_rate",
+        "exchange_requests",
         "items",
         "league",
         "league_source",
@@ -302,6 +343,7 @@ class BagValuation:
         table: TableStatus | None = None,
         lookups: int = 0,
         trade_requests: int = 0,
+        exchange_requests: int = 0,
     ) -> None:
         self.items = list(items)
         self.league = league
@@ -319,8 +361,13 @@ class BagValuation:
         deduplication did its job (SPEC §5.1)."""
 
         self.trade_requests = trade_requests
-        """Trade-API requests this pass made. **Always zero**: tier 3 is on demand
-        only (SPEC §5.3), and this field is here so a test can assert it."""
+        """Trade-*search* requests this pass made. Zero unless a caller asked for
+        eager tier 3 — which only ``appraisal`` does, only at bag strictness, and
+        only for items its gate passed (SPEC §5.3)."""
+
+        self.exchange_requests = exchange_requests
+        """Bulk-exchange requests this pass made. Zero when the per-league rate cache
+        was warm, which is the normal case."""
 
     @property
     def priced(self) -> list[Valuation]:
@@ -329,6 +376,12 @@ class BagValuation:
     @property
     def unpriceable(self) -> list[Valuation]:
         return [v for v in self.items if v.unpriceable]
+
+    @property
+    def pricing(self) -> list[Valuation]:
+        """Rows with a tier-3 query still outstanding. The bag total is a floor
+        while this is non-empty — SPEC §5.3's ``≥ N div``."""
+        return [v for v in self.items if v.pricing]
 
     @property
     def total_chaos(self) -> float:
@@ -363,8 +416,11 @@ class BagValuation:
             "priced_count": len(self.priced),
             "unpriceable_count": len(self.unpriceable),
             "unpriceable_stack": self.unpriceable_stack,
+            "pricing_count": len(self.pricing),
+            "total_is_floor": bool(self.pricing),
             "lookups": self.lookups,
             "trade_requests": self.trade_requests,
+            "exchange_requests": self.exchange_requests,
             "table": self.table.to_json() if self.table else None,
         }
 
@@ -378,7 +434,16 @@ class TableStatus:
     was Allflame is a status that hides the one fact that matters.
     """
 
-    __slots__ = ("league", "loaded", "newest", "note", "oldest", "requested", "stale")
+    __slots__ = (
+        "discovery",
+        "league",
+        "loaded",
+        "newest",
+        "note",
+        "oldest",
+        "requested",
+        "stale",
+    )
 
     def __init__(
         self,
@@ -390,6 +455,7 @@ class TableStatus:
         newest: datetime | None = None,
         stale: bool = False,
         note: str | None = None,
+        discovery: str | None = None,
     ) -> None:
         self.league = league
         self.loaded = loaded
@@ -398,6 +464,12 @@ class TableStatus:
         self.newest = newest
         self.stale = stale
         self.note = note
+        self.discovery = discovery
+        """One line about where the *list of tables* came from — the league's own
+        answer or the hardcoded fallback. Separate from :attr:`note`, which is about
+        the tables' contents, because "sixteen tables, all fresh" and "sixteen tables
+        because nobody asked the league whether it has thirty-six" look identical from
+        the outside and one of them is the bug this phase fixed."""
 
     @property
     def healthy(self) -> bool:
@@ -412,6 +484,7 @@ class TableStatus:
             "newest": self.newest.isoformat() if self.newest else None,
             "stale": self.stale,
             "note": self.note,
+            "discovery": self.discovery,
         }
 
 
@@ -462,10 +535,22 @@ class TradeQuote:
 class PricesApi(Protocol):
     """What dependents get from ``ctx.require(PricesApi)``.
 
-    ``value`` and ``value_all`` are guaranteed **not** to touch the network: they read
-    tables that were prefetched at module start. That guarantee is what lets an
-    appraisal screen price a bag on a zone transition without spending a request, and
-    it is why tier 3 is a separate method with a name that sounds expensive.
+    ``value`` and ``value_all`` are guaranteed **never to spend GGG account budget**:
+    they read tables prefetched from poe.ninja, which is a different host with its
+    own bucket. That guarantee is what lets an appraisal screen price a bag on a zone
+    transition, and it is unchanged.
+
+    What did change in Phase 4b is narrower and worth stating exactly. ``value_all``
+    may now make **bulk-exchange** requests — up to a handful, on the
+    ``trade-exchange-request-limit`` bucket, only for currency-class items the bulk
+    index missed, and none at all when the per-league rate cache is warm. That bucket
+    is ``Ip``-ruled and shares nothing with ``backend-item-request-limit``, so a
+    valuation still cannot delay or starve a sync. Pass ``exchange=False`` for a pass
+    that must provably make no request at all.
+
+    Tier 3 (trade search) is still not reachable from here. ``quote`` is the only way
+    in, and ``appraisal`` is the only caller that runs it eagerly — for a bag, for
+    gate-passing items, bounded (SPEC §5.3).
 
     ## The league is an argument, not a setting
 
@@ -495,6 +580,17 @@ class PricesApi(Protocol):
         """Which league the currently loaded tables belong to, if any."""
         ...
 
+    @property
+    def trade_requests(self) -> int:
+        """Trade-search requests this process has made. A diagnostic, and the only
+        honest way for a caller to report what a pass actually cost."""
+        ...
+
+    @property
+    def exchange_requests(self) -> int:
+        """Bulk-exchange requests this process has made."""
+        ...
+
     async def ensure_tables(self, league: str) -> TableStatus:
         """Make the loaded tables be ``league``'s, fetching them if they are not.
 
@@ -509,8 +605,9 @@ class PricesApi(Protocol):
         *,
         league: str | None = None,
         override: str | None = None,
+        exchange: bool | None = None,
     ) -> Valuation:
-        """Price one item: tier 0 note, then tier 1 bulk, then ``unpriceable``."""
+        """Price one item: note, bulk index, bulk exchange, then ``unpriceable``."""
         ...
 
     async def value_all(
@@ -519,6 +616,7 @@ class PricesApi(Protocol):
         *,
         league: str | None = None,
         override: str | None = None,
+        exchange: bool | None = None,
     ) -> BagValuation:
         """Price a whole bag, deduplicated, with stack-aware totals.
 
@@ -526,6 +624,29 @@ class PricesApi(Protocol):
         ``override`` is a per-call instruction to price against a different economy
         anyway; it outranks both ``league`` and the ``prices.league`` setting, and
         the resulting :attr:`BagValuation.league_source` records that it did.
+
+        ``exchange`` turns the tier-1b bulk-exchange fallback on or off for this
+        call; ``None`` follows the ``exchange_fallback`` setting.
+        """
+        ...
+
+    async def quote_many(
+        self,
+        items: Sequence[NormalizedItem],
+        *,
+        league: str | None = None,
+        sample: int = 0,
+        timeout: float | None = None,
+    ) -> Mapping[str, TradeQuote]:
+        """Tier 3 for several items at once, keyed by ``uid``.
+
+        Bounded and interruptible: whatever has answered by ``timeout`` is returned
+        and the rest are abandoned, so a slow query can delay a number but never the
+        output. Items whose query fails or finds nothing are simply absent from the
+        mapping — an absent quote is ``unpriceable``, never zero.
+
+        The caller decides whether running this eagerly is appropriate. It is, for a
+        bag of three to five rares; it is not, for a stash (SPEC §5.3).
         """
         ...
 

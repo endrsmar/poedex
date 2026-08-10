@@ -264,9 +264,17 @@ class ItemVerdict:
 
     @property
     def escalate(self) -> bool:
-        """Would a tier-3 query be worth one request on this item? On demand only —
-        nothing in this module acts on it (SPEC §5.3)."""
+        """Would a tier-3 query be worth a request on this item?
+
+        For a bag, ``appraisal`` acts on this directly (module docstring); for a
+        stash it stays a suggestion, which is what SPEC §5.3 protects.
+        """
         return self.gate.passed
+
+    @property
+    def pricing(self) -> bool:
+        """A tier-3 query for this item was started and has not answered."""
+        return self.valuation.pricing
 
     @property
     def hard_signals(self) -> int:
@@ -285,6 +293,7 @@ class ItemVerdict:
             "stack_size": self.stack_size,
             "total_chaos": round(self.total_chaos, 4),
             "unpriceable": self.unpriceable,
+            "pricing": self.pricing,
             "escalate": self.escalate,
             "reason": self.reason,
             "gate": self.gate.to_json(),
@@ -336,8 +345,9 @@ class BagAppraisal:
         self.table = table
         self.lookups = lookups
         self.trade_requests = trade_requests
-        """Trade-API requests this pass made. **Always zero** — tier 3 is on demand
-        only (SPEC §5.3), and this field exists so a test can prove it."""
+        """Trade-API requests this pass made. Zero at ``strict``, always — a stash is
+        never escalated eagerly (SPEC §5.3), and this field exists so a test can
+        prove it rather than a comment claiming it."""
 
     def of(self, verdict: Verdict) -> list[ItemVerdict]:
         return [item for item in self.items if item.verdict is verdict]
@@ -367,8 +377,23 @@ class BagAppraisal:
 
     @property
     def escalation_candidates(self) -> list[ItemVerdict]:
-        """What a tier-3 pass would cost, in items. One request each, on demand."""
+        """What a tier-3 pass would cost, in items. Two requests each."""
         return [item for item in self.items if item.escalate]
+
+    @property
+    def pricing(self) -> list[ItemVerdict]:
+        """Rows whose tier-3 query was started and has not answered.
+
+        While this is non-empty :attr:`total_chaos` is a **floor**: every row in it
+        is worth an unknown amount that is almost certainly not zero. SPEC §5.3 asks
+        a surface to say ``≥ N div`` rather than ``N div``, and this is the flag that
+        makes that possible without the total lying in the meantime.
+        """
+        return [item for item in self.items if item.pricing]
+
+    @property
+    def total_is_floor(self) -> bool:
+        return bool(self.pricing)
 
     def ranked(self) -> list[ItemVerdict]:
         """Interesting first: keep, check, unpriceable, trash.
@@ -422,6 +447,8 @@ class BagAppraisal:
             "unpriceable_count": len(self.of(Verdict.UNPRICEABLE)),
             "unpriceable_stack": self.unpriceable_stack,
             "escalation_candidates": len(self.escalation_candidates),
+            "pricing_count": len(self.pricing),
+            "total_is_floor": self.total_is_floor,
             "lookups": self.lookups,
             "trade_requests": self.trade_requests,
             "table": self.table.to_json() if self.table else None,
@@ -449,8 +476,15 @@ class AppraisalApi(Protocol):
         threshold_chaos: float | None = None,
         league: str | None = None,
         override: str | None = None,
+        escalate: bool | None = None,
     ) -> BagAppraisal:
         """Verdict every item. ``None`` means "use the configured value".
+
+        ``escalate`` asks for (or refuses) eager tier-3 pricing of the gate's hits.
+        It is honoured only at ``generous`` strictness: a stash is never escalated
+        eagerly whatever the caller says, because the reason SPEC §5.3 forbids it —
+        hundreds of candidates against a five-per-ten-seconds budget — is a property
+        of the stash, not of the caller's intent.
 
         ``league`` is the league the items are in — ``ItemSet.league`` — and
         ``override`` deliberately prices them against a different one. Both go

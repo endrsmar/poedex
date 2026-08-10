@@ -1,0 +1,86 @@
+{
+ "result": [
+  {
+   "id": "Currency",
+   "label": "Currency",
+   "entries": [
+    {
+     "id": "chaos",
+     "text": "Chaos Orb"
+    },
+    {
+     "id": "exalted",
+     "text": "Exalted Orb"
+    },
+    {
+     "id": "divine",
+     "text": "Divine Orb"
+    }
+   ]
+  },
+  {
+   "id": "Fragments",
+   "label": "Fragments, Scarabs & Mapping",
+   "entries": [
+    {
+     "id": "dusk",
+     "text": "Sacrifice at Dusk"
+    },
+    {
+     "id": "mid",
+     "text": "Sacrifice at Midnight"
+    }
+   ]
+  },
+  {
+   "id": "Ducats",
+   "label": "Ducats",
+   "entries": [
+    {
+     "id": "merricks-ducat",
+     "text": "Merrick's Ducat"
+    },
+    {
+     "id": "cyaxans-ducat",
+     "text": "Cyaxan's Ducat"
+    },
+    {
+     "id": "the-changelings-ducat",
+     "text": "The Changeling's Ducat"
+    },
+    {
+     "id": "the-genteels-ducat",
+     "text": "The Genteel's Ducat"
+    },
+    {
+     "id": "kisharas-ducat",
+     "text": "Kishara's Ducat"
+    },
+    {
+     "id": "telesias-ducat",
+     "text": "Telesia's Ducat"
+    },
+    {
+     "id": "rotmothers-ducat",
+     "text": "Rotmother's Ducat"
+    },
+    {
+     "id": "brinehooks-ducat",
+     "text": "Brinehook's Ducat"
+    },
+    {
+     "id": "katakohis-ducat",
+     "text": "Katakohi's Ducat"
+    },
+    {
+     "id": "tzamotos-ducat",
+     "text": "Tzamoto's Ducat"
+    },
+    {
+     "id": "ukatoas-ducat",
+     "text": "Ukatoa's Ducat"
+    }
+   ]
+  }
+ ]
+}

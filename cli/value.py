@@ -36,7 +36,7 @@ async def prepare_league(
     Shared by `value` and `appraise` because getting this wrong is the same bug in
     both. Two things are printed rather than logged: which league won and why, and
     the fact that a table switch is about to spend a few seconds on poe.ninja. The
-    second exists because sixteen conditional requests with no output is
+    second exists because thirty-odd conditional requests with no output is
     indistinguishable from a hang, and a user who kills the command at that point
     concludes the tool is broken.
     """
@@ -130,6 +130,8 @@ def render_tables(result: BagValuation) -> str:
     when = table.newest.isoformat(timespec="seconds") if table.newest else "never"
     state = "STALE" if table.stale else "ok"
     line = f"tables:     {table.loaded}/{table.requested} loaded, newest {when} ({state})"
+    if table.discovery:
+        line += f"\n            {table.discovery}"
     if table.note:
         line += f"\n            {table.note}"
     return line
@@ -162,7 +164,10 @@ async def cmd_value(
     print(render_bag(result))
     print()
     print(render_total(result))
-    print(f"trade:      {result.trade_requests} request(s) — tier 3 is on demand only")
+    print(
+        f"trade:      {result.trade_requests} search(es), "
+        f"{result.exchange_requests} bulk-exchange request(s)"
+    )
     if bag.meta.stale:
         print("\nthis is cached inventory data; nothing was fetched", file=sys.stderr)
         return 1

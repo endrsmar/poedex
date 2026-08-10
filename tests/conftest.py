@@ -253,6 +253,54 @@ NINJA_TABLES = {
     ("item", "UniqueJewel"): "item-uniquejewel.json",
 }
 
+EMPTY_EXCHANGE = {"core": {"primary": "chaos", "items": []}, "items": [], "lines": []}
+"""What poe.ninja returns for a documented type this league does not serve — a 200
+with no lines, measured against ``DjinnCoin`` in both leagues on 2026-08-10. The
+distinction from a 404 is load-bearing: discovery reads the first as "this league
+has none of those" and the second as "ask again tomorrow"."""
+
+EMPTY_ITEM = {"lines": []}
+
+
+def ninja_sitemap(*leagues: str) -> str:
+    """poe.ninja's sitemap, trimmed to the economy URLs discovery reads.
+
+    Every one of the 44 category slugs the live sitemap carries, for each named
+    league, plus a deeper per-item URL and an unrelated docs URL — because the
+    parser has to ignore both and the recorded document contains both.
+    """
+    slugs = sorted(
+        {slug for slug in _SITEMAP_SLUGS},
+    )
+    urls = ["https://poe.ninja/", "https://poe.ninja/docs/api"]
+    for league in leagues:
+        token = league.casefold().replace(" ", "")
+        urls += [f"https://poe.ninja/poe1/economy/{token}/{slug}" for slug in slugs]
+        urls.append(f"https://poe.ninja/poe1/economy/{token}/currency/chaos-orb")
+    body = "".join(f"  <url>\n    <loc>{url}</loc>\n  </url>\n" for url in urls)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{body}</urlset>\n"
+    )
+
+
+_SITEMAP_SLUGS = [
+    "allflame-embers", "artifacts", "astrolabes", "base-types", "beasts",
+    "blighted-maps", "blight-ravaged-maps", "cluster-jewels", "currency",
+    "delirium-orbs", "divination-cards", "djinn-coins", "ducats",
+    "enshrouding-crystals", "essences", "flasks", "forbidden-jewels", "fossils",
+    "fragments", "imbued-gems", "incubators", "invitations", "maps", "memories",
+    "oils", "omens", "resonators", "runegrafts", "scarabs", "shrine-belts",
+    "skill-gems", "tattoos", "temples", "unique-accessories", "unique-armours",
+    "unique-flasks", "unique-jewels", "unique-maps", "unique-relics",
+    "unique-tinctures", "unique-weapons", "valdo-maps", "vials", "wombgifts",
+]
+"""Verbatim from the live sitemap, 2026-08-10. Forty-four, the same for every
+league — which is why discovery still has to probe: this is an index of categories,
+not of what any one league serves."""
+
+
 NINJA_HEADERS = {
     # Verbatim from a live response, 2026-08-10. Note the absence of any
     # X-Rate-Limit-* header: that absence is what the courtesy budget exists for.
@@ -260,11 +308,55 @@ NINJA_HEADERS = {
     "content-type": "application/json",
 }
 
+
+def _discovery_requests() -> int:
+    """How many poe.ninja requests one discovery pass costs.
+
+    One sitemap read plus one probe per candidate type. Derived rather than written
+    down so that adding a type to the catalogue updates the tests' arithmetic
+    instead of breaking it.
+    """
+    from modules.prices.backend.ninja import CANDIDATES
+
+    return 1 + len(CANDIDATES)
+
+
+def _documented_types() -> list[tuple[str, str]]:
+    """``(kind, type)`` for all 44 types poe.ninja documents.
+
+    Read off the real catalogue rather than restated, so that adding a type to the
+    product cannot silently leave the fixture server answering 404 for it — which
+    would make discovery record it as broken instead of absent.
+    """
+    from modules.prices.backend.ninja import CATALOGUE
+
+    return [(c.kind, c.type) for c in CATALOGUE.values()]
+
+
+_DOCUMENTED_TYPES = _documented_types()
+
+DISCOVERY_REQUESTS = _discovery_requests()
+"""The cost of a first pass against a league: sitemap + every candidate type."""
+
+SERVED_TABLES = len(NINJA_TABLES)
+"""How many tables this fixture set actually has data for. Everything else answers
+200-with-no-lines, so discovery records it as absent and never asks again."""
+
 TRADE_HEADERS = {
     "x-rate-limit-policy": "trade-search-request-limit",
     "x-rate-limit-rules": "Ip",
     "x-rate-limit-ip": "5:10:60,15:60:300,30:300:1800,600:21600:3600",
     "x-rate-limit-ip-state": "1:10:0,1:60:0,1:300:0,1:21600:0",
+}
+
+TRADE_EXCHANGE_HEADERS = {
+    # Verbatim from a live 200, 2026-08-10. Tighter than search, Ip-ruled, and its
+    # own policy — which is what lets a bag valuation use it without touching the
+    # account's item budget.
+    "x-rate-limit-policy": "trade-exchange-request-limit",
+    "x-rate-limit-rules": "Ip",
+    "x-rate-limit-ip": "5:15:60,10:90:300,30:300:1800",
+    "x-rate-limit-ip-state": "1:15:0,1:90:0,1:300:0",
 }
 
 TRADE_FETCH_HEADERS = {
@@ -297,6 +389,31 @@ class Server:
         self.etag = "W/fixture-1"
         """What poe.ninja claims its tables are at. Change it to simulate a refresh;
         leave it and a conditional request gets a 304."""
+
+        self.sitemap: str | None = ninja_sitemap("Standard", "Allflame")
+        """poe.ninja's category index. Set it to ``None`` to make discovery fall
+        back to the built-in catalogue, which is the failure path the product has to
+        survive without losing the tables it already knows about."""
+
+        self.served_empty: set[str] = {
+            type_
+            for _kind, type_ in _DOCUMENTED_TYPES
+            if (_kind, type_) not in NINJA_TABLES
+        }
+        """Types that answer 200-with-no-lines rather than 404. Everything poe.ninja
+        documents that this fixture set has no recorded table for — which is what the
+        live site does for a type a league does not serve."""
+
+        self.trade_search_empty = False
+        """Make every tier-3 search find nothing. Not an error — "nobody is selling
+        one" is a real answer, and it must not turn into a price of zero."""
+
+        self.exchange_cap = 100
+        """How many rows one bulk-exchange response carries. The live cap, measured."""
+
+        self.exchange_wants: list[list[str]] = []
+        """Every ``want`` array this server was asked for, in order. Batching is only
+        provable by counting requests, and this is what a test counts."""
 
         self.bag_fixture = "get-items.json"
         self.characters: Any = payload("get-characters.json")
@@ -338,14 +455,28 @@ class Server:
         if self.ninja_status != 200:
             return httpx.Response(self.ninja_status, json={"error": "no"}, headers=NINJA_HEADERS)
         path = request.url.path
+        if path == "/sitemap.xml":
+            if not self.sitemap:
+                # 404 rather than 500 deliberately: a 5xx puts the whole host policy
+                # into backoff and would take the thirty-eight probes down with it,
+                # which is a different failure and has its own test.
+                return httpx.Response(404, text="not found", headers=NINJA_HEADERS)
+            return httpx.Response(
+                200, text=self.sitemap, headers={**NINJA_HEADERS, "content-type": "text/xml"}
+            )
         if path.endswith("/economy/leagues"):
             return self._conditional(request, price_payload("leagues.json"))
         kind = "exchange" if "/exchange/" in path else "item"
-        key = (kind, request.url.params.get("type", ""))
-        name = NINJA_TABLES.get(key)
-        if name is None:
-            return httpx.Response(404, json={"error": "unknown type"}, headers=NINJA_HEADERS)
-        return self._conditional(request, price_payload(name))
+        type_ = request.url.params.get("type", "")
+        name = NINJA_TABLES.get((kind, type_))
+        if name is not None:
+            return self._conditional(request, price_payload(name))
+        if type_ in self.served_empty:
+            # 200 with no lines: a type this league does not have. Discovery must
+            # tell this from the 404 below, which is a type that does not exist.
+            body = EMPTY_EXCHANGE if kind == "exchange" else EMPTY_ITEM
+            return httpx.Response(200, json=body, headers=NINJA_HEADERS)
+        return httpx.Response(404, json={"error": "unknown type"}, headers=NINJA_HEADERS)
 
     def _conditional(self, request: httpx.Request, body: Any) -> httpx.Response:
         sent = request.headers.get("if-none-match")
@@ -358,15 +489,63 @@ class Server:
         path = request.url.path
         if path == "/api/trade/data/stats":
             return httpx.Response(200, json=price_payload("trade-stats.json"))
+        if path == "/api/trade/data/static":
+            return httpx.Response(200, json=price_payload("trade-static.json"))
+        if path.startswith("/api/trade/exchange/"):
+            return self._exchange(request)
         if path.startswith("/api/trade/search/"):
-            return httpx.Response(
-                200, json=price_payload("trade-search.json"), headers=TRADE_HEADERS
-            )
+            body = price_payload("trade-search.json")
+            if self.trade_search_empty:
+                body = {"id": body["id"], "complexity": None, "result": [], "total": 0}
+            return httpx.Response(200, json=body, headers=TRADE_HEADERS)
         if path.startswith("/api/trade/fetch/"):
             return httpx.Response(
                 200, json=price_payload("trade-fetch.json"), headers=TRADE_FETCH_HEADERS
             )
         return httpx.Response(404, json={"error": "unknown trade route"})
+
+    def _exchange(self, request: httpx.Request) -> httpx.Response:
+        """The bulk exchange, with the two behaviours that shape the client.
+
+        A hard cap of ten ``want`` ids — eleven is a 400 with GGG's own wording —
+        and a response capped at ``exchange_cap`` rows **sorted by price ascending
+        across the whole batch**. That second rule is why batching cannot be naive:
+        ten ids in one request returns everybody's cheapest offers and nobody's
+        median. ``exchange_cap`` is settable so a test can reach that regime without
+        a two-hundred-row fixture.
+        """
+        body = json.loads(request.content or b"{}")
+        want = list((body.get("query") or {}).get("want") or [])
+        self.exchange_wants.append(want)
+        if len(want) > 10:
+            return httpx.Response(
+                400,
+                json={"error": {"code": 2, "message": "Too many items `want` items selected."}},
+                headers=TRADE_EXCHANGE_HEADERS,
+            )
+        payload = price_payload("trade-exchange.json")
+        rows = [
+            row
+            for row in payload["result"].values()
+            if any(o["item"]["currency"] in want for o in row["listing"]["offers"])
+        ]
+        rows.sort(
+            key=lambda row: min(
+                o["exchange"]["amount"] / o["item"]["amount"] for o in row["listing"]["offers"]
+            )
+        )
+        total = len(rows)
+        rows = rows[: self.exchange_cap]
+        return httpx.Response(
+            200,
+            json={
+                "id": "FIXTUREXID",
+                "complexity": None,
+                "result": {row["id"]: row for row in rows},
+                "total": total,
+            },
+            headers=TRADE_EXCHANGE_HEADERS,
+        )
 
     # -- assertions ------------------------------------------------------------
 

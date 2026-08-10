@@ -103,8 +103,15 @@ def render_row(item: ItemVerdict, *, colour: bool) -> str:
     glyph = paint(GLYPH[item.verdict], item.verdict, colour=colour)
     name = _clip(item.name, MAX_NAME)
     stack = f"x{item.stack_size}" if item.stack_size > 1 else ""
-    unpriced = item.valuation.unpriceable
-    value = "     —" if unpriced else f"{format_chaos(item.total_chaos):>6}c"
+    if item.pricing:
+        # Still a dash rather than a number, because there is no number yet — but a
+        # different dash from the one that means "and there never will be". The
+        # reason column carries the word; this column carries the distinction.
+        value = "     ⋯"
+    elif item.valuation.unpriceable:
+        value = "     —"
+    else:
+        value = f"{format_chaos(item.total_chaos):>6}c"
     return f"  {glyph} {name:<{MAX_NAME}} {stack:>6} {value}   {_clip(item.reason, MAX_REASON)}"
 
 
@@ -164,19 +171,32 @@ def render_summary(result: BagAppraisal, *, colour: bool = False) -> str:
     if result.total_divine is not None:
         money.append(f"{result.total_divine:,.2f} divine")
 
-    lines = [RULE, "bag total:  " + "  ·  ".join(money)]
+    # SPEC §5.3: while a tier-3 query is outstanding the total is a lower bound, and
+    # the output has to say so in the number rather than only in a footnote.
+    prefix = "≥ " if result.total_is_floor else ""
+    lines = [RULE, "bag total:  " + prefix + "  ·  ".join(money)]
     unpriceable = result.of(Verdict.UNPRICEABLE)
     if unpriceable:
         lines.append(
             f"            excludes {len(unpriceable)} unpriceable row(s), "
             f"{result.unpriceable_stack} unit(s) — the total is a floor, not a value"
         )
+    if result.pricing:
+        lines.append(
+            f"            {len(result.pricing)} item(s) still pricing — their value "
+            "is not in the figure above"
+        )
     lines.append("verdicts:   " + tally)
     candidates = result.escalation_candidates
     if candidates:
+        spent = result.trade_requests
         lines.append(
-            f"tier 3:     {len(candidates)} item(s) the gate would query, "
-            f"1 request each — on demand only, none spent here"
+            f"tier 3:     {len(candidates)} item(s) the gate flagged; "
+            + (
+                f"{spent} trade request(s) spent pricing them"
+                if spent
+                else "none priced — escalation is off for this run"
+            )
         )
     return "\n".join(lines)
 
@@ -201,6 +221,8 @@ def render_header(
         when = table.newest.isoformat(timespec="seconds") if table.newest else "never"
         tables = f"{table.loaded}/{table.requested} loaded for {table.league or '-'}, newest {when}"
         tables += " (STALE)" if table.stale else " (ok)"
+        if table.discovery:
+            tables += f"\n            {table.discovery}"
         if table.note:
             tables += f"\n            {table.note}"
     context = "bag" if result.strictness is Strictness.GENEROUS else "stash"
@@ -232,6 +254,7 @@ async def cmd_appraise(
     show_all: bool = False,
     colour: bool | None = None,
     league: str | None = None,
+    escalate: bool | None = None,
 ) -> int:
     bag = await poeapi.get_items(character, refresh=refresh)
     choice = await prepare_league(prices, bag.league, override=league)
@@ -244,6 +267,7 @@ async def cmd_appraise(
         threshold_chaos=threshold,
         league=bag.league,
         override=league,
+        escalate=escalate,
     )
     painted = use_colour() if colour is None else colour
 
@@ -256,7 +280,14 @@ async def cmd_appraise(
     print(render_appraisal(result, show_all=show_all, colour=painted))
     print()
     print(render_summary(result, colour=painted))
-    print(f"trade:      {result.trade_requests} request(s) — tier 3 is on demand only")
+    print(
+        f"trade:      {result.trade_requests} request(s) — "
+        + (
+            "eager tier 3 for this bag's gated rares"
+            if result.strictness is Strictness.GENEROUS
+            else "a stash is never escalated eagerly"
+        )
+    )
 
     if bag.meta.stale:
         print("\nthis is cached inventory data; nothing was fetched", file=sys.stderr)

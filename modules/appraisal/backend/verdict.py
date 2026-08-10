@@ -9,6 +9,7 @@ compute a price; if a number is needed it was already asked for.
 ::
 
     1.  no price, and the bulk index should have carried it   → unpriceable
+    1b. no price yet, tier 3 outstanding                      → check ("pricing…")
     2.  stack total at or above the keep threshold            → keep
     3.  the tier-2 gate found something                       → check
     4.  stack total at or above the check floor               → check
@@ -64,6 +65,12 @@ def classify(
             return Verdict.UNPRICEABLE, _unpriceable_reason(valuation)
         # A rare ring has no bulk price and never will. That is not a hole in the
         # index, it is the case tier 2 exists for.
+        if valuation.pricing:
+            # A tier-3 query is out and has not answered. SPEC §5.4 gives `check`
+            # exactly this second job — "or tier-3 pending" — and the word matters:
+            # "pricing…" says the number is coming, where the gate summary alone
+            # implies we are never going to have one.
+            return Verdict.CHECK, f"pricing… · {gate.summary}" if gate.passed else "pricing…"
         if gate.passed:
             return Verdict.CHECK, gate.summary
         return Verdict.TRASH, _gate_miss_reason(gate)
@@ -80,13 +87,21 @@ def classify(
     return Verdict.TRASH, provenance
 
 
+_SOURCE_WORDS: dict[PriceSource, str] = {
+    PriceSource.NOTE: "your own note",
+    PriceSource.BULK: "poe.ninja",
+    PriceSource.EXCHANGE: "bulk exchange",
+    PriceSource.TRADE: "trade search",
+}
+"""Four sources, four different claims. "poe.ninja" is a whole-market index;
+"bulk exchange" is the median of a handful of live offers on a market poe.ninja does
+not index at all; "trade search" is one item's own comparables. A player deciding
+whether to believe a number needs to know which of those it is, and the CLI has
+printed a source column since Phase 3 precisely so it can."""
+
+
 def _provenance(valuation: Valuation) -> str:
-    if valuation.source is PriceSource.NOTE:
-        source = "your own note"
-    elif valuation.source is PriceSource.TRADE:
-        source = "trade query"
-    else:
-        source = "poe.ninja"
+    source = _SOURCE_WORDS.get(valuation.source, "poe.ninja")
     if valuation.stack_size > 1 and valuation.price is not None:
         return f"{valuation.stack_size} x {valuation.price.chaos:g}c · {source}"
     return source
