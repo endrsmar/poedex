@@ -124,6 +124,16 @@ class SettingsStore:
     def schemas(self) -> dict[str, dict[str, dict[str, Any]]]:
         return {k: dict(v) for k, v in self._schemas.items()}
 
+    def is_set(self, module_id: str, key: str) -> bool:
+        """Whether a value is *stored*, as opposed to coming from the schema default.
+
+        The distinction is the whole content of "where did this value come from?",
+        which is what ``poedex config list`` reports and what makes ``unset``
+        meaningful. Nothing else can tell them apart: a stored value equal to the
+        default reads identically through :meth:`get`.
+        """
+        return key in self._values.get(module_id, {})
+
     def get(self, module_id: str, key: str, default: Any = _UNSET) -> Any:
         """Stored value, else the schema default. Unknown keys raise unless a
         fallback is supplied."""

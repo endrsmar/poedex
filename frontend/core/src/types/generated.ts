@@ -361,6 +361,7 @@ export interface ServerMeta {
 export interface Character {
   name: string
   league?: string | null
+  realm?: string | null
   class_name?: string | null
   level?: number
   experience?: number

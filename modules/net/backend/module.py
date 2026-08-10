@@ -73,7 +73,7 @@ class NetModule:
             if not str(ctx.settings.get("contact")).strip():
                 ctx.logger.warning(
                     "no contact address configured; GGG asks for one in the User-Agent. "
-                    "Set it with the net.contact setting."
+                    "Set it with: poedex config set net.contact you@example.com"
                 )
         ctx.logger.info("net ready: %s", self._client.user_agent)
 
