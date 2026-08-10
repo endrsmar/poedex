@@ -126,8 +126,16 @@ class RateLimitedError(PoeApiError):
 class PoeApi(Protocol):
     """What dependents get from ``ctx.require(PoeApi)``."""
 
-    async def get_characters(self, *, refresh: bool = False) -> CharacterList:
-        """The account's characters. Cached hard; never poll this (SPEC §4.4)."""
+    async def get_characters(
+        self, *, refresh: bool = False, realm: str | None = None
+    ) -> CharacterList:
+        """The account's characters. Cached hard; never poll this (SPEC §4.4).
+
+        ``realm`` is the one request that cannot read the realm off the roster,
+        because this is the roster. Left unset, the parameter is omitted and GGG
+        answers for its own default; every later request reads the realm out of
+        the entries this returns.
+        """
         ...
 
     async def get_items(
@@ -136,6 +144,7 @@ class PoeApi(Protocol):
         *,
         account: str | None = None,
         refresh: bool = False,
+        realm: str | None = None,
     ) -> ItemSet:
         """Backpack and worn gear for one character, normalized.
 
@@ -149,11 +158,14 @@ class PoeApi(Protocol):
         only place that fact is knowable, so dropping it here is what made every
         downstream consumer fall back to a default and price the wrong economy.
         ``None`` means it could not be established — never "Standard".
+
+        ``realm`` follows the same discipline one rung down: the argument, then the
+        ``poeapi.realm`` setting, then the roster entry this character came from.
         """
         ...
 
     async def get_stash_tabs(
-        self, league: str | None = None, *, refresh: bool = False
+        self, league: str | None = None, *, refresh: bool = False, realm: str | None = None
     ) -> StashTabList:
         """The tab list for a league. Shares a rate-limit bucket with ``get_items``.
 
@@ -169,6 +181,7 @@ class PoeApi(Protocol):
         league: str | None = None,
         *,
         refresh: bool = False,
+        realm: str | None = None,
     ) -> ItemSet:
         """One stash tab's contents, normalized."""
         ...

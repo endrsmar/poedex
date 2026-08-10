@@ -81,7 +81,15 @@ poedex appraise         # the bag, judged. one account request, zero trade reque
 poedex price <uid> --dry-run    # an item's mods with real tiers; spends nothing
 poedex price <uid> --mods 0,3 --open-prefixes 1   # ...and the query you chose
 poedex limits           # what the limiter has learned
+poedex config list      # every setting, its value, and whether it is stored or the default
+poedex config set net.contact you@example.com    # the setting three messages used to ask for
 ```
+
+**Every message that names a setting names the command that sets it.** `poedex config`
+(list/get/set/unset) is driven by the schema registry, so a new setting is listed, described and
+validated without touching the CLI. The POESESSID is **not** a setting — `credentials` keeps it
+in its own file and registers one integer — so no config command can reach it, and a test walks
+every key to prove it.
 
 Module layout is fixed by the registry: `modules/<id>/backend/module.py` exports `MODULE`, a
 module instance; `api.py` is the only file dependents may import.
@@ -278,3 +286,11 @@ against the league of the character it came from, carried on `ItemSet.league` an
 `LeagueUnknownError` rather than falling back to Standard — which is what it used to do,
 silently, while the character was in Allflame and a Divine Orb cost 897.7c in one and 209.0c in
 the other. Price tables are per league, and tables loaded for one are never used for another.
+
+**`REALM = "pc"` is gone for the same reason, one rung down.** Every character-window request
+carried a hardcoded realm, and `get-characters` returns one per character — in the same roster
+entry the league is read from. Precedence is argument, then `poeapi.realm`, then the roster; an
+unresolvable realm **omits the parameter** and logs a warning naming the command, because
+"leave it off" and "it is pc" are different claims. Lower stakes than the league (a console
+account gets an empty roster or a 403, not wrong numbers) and **unverified**: nobody here has a
+console account, and whether the legacy endpoints require the parameter at all is unmeasured.

@@ -249,6 +249,14 @@ class ItemSet(Base):
 class Character(Base):
     name: str
     league: str | None = None
+    realm: str | None = None
+    """Which realm the account lives on — ``pc``, ``xbox`` or ``sony``.
+
+    Every character-window request takes a ``realm`` parameter, and this entry is
+    the only place the answer is published. It used to be a module constant reading
+    ``"pc"``, which is the league bug in miniature: a plausible default silently
+    answering a question only the account can answer."""
+
     class_name: str | None = None
     level: int = 0
     experience: int = 0

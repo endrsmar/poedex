@@ -5,6 +5,8 @@ Commands:
     poedex auth set [--account NAME]   store a POESESSID from a hidden prompt
     poedex auth status                 print credential state, never the value
     poedex auth clear                  delete the stored credential
+    poedex config list                 every setting, its value, and where it came from
+    poedex config get|set|unset KEY    read or write one <module>.<key>
     poedex modules                     list modules, their state and their reason
     poedex gamelog status              where Client.txt was found, or why not
     poedex gamelog watch               tail it and print classified zone events
@@ -34,6 +36,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
 from cli.appraise import cmd_appraise
+from cli.config import cmd_config
 from cli.moddb import cmd_moddb
 from cli.price import cmd_price
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
@@ -109,6 +112,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     auth_sub.add_parser("status", help="print credential state (never the value)")
     auth_sub.add_parser("clear", help="delete the stored credential")
+
+    config = sub.add_parser(
+        "config",
+        help="read and write settings",
+        description=(
+            "Settings live in ~/.config/poedex/settings.json, owner-readable only, "
+            "keyed by module. Every setting a started module registers is listed "
+            "here with its schema, so a value written through 'set' is validated "
+            "against the same rules the module itself sees. The POESESSID is not a "
+            "setting and cannot be read or written here."
+        ),
+    )
+    config_sub = config.add_subparsers(dest="config_command", required=True)
+    config_list = config_sub.add_parser(
+        "list", help="every registered setting, its value, and whether it is stored"
+    )
+    config_list.add_argument(
+        "--verbose", action="store_true", help="also print each setting's description"
+    )
+    config_get = config_sub.add_parser("get", help="print one setting in full")
+    config_get.add_argument("key", metavar="MODULE.KEY", help="for example net.contact")
+    config_set = config_sub.add_parser(
+        "set", help="store a value, validated against the registered schema"
+    )
+    config_set.add_argument("key", metavar="MODULE.KEY")
+    config_set.add_argument("value", help="a list or a dict is written as JSON")
+    config_unset = config_sub.add_parser("unset", help="drop the stored value, back to the default")
+    config_unset.add_argument("key", metavar="MODULE.KEY")
 
     sub.add_parser("modules", help="list modules and their state")
 
@@ -310,7 +341,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "read this character instead of whoever you played most recently. "
-            "Applies to this run only; set poeapi.character to make it stick"
+            "Applies to this run only; 'poedex config set poeapi.character <name>' "
+            "makes it stick"
         ),
     )
     serve.add_argument(
@@ -571,6 +603,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 open_suffixes=args.open_suffixes,
                 dry_run=args.dry_run,
                 league=args.league,
+            )
+
+    elif args.command == "config":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_config(
+                registry,
+                action=args.config_command,
+                key=getattr(args, "key", None),
+                value=getattr(args, "value", None),
+                verbose=getattr(args, "verbose", False),
             )
 
     elif args.command == "limits":

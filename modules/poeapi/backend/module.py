@@ -21,7 +21,9 @@ module is the only place in the tool where "which league is this?" has a truthfu
 answer, and it used to throw it away — leaving `prices` to fall back to a default
 and denominate an Allflame bag in Standard chaos, a factor of four on the divine
 rate. Resolving it costs no extra request: ``get-characters`` is cached for an hour
-and the default-character lookup has usually just made the call.
+and the default-character lookup has usually just made the call. The same roster
+entry also answers **which realm the account is on**, and for the same reason —
+see :data:`NO_REALM`.
 """
 
 from __future__ import annotations
@@ -63,8 +65,6 @@ __all__ = ["MODULE", "PoeApiModule"]
 
 _fallback_log = get_logger("module.poeapi")
 
-REALM = "pc"
-
 # `get-items` and `get-stash-items` share `backend-item-request-limit`, so they share
 # buckets automatically once the policy is learned. The route names below only decide
 # which *seed* budget applies before the first response teaches us anything, which is
@@ -89,6 +89,29 @@ project has had: it is *plausible* — most accounts have a Standard character �
 nothing ever looks broken, and it silently answers a question ("which economy?")
 that only the character list can answer. Empty means "ask the account", and the
 code paths below either find the answer or raise :class:`LeagueUnknownError`.
+"""
+
+NO_REALM = ""
+"""The ``realm`` setting's default, and empty for the same reason as ``league``.
+
+This module used to carry ``REALM = "pc"`` and put it in the query string of every
+character-window request. That is the league bug again at lower stakes: a constant
+standing in for an account fact the API already returns. ``get-characters`` reports
+a ``realm`` per character, and it is read off the same roster entry the league is.
+
+Empty means "ask the account". When nothing can answer — no setting, and no roster
+because the endpoint refused — the parameter is **left off the request** rather than
+guessed, and a warning says so. Leaving it off is not the same as knowing: GGG will
+answer for whatever realm it defaults to, and on a console account that is the wrong
+one. There is no ``choices`` list on the setting either: ``pc``, ``xbox`` and
+``sony`` are the three this build knows of, and refusing anything else would be the
+same mistake from the other side — this module deciding what GGG's realms are.
+
+**Unverified.** Nobody involved has a console account, so the console path is
+reasoned, not measured — and whether GGG's legacy endpoints require the parameter at
+all, rather than defaulting when it is absent, is likewise unmeasured. If a request
+without it turns out to be refused, the fix is to set the realm explicitly:
+``poedex config set poeapi.realm pc``.
 """
 
 # How stale the credential's "last confirmed" timestamp may get before a successful
@@ -150,6 +173,17 @@ class PoeApiModule:
                     "character you are playing; set it only to read a different "
                     "league's stash. A bag never uses this — it carries the league "
                     "of the character it came from."
+                ),
+            },
+            "realm": {
+                "type": "str",
+                "default": NO_REALM,
+                "label": "Realm",
+                "description": (
+                    "Which realm the account is on — 'pc', 'xbox' or 'sony'. Leave "
+                    "empty to read it off the character list, which is where it "
+                    "comes from; set it only if that list cannot be reached or "
+                    "names a realm this build does not know about."
                 ),
             },
             "account": {
@@ -214,13 +248,18 @@ class PoeApiModule:
 
     # -- PoeApi ----------------------------------------------------------------
 
-    async def get_characters(self, *, refresh: bool = False) -> CharacterList:
+    async def get_characters(
+        self, *, refresh: bool = False, realm: str | None = None
+    ) -> CharacterList:
         cache_key = "characters"
         ttl = float(self._setting("characters_ttl_seconds", DEFAULT_CHARACTERS_TTL))
+        # The one request that cannot consult the roster for its realm: this *is*
+        # the roster. Argument or setting only, and otherwise no realm parameter —
+        # the response is what answers the question for everything after it.
         payload, meta = await self._fetch(
             path=CHARACTERS_PATH,
             route=CHARACTER_ROUTE,
-            params={"realm": REALM},
+            params=_realm_param({}, self._configured_realm(realm)),
             cache_key=cache_key,
             ttl=ttl,
             refresh=refresh,
@@ -234,14 +273,23 @@ class PoeApiModule:
         *,
         account: str | None = None,
         refresh: bool = False,
+        realm: str | None = None,
     ) -> ItemSet:
         name, roster = await self._character(character)
+        # One roster answers both questions. Resolved here rather than inside each
+        # helper so a named character costs the same single cached lookup that the
+        # default-character path has already paid for.
+        if roster is None:
+            roster = await self._roster()
         league_name = await self._character_league(name, roster)
+        realm_name = await self._realm(realm, character=name, roster=roster, may_fetch=False)
         account_name = await self._account(account)
         payload, meta = await self._fetch(
             path=ITEMS_PATH,
             route=ITEM_ROUTE,
-            params={"accountName": account_name, "character": name, "realm": REALM},
+            params=_realm_param(
+                {"accountName": account_name, "character": name}, realm_name
+            ),
             cache_key=f"items:{account_name}:{name}",
             ttl=float(self._setting("items_ttl_seconds", DEFAULT_ITEMS_TTL)),
             refresh=refresh,
@@ -259,20 +307,23 @@ class PoeApiModule:
         return result
 
     async def get_stash_tabs(
-        self, league: str | None = None, *, refresh: bool = False
+        self, league: str | None = None, *, refresh: bool = False, realm: str | None = None
     ) -> StashTabList:
         league_name = await self._league(league)
+        realm_name = await self._realm(realm)
         account_name = await self._account(None)
         payload, meta = await self._fetch(
             path=STASH_PATH,
             route=ITEM_ROUTE,
-            params={
-                "accountName": account_name,
-                "league": league_name,
-                "tabs": 1,
-                "tabIndex": 0,
-                "realm": REALM,
-            },
+            params=_realm_param(
+                {
+                    "accountName": account_name,
+                    "league": league_name,
+                    "tabs": 1,
+                    "tabIndex": 0,
+                },
+                realm_name,
+            ),
             cache_key=f"stash-tabs:{account_name}:{league_name}",
             ttl=float(self._setting("stash_tabs_ttl_seconds", DEFAULT_STASH_TABS_TTL)),
             refresh=refresh,
@@ -285,19 +336,23 @@ class PoeApiModule:
         league: str | None = None,
         *,
         refresh: bool = False,
+        realm: str | None = None,
     ) -> ItemSet:
         league_name = await self._league(league)
+        realm_name = await self._realm(realm)
         account_name = await self._account(None)
         payload, meta = await self._fetch(
             path=STASH_PATH,
             route=ITEM_ROUTE,
-            params={
-                "accountName": account_name,
-                "league": league_name,
-                "tabs": 0,
-                "tabIndex": tab_index,
-                "realm": REALM,
-            },
+            params=_realm_param(
+                {
+                    "accountName": account_name,
+                    "league": league_name,
+                    "tabs": 0,
+                    "tabIndex": tab_index,
+                },
+                realm_name,
+            ),
             cache_key=f"stash-items:{account_name}:{league_name}:{tab_index}",
             ttl=float(self._setting("stash_items_ttl_seconds", DEFAULT_STASH_ITEMS_TTL)),
             refresh=refresh,
@@ -453,12 +508,10 @@ class PoeApiModule:
         :class:`LeagueUnknownError`). What this must never do is *substitute* one —
         that is the bug this whole path exists to close.
 
-        Costs no request in the normal case. ``get-characters`` is cached for an
-        hour and the default-character path above has usually just fetched it, so
-        this is a dictionary lookup wearing an ``await``.
+        Costs no request: the caller has already resolved the roster, which
+        ``get-characters`` caches for an hour and the default-character path has
+        usually just fetched. ``None`` means it could not be reached at all.
         """
-        if roster is None:
-            roster = await self._roster()
         if roster is None:
             return None
         entry = roster.named(name)
@@ -505,8 +558,8 @@ class PoeApiModule:
             if status.account:
                 return status.account
         raise AccountUnknownError(
-            "no account name on record. Run 'poedex auth set --account <name>' or set "
-            "the poeapi.account setting."
+            "no account name on record. Run 'poedex auth set --account <name>', or "
+            "'poedex config set poeapi.account <name>'."
         )
 
     async def _league(self, explicit: str | None) -> str:
@@ -525,9 +578,70 @@ class PoeApiModule:
         if current is not None and current.league:
             return current.league
         raise LeagueUnknownError(
-            "no league to read the stash from: pass one, or set the poeapi.league "
-            "setting. Reading Standard by default is how a tool shows you somebody "
-            "else's stash and calls it yours."
+            "no league to read the stash from: pass one, or run "
+            "'poedex config set poeapi.league <league>'. Reading Standard by default "
+            "is how a tool shows you somebody else's stash and calls it yours."
+        )
+
+    def _configured_realm(self, explicit: str | None) -> str | None:
+        """The realm somebody *stated*: the argument, then the setting. Else ``None``.
+
+        Split out from :meth:`_realm` because ``get-characters`` may use only this
+        half — asking the roster which realm to fetch the roster from is the circle
+        the old ``REALM = "pc"`` constant papered over.
+        """
+        if explicit and explicit.strip():
+            return explicit.strip()
+        configured = str(self._setting("realm", NO_REALM)).strip()
+        return configured or None
+
+    async def _realm(
+        self,
+        explicit: str | None,
+        *,
+        character: str | None = None,
+        roster: CharacterList | None = None,
+        may_fetch: bool = True,
+    ) -> str | None:
+        """Which realm to ask about: argument, then setting, then the roster entry.
+
+        ``None`` is a real answer and means "nobody can say". The caller then leaves
+        the parameter off the request entirely — it does not fall back to ``pc``,
+        because that is precisely the constant this replaced. The fallback is loud:
+        every unresolved realm logs a warning naming the command that fixes it.
+
+        The roster entry is the authority, and it is the same entry the league comes
+        from. ``character`` picks the row when the caller knows which character it is
+        reading; the stash, which has no character, takes the account's current one.
+
+        ``may_fetch=False`` says the caller has already tried and ``roster=None``
+        means *unavailable* rather than *not looked up* — so a failed character
+        fetch is not immediately retried while the limiter is still backing off.
+        """
+        stated = self._configured_realm(explicit)
+        if stated:
+            return stated
+        if roster is None and may_fetch:
+            roster = await self._roster()
+        if roster is None:
+            self._warn_realm("the character list could not be reached")
+            return None
+        entry = roster.named(character) if character else roster.current()
+        if entry is None:
+            self._warn_realm(f"no character named {character!r} on this account")
+            return None
+        if not entry.realm:
+            self._warn_realm("the character list did not say which realm it is on")
+            return None
+        return entry.realm
+
+    def _warn_realm(self, reason: str) -> None:
+        self._log().warning(
+            "cannot tell which realm this account is on (%s); the realm parameter is "
+            "being left off the request, so GGG answers for whichever realm it "
+            "defaults to. On an Xbox or Sony account that is the wrong one: run "
+            "'poedex config set poeapi.realm <pc|xbox|sony>'.",
+            reason,
         )
 
     def _setting(self, key: str, default: Any) -> Any:
@@ -610,6 +724,18 @@ class PoeApiModule:
         return f"PoeApiModule(started={self._net is not None})"
 
 
+def _realm_param(params: dict[str, Any], realm: str | None) -> dict[str, Any]:
+    """Add ``realm`` to a query only when one is actually known.
+
+    An absent parameter and a guessed one are different claims. This is the single
+    place that decides which of the two goes on the wire, so there is nowhere left
+    for a ``"pc"`` to be reintroduced by accident.
+    """
+    if realm:
+        params["realm"] = realm
+    return params
+
+
 # -- payload readers ------------------------------------------------------------
 #
 # Kept as free functions so a test can feed them a fixture without a module.
@@ -629,6 +755,7 @@ def _characters_from(payload: Any) -> list[Character]:
             Character(
                 name=name,
                 league=entry.get("league") if isinstance(entry.get("league"), str) else None,
+                realm=entry.get("realm") if isinstance(entry.get("realm"), str) else None,
                 class_name=entry.get("class") if isinstance(entry.get("class"), str) else None,
                 level=_int(entry.get("level")),
                 experience=_int(entry.get("experience")),

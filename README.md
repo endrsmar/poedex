@@ -20,8 +20,13 @@ leaving gaming mode.
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev,web]'   # 3.11+
 pnpm install && pnpm build                                       # the web surface
 poedex auth set                                                  # a POESESSID, from a hidden prompt
+poedex config set net.contact you@example.com                    # GGG asks for one in the User-Agent
 poedex serve                                                     # http://127.0.0.1:7331
 ```
+
+`poedex config list` prints every setting, its value and whether that value is stored or the
+default; `config get|set|unset <module>.<key>` is the rest of it. The POESESSID is not a setting
+and is not reachable from any of them.
 
 `serve` binds to the loopback interface and refuses anything else — it reads your account's
 inventory, and `0.0.0.0` would put that on whatever network you are attached to.
