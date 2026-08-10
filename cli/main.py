@@ -12,6 +12,7 @@ Commands:
     poedex value                       price the bag: per-item values and a total
     poedex appraise                    the bag, judged: keep/check/trash/unpriceable
     poedex limits                      print what the rate limiter currently knows
+    poedex moddb                       the mod database: how old, and what it says
     poedex serve                       the web surface on http://127.0.0.1:7331
     poedex selftest freshness          the in-game freshness experiment (SPEC §4.3)
 
@@ -32,6 +33,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
 from cli.appraise import cmd_appraise
+from cli.moddb import cmd_moddb
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
 from cli.serve import DEFAULT_PORT, cmd_serve
 from cli.sync import cmd_sync, render_limits
@@ -47,6 +49,7 @@ from modules.gamelog.backend.api import (
     GameLogApi,
     GameLogStatus,
 )
+from modules.moddb.backend.api import Origin as ModOrigin
 from modules.poeapi.backend.api import CHARACTER_ENV, PoeApi
 from modules.prices.backend.api import PricesApi
 from runtime.errors import PoedexError
@@ -235,6 +238,31 @@ def build_parser() -> argparse.ArgumentParser:
     _add_league_argument(appraise)
 
     sub.add_parser("limits", help="print the rate limiter's current view")
+
+    moddb = sub.add_parser(
+        "moddb",
+        help="the mod database: its age, a base, or what a rolled mod is",
+        description=(
+            "Prints the database's game version and build date first, always. A mod "
+            "database one league old does not fail — it answers confidently and "
+            "wrongly — so its age is the headline, not a footnote."
+        ),
+    )
+    moddb.add_argument("--base", help="a base type, e.g. 'Hubris Circlet'")
+    moddb.add_argument("--mod", help="a rolled mod line, e.g. '+95 to maximum Life'")
+    moddb.add_argument("--ilvl", type=int, default=0, help="the item's level")
+    moddb.add_argument(
+        "--origin",
+        default=ModOrigin.EXPLICIT.value,
+        choices=[o.value for o in ModOrigin],
+        help="which array the line came from",
+    )
+    moddb.add_argument(
+        "--influence",
+        action="append",
+        choices=["shaper", "elder", "crusader", "hunter", "redeemer", "warlord"],
+        help="influences on the item; repeatable. Without it, influence mods cannot match",
+    )
 
     serve = sub.add_parser(
         "serve",
@@ -502,6 +530,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     elif args.command == "limits":
         runner = cmd_limits
+    elif args.command == "moddb":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_moddb(
+                registry,
+                base=args.base,
+                mod=args.mod,
+                ilvl=args.ilvl,
+                origin=args.origin,
+                influence=args.influence,
+            )
+
     elif args.command == "serve":
         # Set before _with_runtime builds the registry: poeapi reads it at resolve
         # time, and a flag must not persist into the user's settings file.

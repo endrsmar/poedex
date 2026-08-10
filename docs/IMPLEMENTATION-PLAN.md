@@ -40,7 +40,7 @@ shared **UI kit with surface profiles** (§2), not by writing the feature twice.
 │  MODULES      backend + ui. toggleable. may depend on each     │
 │               other and on core.                              │
 ├──────────────────────────────────────────────────────────────┤
-│  CORE         credentials · net · poeapi · gamelog            │
+│  CORE         credentials · net · poeapi · gamelog · moddb    │
 │  MODULES      PoE infrastructure, zero feature opinion.       │
 │               always loaded. may NOT depend on features.      │
 ├──────────────────────────────────────────────────────────────┤
@@ -226,6 +226,7 @@ modules/
   net/          [core]   backend/               httpx + header-driven limiter
   poeapi/       [core]   backend/               endpoints, normalization, cache
   gamelog/      [core]   backend/               locate, tail, parse → events
+  moddb/        [core]   backend/  data/       trimmed mod database; requires: []
   prices/       [feature] backend/              requires: poeapi
   appraisal/    [feature] backend/  ui/         requires: prices
 ui-kit/                       @poedex/ui
@@ -459,6 +460,51 @@ real geometry, hot-reload loop.
 **Done:** installs from a Release zip; the same `BagScreen.tsx` renders at 300 px with D-pad
 navigation.
 
+### Phase 8 — `moddb` — **done**
+
+A trimmed Path of Exile mod database as a `kind: "core"` module with `requires: []`. Core because
+game data is factual; whether a T1 roll makes an item worth keeping stays `appraisal`'s job.
+
+It exists for a design pivot. **Automatic rare pricing is abandoned** — it failed twice against
+the live account, once by ANDing every mod and finding zero listings, once by querying one loose
+mod and reporting 10c for a 1c item. No heuristic recovers *which mods make an item interesting*;
+that is player knowledge. The replacement is Awakened PoE Trade's model: highlight items that are
+*potentially* expensive, show their mods as a checkbox list with the significant ones pre-ticked,
+and let the player trigger the price check. This module supplies the facts that make the
+highlight and the pre-tick correct rather than guessed.
+
+**A build step, not a download.** `scripts/build_moddb.py` fetches repoe-fork (the maintained
+fork of RePoE, archived Dec 2024) and emits a committed 566 KiB artifact from 30 MB of upstream
+JSON. `--check` answers "is the committed one current?". No test touches the network and there is
+no runtime fetch path — `modules/moddb/tests/test_module.py` walks the AST to prove there is not
+even an unused one.
+
+**Regeneration is the module's maintenance obligation, and skipping it fails silently.** A
+league-old mod database still answers everything and still sounds certain. So the artifact stamps
+its game version and build date, `ModDbApi.version()` exposes both, `poedex moddb` prints them
+first, and the module logs a warning past 120 days.
+
+Three things beyond a straight port of the data:
+
+- **Attribution is a return type.** Deciding "this +85 life is T2" means deciding which mod
+  produced it, which is often undecidable: several groups render one sentence, hybrids write
+  several, and pools overlap. `Attribution` is `exact` / `group` / `ambiguous` / `unknown`, and
+  the last two expose no tier at all. Nothing ever picks the most likely candidate — the most
+  likely candidate is right *most* of the time, which is exactly what makes it dangerous.
+- **A tier ladder belongs to a base and to a pool, not to a group.** `+95 to maximum Life` is T4
+  of 10 on a helmet and T7 of 13 on a body armour. Candidates spanning two ladders — a dropped
+  affix and a bench craft, an ordinary roll and an essence one — are `ambiguous`, because their
+  tier numbers are counted from different places.
+- **Whole-item context is a second pass.** A mod that writes two sentences can only be the answer
+  if both are on the item. That turns `+26 to Armour` from ambiguous into exact, and it is what
+  makes the affix count right: a hybrid takes one slot, not two.
+
+Measured on the live-derived fixtures: **79% of affix lines resolve confidently** (13 exact, 2
+group, 2 ambiguous, 2 unknown, of 19). Both "unknown"s are rolls the fixture scrubbing invented.
+
+**Done:** `poedex moddb --base 'Hubris Circlet' --mod '+95 to maximum Life' --ilvl 86` prints
+`T4 of 10`, a ceiling of 144, and both stat ids. 1047 Python tests, all offline.
+
 ---
 
 ## 6. Decisions made, flag if you disagree
@@ -487,6 +533,13 @@ navigation.
 | `check` is split in the UI, not in `Verdict` | Phase 4 asked for the split before the panel was drawn. Both lanes still mean *look before you vendor*, so the difference is layout: a fifth verdict would need a fifth colour and a change to the CLI, the event payload and every test |
 | The compact profile is implemented, not stubbed | The phase's stated risk cannot be checked against signatures. Running the real test suite through the other profile found five content drops and one forked vocabulary; a stub would have found none of them |
 | The HTTP transport refuses non-loopback `Host`/`Origin` | Binding to 127.0.0.1 stops another machine, not another tab. Any page can POST to localhost, and DNS rebinding gives it an origin. No CORS headers, ever |
+| `moddb` is core with `requires: []` | Which affixes exist, what each rolls and where each spawns are facts. Judging whether a T1 roll is worth keeping is a feature opinion, and it stays in `appraisal` |
+| The mod database is a committed artifact, not a download | A Decky plugin installs from a zip with no pip. 30 MB of upstream JSON trims to 566 KiB of what the consumers actually ask about, and a runtime fetch would put a startup dependency on a GitHub Pages site |
+| Regeneration is documented and stamped rather than automated | It cannot be automated inside a plugin that must not fetch. So the artifact carries its game version and build date, four surfaces show them, and staleness is a warning rather than a surprise |
+| Attribution has four states and two of them refuse to name a tier | "T2" when the truth is "probably T2, possibly T3" is a lie the player acts on and cannot check. The evidence stays on the return value; only the *claim* is withheld |
+| A tier ladder is keyed by (group, base, pool) | The same sentence is T4 of 10 on a helmet and T7 of 13 on a body armour, and an essence or influence tier is counted from a different place entirely. A ladder keyed by group alone produces "T1–T5 of 9", which is two numbers off two rulers |
+| Whole-item context narrows candidates but never eliminates them | A hybrid is ruled out by the line the item does not show — a deduction. But if *every* candidate wants a missing line, the likelier explanation is that the caller under-described the item, so the unfiltered answer comes back with a note |
+| Mod texts are matched, not stat ids | RePoE's `text` is already rendered with every index handler applied, so the trim step never reimplements the translation renderer. `stat_translations.json` is then needed for exactly one thing: bridging that text to the trade API's opaque ids |
 
 ---
 

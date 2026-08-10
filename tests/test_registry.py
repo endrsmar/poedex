@@ -314,6 +314,7 @@ def test_discovery_finds_every_shipped_module():
         "appraisal",
         "credentials",
         "gamelog",
+        "moddb",
         "net",
         "poeapi",
         "prices",
@@ -322,6 +323,7 @@ def test_discovery_finds_every_shipped_module():
         "appraisal": "feature",
         "credentials": "core",
         "gamelog": "core",
+        "moddb": "core",
         "net": "core",
         "poeapi": "core",
         "prices": "feature",
@@ -355,6 +357,7 @@ def test_build_from_the_real_tree_resolves_in_dependency_order():
     assert registry.resolve() == [
         "credentials",
         "gamelog",
+        "moddb",
         "net",
         "poeapi",
         "prices",
