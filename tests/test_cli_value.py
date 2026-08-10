@@ -12,6 +12,7 @@ from cli.value import cmd_value, format_chaos, render_bag, render_total
 from modules.poeapi.backend.api import PoeApi
 from modules.prices.backend.api import PricesApi
 from modules.prices.backend.ninja import PREFETCH
+from tests.conftest import DISCOVERY_REQUESTS
 
 
 @pytest.mark.parametrize(
@@ -62,7 +63,10 @@ async def test_it_prints_the_bag_with_values_and_a_total(priced_stack, capsys):
     # And the provenance of each number.
     assert "note" in out and "bulk" in out
     assert f"{len(PREFETCH)}/{len(PREFETCH)} loaded" in out
-    assert "0 request(s)" in out
+    # `value` never runs a trade search; the bulk-exchange line beside it is tier 1b
+    # and is reported separately rather than folded into one "trade" number.
+    assert "trade:      0 search(es)" in out
+    assert "bulk-exchange request(s)" in out
 
 
 async def test_it_reports_how_much_deduplication_saved(priced_stack, capsys):
@@ -94,12 +98,20 @@ async def test_pricing_the_bag_spends_one_ggg_request_and_no_more(
     capsys.readouterr()
     after = server.to_host("www.pathofexile.com")[before:]
     # get-characters resolves the default character and is cached hard; get-items is
-    # the only other one. Crucially: no trade call, and no GGG call for pricing.
-    assert {r.url.path for r in after} <= {
+    # the only other one. Nothing else may touch the *account* endpoints.
+    account = [r for r in after if r.url.path.startswith("/character-window/")]
+    assert {r.url.path for r in account} <= {
         "/character-window/get-items",
         "/character-window/get-characters",
     }
-    assert server.trade_requests() == []
+    # The trade host is the same host, and that is the whole reason this assertion
+    # is about policies rather than hostnames: the tier-1b fallback below goes to
+    # `trade-exchange-request-limit`, which is Ip-ruled and cannot spend the
+    # account's `backend-item-request-limit` budget. What must never happen is a
+    # tier-3 *search*, which is the thing SPEC §5.3 calls eager pricing.
+    paths = [r.url.path for r in server.trade_requests()]
+    assert not any(p.startswith(("/api/trade/search/", "/api/trade/fetch/")) for p in paths)
+    assert all("cookie" not in {k.lower() for k in r.headers} for r in server.trade_requests())
 
 
 async def test_refresh_prices_forces_a_table_refetch(priced_stack, server, capsys, clock):
@@ -113,7 +125,9 @@ async def test_refresh_prices_forces_a_table_refetch(priced_stack, server, capsy
         refresh_prices=True,
     )
     capsys.readouterr()
-    assert len(server.to_host("poe.ninja")) == before + len(PREFETCH)
+    # A forced refresh re-runs discovery: "give me today's prices" and "and check
+    # the table list is still right" are the same instruction from a user's side.
+    assert len(server.to_host("poe.ninja")) == before + DISCOVERY_REQUESTS
 
 
 async def test_without_tables_it_says_so_and_fails(stack_factory, registry, server, cache_clock,

@@ -80,7 +80,17 @@ async def full_stack(stack_factory, registry, server, prices_module, appraisal_m
 
 
 def ninja_leagues(server) -> set[str]:
-    return {r.url.params.get("league") for r in server.to_host(NINJA)}
+    """Which leagues the *overview* requests named.
+
+    The sitemap read that opens discovery carries no league query parameter — the
+    league is in the URLs inside it — so it is excluded rather than allowed to show
+    up here as a ``None`` that looks like a leak.
+    """
+    return {
+        r.url.params.get("league")
+        for r in server.to_host(NINJA)
+        if r.url.path != "/sitemap.xml"
+    }
 
 
 def character_calls(server) -> int:

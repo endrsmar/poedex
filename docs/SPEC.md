@@ -51,9 +51,10 @@ Each rejected for a concrete reason. Do not re-propose without reading `research
 ├──────────────────────────────────────────────────────────────┤
 │  Pricing + verdict engine                                     │
 │    tier 0  the item's own `note` field (free)                 │
-│    tier 1  bulk price table (poe.ninja)                       │
+│    tier 1  bulk price table (poe.ninja), types discovered     │
+│    tier 1b bulk exchange (GGG) — currency tier 1 misses       │
 │    tier 2  local heuristic gate, strictness-parameterized     │
-│    tier 3  trade API query (rate-limited, queued, on demand)  │
+│    tier 3  trade API search — eager for a bag, never a stash  │
 ├──────────────────────────────────────────────────────────────┤
 │  Data layer                                                   │
 │    Client.txt tailer  →  zone-change events (free, no API)    │
@@ -257,6 +258,22 @@ Measured composition of the real test account: **~98% of items resolve at tier 1
 "hundreds of rares" case does not exist, because players sort their stash and rares are
 spatially segregated into one or two gear tabs.
 
+**Numbering.** Phase 4b added a source between tier 1 and tier 2 and did *not* renumber the
+existing tiers, because tier 2 and tier 3 are referenced by name throughout this document, the
+plan, the code and the module docstrings. The new one is **tier 1b**: still a bulk answer, still
+a whole-market figure rather than one item's comparables, and it only ever runs where tier 1
+came back empty. Resolution order is therefore:
+
+```
+tier 0 note → tier 1 poe.ninja bulk → tier 1b GGG bulk exchange → unpriceable
+                                                       ↑
+                        tier 2 gate → tier 3 trade search ┘   (rares only)
+```
+
+`unpriceable` still means *"we genuinely could not price this"*. It is never zero, never
+`trash`, and a tier that was asked and answered "nobody is selling one" produces it just as a
+tier that had no table does — with a different sentence saying which.
+
 ### 5.0 Tier 0 — the item's own note
 
 Items and tabs carry the user's own asking price (`~price 2 awakened-sextant`, `~b/o 25 chaos`).
@@ -277,6 +294,34 @@ and category are **query parameters**, and the path ends in `/overview`:
 Covers currency, fragments, scarabs, fossils, essences, oils, delirium orbs, incubators, maps,
 divination cards, uniques. Lookup by name (+ tier/corruption for maps, links/variant for uniques).
 Divination cards are on the **exchange** overview, not the item one.
+
+**Which types exist is discovered per league, not hardcoded.** This is not a refinement; it is a
+bug fix. The type list was twenty-six names typed in by hand and `Ducat` was not one of them —
+so for a whole league every ducat in a bag came back `unpriceable` while poe.ninja was publishing
+eleven priced lines for them. poe.ninja documents **44** types (`/docs/api`, matching the 44
+category slugs in its sitemap) and there is **no endpoint that enumerates them per league**:
+`/poe1/api/economy/types`, `…/exchange/current/types`, `…/index` and `/poe1/api/economy/categories`
+all 404 (research-notes §9.6). So:
+
+1. read `https://poe.ninja/sitemap.xml` and take the `/poe1/economy/{league}/{slug}` slugs — the
+   only machine-readable category index the site publishes;
+2. derive each slug's API `type` by de-pluralising and PascalCasing (43 of 44 fall out of the
+   rule; `temples → IncursionTemple` is the one exception) — **this is what lets discovery find
+   a type nobody has typed into the catalogue**, which is the property the `Ducat` failure
+   demands;
+3. probe every candidate once and record which served ≥1 line, per league, for a day;
+4. fall back to the static list if any of that fails, and say so on screen.
+
+Six types are never fetched, with reasons in code: `SkillGem` (4.0 MB), `ImbuedGem` (2.4 MB),
+`BaseType` (9.4 MB, priced per ilvl and influence), `ValdoMap`, `ClusterJewel` and
+`ForbiddenJewel` (keyed by a variant the line chooser does not score). An unpriced item is
+honest; an item priced as the wrong variant is not.
+
+Cost, measured 2026-08-10: one discovery pass is 39 requests / 3.4 MB for Allflame and 4.0 MB for
+Standard, against 16 requests / 3.0 MB for the old hardcoded prefetch. Steady state is the served
+subset only — Allflame serves 36 of the 38 candidates, Standard 37 — almost all `304`s. The
+foreign-host courtesy budget was raised from 40 to 90 per minute to fit one discovery pass plus a
+forced refresh.
 
 **Two shapes, one unit.** Exchange lines are keyed by an opaque `id` — which is also the trade id
 a `~price N divine` note uses — with names in a sibling `items[]` array and values in
@@ -304,6 +349,32 @@ picks the current series without the code needing to know what a series is.
 and cannot comply; the mitigations behind that request — caching, conditional requests, a
 contactable User-Agent, controlled volume — are all in place. research-notes §9.4.
 
+### 5.1b Tier 1b — GGG's bulk exchange
+
+`POST /api/trade/exchange/{league}`, for **currency- and fragment-class items poe.ninja does not
+index at all**. A safety net, not the ducat fix — ducats were a discovery failure and are priced
+at tier 1 again. What is left for this tier is the case discovery cannot reach: something GGG
+trades that poe.ninja has never carried a table for.
+
+- **Names come from `/api/trade/data/static`** (195 kB, `max-age=1800`, cached a day). The
+  exchange speaks in ids (`merricks-ducat`); an item off the account endpoint has only a name.
+- **Median of the cheapest N, not the minimum**, same rule and same reason as §5.3. Measured: the
+  two cheapest ducat offers were 1 chaos with stock 1; the median of the cheapest ten is 3 chaos.
+- **Batch — carefully.** The `want` array takes up to **10** ids (eleven is a `400`), but the
+  response is capped at **100 rows sorted by price ascending across the whole batch**. Ten ducat
+  ids in one request returned 100 rows all at the 1-chaos floor and gave Merrick's Ducat two of
+  them; alone it returns 39 offers spanning 1c–5c. The rule that makes batching safe falls out of
+  that sort order: *a want that received at least N offers from a globally cheapest-first set holds
+  precisely its own cheapest N*. So batch, trust the wants that came back full, and re-query only
+  the starved ones (bounded). On the ducats that is one batch plus one re-query rather than eleven
+  requests, with the same numbers.
+- **Cache hard, per league.** Six hours. `trade-exchange-request-limit` is `5:15:60, 10:90:300,
+  30:300:1800`, `Ip`-ruled, and shared with the player's own browser.
+- Rates are **never** reused across leagues, for the same reason price tables are not.
+
+⚠️ Exchange listings carry the same third-party PII as trade listings. Only numbers survive
+parsing; nothing logs a listing.
+
 ### 5.2 Tier 2 — local heuristic gate, strictness-parameterized
 
 Same code, a `strictness` parameter, because the two contexts want opposite biases:
@@ -322,21 +393,47 @@ enter tier 2 or 3 at all.
 
 ### 5.3 Tier 3 — trade API query
 
-Only on demand: the user focuses an item, or explicitly prices a tab with a visible cost
-(*"43 items, ~12 will escalate, ~4 min"*). **Never eager.**
+**Eager for a bag, never for a stash.** The original rule here was "never eager", and it was
+written with stash scale in mind: a generous gate over 818 items produces hundreds of candidates
+and eager escalation is a self-inflicted rate-limit violation. **A bag is not a stash.** The real
+account's backpack holds three to five rares, and the measured search budget is `5:10:60,
+15:60:300`. Four searches and four fetches fit inside that with headroom.
+
+The distinction is already encoded in the `strictness` parameter (§5.2), so it is reused rather
+than duplicated:
+
+| Strictness | Context | Tier 3 |
+|---|---|---|
+| `generous` | bag | eager for gate-passing rares, capped at `max_eager_quotes` (default 4) and `eager_timeout_seconds` (default 12) |
+| `strict` | stash | never, and an explicit `escalate=True` does not override it |
+
+Without this, every rare in a bag came back with a gate verdict and no number, which is the one
+place the tool was structurally unable to answer its own question. A stash tab still escalates
+only on demand, with a visible cost (*"43 items, ~12 will escalate, ~4 min"*).
 
 `POST /api/trade/search/{league}` then `GET /api/trade/fetch/{ids}?query={id}` (max 10 ids).
 Stat filters key off opaque ids from `/api/trade/data/stats` — never readable text.
 
 Filter to online sellers; take the **median of the cheapest N**, not the minimum. Show a
 per-item `pricing…` state that never gates the grid; display the bag total as `≥ N div` while
-tier-3 items are outstanding.
+tier-3 items are outstanding. Both are implemented: `Valuation.pricing` carries the per-item
+state, `BagAppraisal.total_is_floor` the bag one, and the CLI prints `⋯` in the value column and
+`≥` before the total. A quote that has not returned by the timeout is abandoned, not awaited — a
+slow query may cost a number, never the output.
 
 Trade limits are separate from the item bucket: `trade-search-request-limit`
-`5:10:60, 15:60:300, 30:300:1800, 600:21600:3600`. Both trade policies are **Ip-ruled only**,
-with no Account rule — the endpoints need no credential, and sending one would tie a public
-query to the account for nothing. Re-measured 2026-08-10, unchanged. `/api/trade/data/stats`
-carries no rate-limit headers at all and a `max-age=1799`.
+`5:10:60, 15:60:300, 30:300:1800, 600:21600:3600`, `trade-fetch-request-limit`
+`12:4:10, 16:12:300, 50:300:300, 1000:21600:1800`, and `trade-exchange-request-limit`
+`5:15:60, 10:90:300, 30:300:1800` (§5.1b). All three are **Ip-ruled only**, with no Account rule —
+the endpoints need no credential, and sending one would tie a public query to the account for
+nothing. Re-measured 2026-08-10. `/api/trade/data/stats` and `/api/trade/data/static` carry no
+rate-limit headers at all and a `max-age=1799`/`1800`.
+
+**Budget for one `poedex appraise`, worst case:** 1 account request (the bag) + 1 stat document +
+4 searches + 4 fetches + ≤2 bulk-exchange = **12**, spread over four independent policies, of
+which exactly one is the account's. Steady state, with the stat document and exchange rates
+cached and no new rares: 1 account request and up to 8 trade requests. The `5:10:60` search rule
+is the binding one, and four of five leaves a request spare for the player's own browser.
 
 ⚠️ Listings carry third-party PII: `account.name`, `lastCharacterName`, and a `whisper` string
 containing the seller's character name. Never log a raw listing.
@@ -350,7 +447,7 @@ Four states, encoded in **both** color and shape so the grid survives greyscale.
 | `keep` | At or above the keep threshold |
 | `check` | Below threshold but non-trivial, or tier-3 pending |
 | `trash` | Confidently below threshold |
-| `unpriceable` | **Not in the price index** — do not conflate with trash |
+| `unpriceable` | **No tier could price it** — do not conflate with trash |
 
 `unpriceable` is not optional. The test account's Standard stash holds ~170 `Veiled Scarab`, a
 removed item absent from poe.ninja's league index. Reporting those as `trash` would understate

@@ -45,6 +45,19 @@ async def run(stack, capsys, **kwargs):
     return code, capsys.readouterr().out
 
 
+async def appraised(stack, **kwargs):
+    """The same appraisal the CLI just printed, as an object.
+
+    The fixtures make this deterministic — same bag, same tables, same scripted
+    trade responses — so asserting on the object and on the text together is
+    checking the renderer rather than re-running the engine and hoping.
+    """
+    from modules.poeapi.backend.api import Source
+
+    bag = await stack.api(PoeApi).get_items()
+    return await stack.api(AppraisalApi).appraise(bag.by_source(Source.BAG), **kwargs)
+
+
 def block(out: str, verdict: Verdict) -> list[str]:
     """The rows under one heading, up to the blank line that ends the block."""
     lines = out.splitlines()
@@ -95,15 +108,23 @@ async def test_the_most_valuable_item_is_the_first_row_of_the_keep_block(
 async def test_gate_flagged_rares_sort_above_priced_rows_inside_check(
     appraised_stack, capsys
 ):
-    """A `check` block mixes "worth 6 chaos" with "worth an unknown amount, and here
-    is why you should look". The second is the one the player cannot work out alone,
-    so it goes first."""
+    """A `check` block mixes "worth 6 chaos" with "the gate says look at this". The
+    second is the one the player cannot work out alone, so it goes first.
+
+    Read off the result rather than sniffed out of the text: since Phase 4b a
+    gate-flagged rare usually *has* a number too — a trade one — so "no number" is no
+    longer a proxy for "flagged"."""
     _, out = await run(appraised_stack, capsys)
-    rows = block(out, Verdict.CHECK)
-    flagged = [i for i, row in enumerate(rows) if "—" in row]
-    priced = [i for i, row in enumerate(rows) if "c   " in row]
-    assert flagged and priced
-    assert max(flagged) < min(priced)
+    result = await appraised(appraised_stack)
+    rows = [item for item in result.ranked() if item.verdict is Verdict.CHECK]
+    flagged = [i for i, item in enumerate(rows) if item.escalate]
+    plain = [i for i, item in enumerate(rows) if not item.escalate]
+    assert flagged and plain
+    assert max(flagged) < min(plain)
+    # ...and the rendering preserves that order.
+    printed = block(out, Verdict.CHECK)
+    assert len(printed) == len(rows)
+    assert rows[0].name[:12] in printed[0]
 
 
 async def test_each_verdict_has_its_own_glyph_so_the_output_survives_greyscale(
@@ -125,11 +146,19 @@ async def test_the_output_never_prints_zero_chaos_for_an_item_of_unknown_value(
     appraised_stack, capsys
 ):
     _, out = await run(appraised_stack, capsys, show_all=True)
+    unknown = ("no bulk price", "poe.ninja index", "pricing…", "bulk-exchange offers")
+    seen = 0
     for verdict in Verdict:
         for row in block(out, verdict):
-            if "no bulk price" in row or "poe.ninja index" in row or "6-link" in row:
-                assert " 0c " not in row and not row.split()[-1].endswith(" 0c"), row
-                assert "—" in row, row
+            if not any(phrase in row for phrase in unknown):
+                continue
+            seen += 1
+            # No number at all, and never a zero. The two ways of having no number
+            # are distinct: "—" is "we have none", "⋯" is "we asked and it has not
+            # arrived yet".
+            assert " 0c " not in row and not row.rstrip().endswith(" 0c"), row
+            assert "—" in row or "⋯" in row, row
+    assert seen, "the bag no longer exercises the unknown-value path at all"
 
 
 async def test_unpriceable_is_a_block_with_a_unit_count_not_a_footnote(
@@ -231,11 +260,36 @@ def _count(out: str, verdict: Verdict) -> int:
 # -- honest failure ------------------------------------------------------------
 
 
-async def test_it_reports_no_trade_requests_were_made(appraised_stack, server, capsys):
-    before = len(server.trade_requests())
+async def test_it_reports_what_tier_3_actually_cost(appraised_stack, server, capsys):
+    """The line used to read "0 request(s) — tier 3 is on demand only". It now has a
+    number that can be non-zero, so it has to be the *real* number: a request budget
+    the output under-reports is worse than one it does not mention."""
     _, out = await run(appraised_stack, capsys)
+    tier3 = [r for r in server.trade_requests() if _is_tier3(r.url.path)]
+    searches = [r for r in tier3 if "/api/trade/search/" in r.url.path]
+    fetches = [r for r in tier3 if "/api/trade/fetch/" in r.url.path]
+    # One stat document, then a search and a fetch per rare. The stat document is a
+    # trade request and is counted as one — a budget the output rounds in its own
+    # favour is a budget nobody can check.
+    assert f"trade:      {len(tier3)} request(s)" in out
+    assert searches and len(fetches) == len(searches)
+    assert len(tier3) == len(searches) + len(fetches) + 1
+    assert "eager tier 3 for this bag" in out
+
+
+async def test_a_no_escalate_run_spends_nothing_and_says_so(appraised_stack, server, capsys):
+    """``--no-escalate``. The tier-1b bulk-exchange lookup below is not tier 3 and is
+    not switched off by this flag; nothing that searches for an *item* runs."""
+    _, out = await run(appraised_stack, capsys, escalate=False)
     assert "trade:      0 request(s)" in out
-    assert len(server.trade_requests()) == before
+    assert "escalation is off for this run" in out
+    assert not [r for r in server.trade_requests() if _is_tier3(r.url.path)]
+
+
+def _is_tier3(path: str) -> bool:
+    return path.startswith(
+        ("/api/trade/search/", "/api/trade/fetch/", "/api/trade/data/stats")
+    )
 
 
 async def test_without_price_tables_it_says_so_and_still_prints_the_bag(

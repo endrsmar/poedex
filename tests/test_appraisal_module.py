@@ -20,7 +20,7 @@ from modules.appraisal.backend.api import (
 )
 from modules.appraisal.backend.module import AppraisalModule
 from modules.poeapi.backend.api import PoeApi, Source
-from modules.prices.backend.api import PricesApi
+from modules.prices.backend.api import PricesApi, PriceSource
 from runtime.errors import ModuleNotStartedError
 
 # -- declaration and wiring ----------------------------------------------------
@@ -125,8 +125,14 @@ async def test_every_verdict_path_is_reachable_on_one_bag(appraiser, loot):
 
 
 async def test_the_two_strictness_levels_disagree_on_the_same_bag(appraiser, loot):
-    generous = await appraiser.appraise(loot, strictness=Strictness.GENEROUS)
-    strict = await appraiser.appraise(loot, strictness=Strictness.STRICT)
+    """The two *gates*, with tier 3 held out of the comparison.
+
+    ``escalate=False`` on both sides deliberately: since Phase 4b the generous run
+    also *prices* what it flags, so a like-for-like comparison of the two gates has
+    to switch that off or it is comparing two different questions.
+    """
+    generous = await appraiser.appraise(loot, strictness=Strictness.GENEROUS, escalate=False)
+    strict = await appraiser.appraise(loot, strictness=Strictness.STRICT, escalate=False)
 
     assert generous.counts["check"] > strict.counts["check"]
     assert generous.counts["trash"] < strict.counts["trash"]
@@ -137,6 +143,7 @@ async def test_the_two_strictness_levels_disagree_on_the_same_bag(appraiser, loo
     # And no threshold moved, so the money is identical either way.
     assert generous.total_chaos == strict.total_chaos
     assert generous.counts["unpriceable"] == strict.counts["unpriceable"]
+    assert (generous.trade_requests, strict.trade_requests) == (0, 0)
 
 
 async def test_the_total_excludes_unpriceable_and_worn_equipment(appraised_stack, appraiser):
@@ -183,35 +190,74 @@ def test_the_gate_is_reachable_without_pricing_anything(appraiser, loot):
 # -- the request budget --------------------------------------------------------
 
 
-async def test_appraising_a_bag_issues_zero_trade_requests(appraised_stack, server, loot):
-    """SPEC §5.3: tier 3 is on demand only. Counted at the transport, because a
-    field on the result object could be wrong in exactly the same way the code is."""
+async def test_a_stash_run_is_never_escalated_however_it_is_asked(
+    appraised_stack, server, loot
+):
+    """SPEC §5.3's rule, which survives Phase 4b in the place it was actually about.
+
+    A bag of five rares fits inside ``5:10:60``. A stash of 818 items does not, and
+    that is a property of the stash rather than of the caller's intent — so
+    ``escalate=True`` at strict strictness is refused, not obeyed."""
     appraiser = appraised_stack.api(AppraisalApi)
     before = len(server.requests)
-    result = await appraiser.appraise(loot)
-    after = server.requests[before:]
+    result = await appraiser.appraise(loot, strictness=Strictness.STRICT, escalate=True)
 
-    assert server.trade_requests() == []
-    assert after == [], "a valuation pass must not reach the network at all"
+    sent = [r.url.path for r in server.requests[before:]]
+    assert not any(p.startswith("/api/trade/search/") for p in sent), sent
+    assert not any(p.startswith("/character-window/") for p in sent), sent
     assert result.trade_requests == 0
-    # The gate flagged items it *would* query, and still queried none of them.
+    # The gate still flagged what it would query, and still queried none of it.
     assert result.escalation_candidates
+
+
+async def test_a_bag_run_prices_the_gates_rares_and_stops_at_the_budget(
+    appraised_stack, server, loot
+):
+    """The other half of the same rule: a *bag* is escalated, and bounded."""
+    appraised_stack.settings.set("appraisal", "max_eager_quotes", 2)
+    appraiser = appraised_stack.api(AppraisalApi)
+    result = await appraiser.appraise(loot, strictness=Strictness.GENEROUS)
+
+    searches = [r for r in server.trade_requests() if "/api/trade/search/" in r.url.path]
+    assert len(searches) == 2, "the budget is a cap, not a suggestion"
+    assert len(result.escalation_candidates) > 2, "and there was more it could have asked"
+    priced = [
+        item
+        for item in result.items
+        if item.valuation.price is not None
+        and item.valuation.price.source is PriceSource.TRADE
+    ]
+    assert priced, "nothing came back with a trade price"
+    assert all(item.verdict is not Verdict.UNPRICEABLE for item in priced)
+
+
+async def test_escalation_is_off_when_the_budget_is_zero(appraised_stack, server, loot):
+    appraised_stack.settings.set("appraisal", "max_eager_quotes", 0)
+    result = await appraised_stack.api(AppraisalApi).appraise(loot)
+    assert result.trade_requests == 0
+    assert not any("/api/trade/search/" in r.url.path for r in server.trade_requests())
 
 
 async def test_appraising_the_bag_end_to_end_spends_one_item_request(
     appraised_stack, server
 ):
-    """The `appraisal.appraise_bag` method fetches the bag and prices it. The bag
-    fetch is the only GGG call; poe.ninja and the trade endpoints are untouched."""
+    """The `appraisal.appraise_bag` method fetches the bag and prices it.
+
+    The bag fetch is the only **account** call. Trade requests share the hostname
+    and share nothing else: no credential, a different policy, a different bucket.
+    """
     before = len(server.to_host("www.pathofexile.com"))
     await appraised_stack.methods.call("appraisal.appraise_bag")
     after = server.to_host("www.pathofexile.com")[before:]
 
-    assert {r.url.path for r in after} <= {
+    account = [r for r in after if r.url.path.startswith("/character-window/")]
+    assert {r.url.path for r in account} <= {
         "/character-window/get-items",
         "/character-window/get-characters",
     }
-    assert server.trade_requests() == []
+    assert all(
+        "cookie" not in {k.lower() for k in r.headers} for r in server.trade_requests()
+    )
 
 
 # -- the method surface --------------------------------------------------------
@@ -226,8 +272,10 @@ async def test_appraise_bag_json_is_serializable_and_carries_the_four_counts(
     assert json.loads(json.dumps(payload)) == payload
     assert set(payload["counts"]) == {"keep", "check", "trash", "unpriceable"}
     assert payload["unpriceable_stack"] > 0
-    assert payload["trade_requests"] == 0
+    assert payload["trade_requests"] <= payload["escalation_candidates"] * 2
     assert payload["character"]
+    assert payload["pricing_count"] >= 0
+    assert payload["total_is_floor"] is (payload["pricing_count"] > 0)
 
 
 async def test_appraise_bag_json_accepts_a_strictness_and_rejects_a_bad_one(
@@ -287,7 +335,11 @@ async def test_with_no_price_tables_everything_is_a_gate_decision(
     await stack_factory(PricesModule(clock=cache_clock, prefetch=False), AppraisalModule())
     try:
         bag = await registry.api(PoeApi).get_items()
-        result = await registry.api(AppraisalApi).appraise(bag.by_source(Source.BAG))
+        # `escalate=False`: with no tables at all, tier 3 would be the *only* thing
+        # pricing anything, and this test is about what survives when it is not.
+        result = await registry.api(AppraisalApi).appraise(
+            bag.by_source(Source.BAG), escalate=False
+        )
         assert result.counts["unpriceable"] > 5, "every indexable row is now a hole"
         assert result.counts["check"] > 0, "the gate still works without prices"
         kept = result.of(Verdict.KEEP)
@@ -304,3 +356,57 @@ async def test_an_empty_bag_appraises_to_four_zeroes(appraiser):
     assert result.counts == {"keep": 0, "check": 0, "trash": 0, "unpriceable": 0}
     assert result.total_chaos == 0.0
     assert result.ranked() == []
+
+
+# -- tier 3 that does not answer -------------------------------------------------
+
+
+async def test_a_rare_nobody_is_selling_stays_unpriceable_and_is_never_zero(
+    appraised_stack, server, loot
+):
+    """The whole point of the four-state model, met by the newest tier.
+
+    A search that finds nothing is a real answer and a different one from "worth
+    nothing". The row keeps no price, contributes nothing to the total, and says it
+    is still pricing rather than pretending the question is closed.
+    """
+    server.trade_search_empty = True
+    result = await appraised_stack.api(AppraisalApi).appraise(loot)
+
+    pending = result.pricing
+    assert pending, "nothing was escalated at all"
+    for item in pending:
+        assert item.valuation.unpriceable
+        assert item.total_chaos == 0.0
+        assert item.verdict is Verdict.CHECK
+        assert "pricing…" in item.reason
+    assert result.total_is_floor
+    # ...and the money is still only what we actually know.
+    assert result.total_chaos == pytest.approx(
+        sum(i.total_chaos for i in result.items if not i.valuation.unpriceable)
+    )
+
+
+async def test_a_slow_quote_costs_a_number_never_the_output(
+    appraised_stack, loot, monkeypatch
+):
+    """SPEC §5.3: a per-item ``pricing…`` state that never gates the grid.
+
+    The quote is made to hang. The pass must still return, with every other verdict
+    intact and the hung rows marked — not blocked, and not silently dropped."""
+    import asyncio
+
+    prices = appraised_stack.get("prices")
+
+    async def never(*_args, **_kwargs):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(prices, "quote", never)
+    appraised_stack.settings.set("appraisal", "eager_timeout_seconds", 0.1)
+
+    result = await asyncio.wait_for(
+        appraised_stack.api(AppraisalApi).appraise(loot), timeout=10
+    )
+    assert result.pricing, "a hung quote left no trace"
+    assert result.counts["keep"] > 0, "the rest of the bag came through"
+    assert result.total_is_floor

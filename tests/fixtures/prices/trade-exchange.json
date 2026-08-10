@@ -1,0 +1,2095 @@
+{
+ "id": "FIXTUREXID",
+ "complexity": null,
+ "result": {
+  "e03ac87ff0414e9b85db2961f8150974a7817d6d4e88ba4e5295bfd908b10527": {
+   "id": "e03ac87ff0414e9b85db2961f8150974a7817d6d4e88ba4e5295bfd908b10527",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller99#0001",
+     "lastCharacterName": "Character99",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     },
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "divine",
+       "amount": 1,
+       "whisper": "{0} Divine Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 300,
+       "stock": 300,
+       "id": "e03ac87ff0414e9b85db2961f8150974a7817d6d4e88ba4e5295bfd908b10527",
+       "whisper": "{0} Merrick's Ducat"
+      }
+     }
+    ],
+    "whisper": "@Character99 Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "c809b3a695a1638d97c2bb572d08293a3a3accc0f05cc77725dfc3e14455ac0f": {
+   "id": "c809b3a695a1638d97c2bb572d08293a3a3accc0f05cc77725dfc3e14455ac0f",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller0#0001",
+     "lastCharacterName": "Character0",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 1,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "c809b3a695a1638d97c2bb572d08293a3a3accc0f05cc77725dfc3e14455ac0f",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "26a2cdc61a915b8093af3565d823a9419ff18c370cbe180832fe435f699adbb4": {
+   "id": "26a2cdc61a915b8093af3565d823a9419ff18c370cbe180832fe435f699adbb4",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller1#0001",
+     "lastCharacterName": "Character1",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 1,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "26a2cdc61a915b8093af3565d823a9419ff18c370cbe180832fe435f699adbb4",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "efcdb3351163b20afe2ed6f97ea649ad40490abc6f2600182b54607687c55fa3": {
+   "id": "efcdb3351163b20afe2ed6f97ea649ad40490abc6f2600182b54607687c55fa3",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller5#0001",
+     "lastCharacterName": "Character5",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 1,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "efcdb3351163b20afe2ed6f97ea649ad40490abc6f2600182b54607687c55fa3",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a946256c18f60c6595091d7c3f97739d81180b4b7d9eeccc964f0ab22bdea497": {
+   "id": "a946256c18f60c6595091d7c3f97739d81180b4b7d9eeccc964f0ab22bdea497",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller6#0001",
+     "lastCharacterName": "Character6",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 1,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "a946256c18f60c6595091d7c3f97739d81180b4b7d9eeccc964f0ab22bdea497",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "15dc293aa8418acf74888d811249c2522dc99df179517ce8288582ade774d150": {
+   "id": "15dc293aa8418acf74888d811249c2522dc99df179517ce8288582ade774d150",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller7#0001",
+     "lastCharacterName": "Character7",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 1,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "15dc293aa8418acf74888d811249c2522dc99df179517ce8288582ade774d150",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "9f4db652489426369b8e5f4139e63a8e30d2f0e113277627e0a785ba00e89fc0": {
+   "id": "9f4db652489426369b8e5f4139e63a8e30d2f0e113277627e0a785ba00e89fc0",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller2#0001",
+     "lastCharacterName": "Character2",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 2,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "9f4db652489426369b8e5f4139e63a8e30d2f0e113277627e0a785ba00e89fc0",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "95f350d055f2348ff9b46bf7ade0e6c34d06f8894fc95237c7638203b7706bcd": {
+   "id": "95f350d055f2348ff9b46bf7ade0e6c34d06f8894fc95237c7638203b7706bcd",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller8#0001",
+     "lastCharacterName": "Character8",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 2,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "95f350d055f2348ff9b46bf7ade0e6c34d06f8894fc95237c7638203b7706bcd",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a8046289311d7979e54a9c099a27c7dd4978af8752b552c01b03fcceedf5e022": {
+   "id": "a8046289311d7979e54a9c099a27c7dd4978af8752b552c01b03fcceedf5e022",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller9#0001",
+     "lastCharacterName": "Character9",
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 2,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "a8046289311d7979e54a9c099a27c7dd4978af8752b552c01b03fcceedf5e022",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "e21bdfb6ea75d5fa698b699ff296080d59ca3a7f7a2086cda746779771eb3820": {
+   "id": "e21bdfb6ea75d5fa698b699ff296080d59ca3a7f7a2086cda746779771eb3820",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller3#0001",
+     "lastCharacterName": "Character3",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "e21bdfb6ea75d5fa698b699ff296080d59ca3a7f7a2086cda746779771eb3820",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "8112602e1b42103876d90e81c7c48edf1a6e23ea6a365278e8c7f9b3a906876d": {
+   "id": "8112602e1b42103876d90e81c7c48edf1a6e23ea6a365278e8c7f9b3a906876d",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller4#0001",
+     "lastCharacterName": "Character4",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 16,
+       "id": "8112602e1b42103876d90e81c7c48edf1a6e23ea6a365278e8c7f9b3a906876d",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "f23dd28c5a54693a50168a33d4eae0a5b6ec3dee78603231d74b8fce65a3cf6b": {
+   "id": "f23dd28c5a54693a50168a33d4eae0a5b6ec3dee78603231d74b8fce65a3cf6b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller5#0001",
+     "lastCharacterName": "Character5",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "f23dd28c5a54693a50168a33d4eae0a5b6ec3dee78603231d74b8fce65a3cf6b",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "714417eb2b45fdbeb6c0a3075f69af4ead935e72f3598e788b4ca09129ea491e": {
+   "id": "714417eb2b45fdbeb6c0a3075f69af4ead935e72f3598e788b4ca09129ea491e",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller10#0001",
+     "lastCharacterName": "Character10",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "714417eb2b45fdbeb6c0a3075f69af4ead935e72f3598e788b4ca09129ea491e",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "008eba8e597a72e91b3ad93e60c6b21bf90ab58d0a191022d7f1b9aec74756c5": {
+   "id": "008eba8e597a72e91b3ad93e60c6b21bf90ab58d0a191022d7f1b9aec74756c5",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller11#0001",
+     "lastCharacterName": "Character11",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "008eba8e597a72e91b3ad93e60c6b21bf90ab58d0a191022d7f1b9aec74756c5",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "dfbb5601ea162ca04167ebc5b5a4d136756f34d04d8b2c0e81b5be61bacfc6df": {
+   "id": "dfbb5601ea162ca04167ebc5b5a4d136756f34d04d8b2c0e81b5be61bacfc6df",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller12#0001",
+     "lastCharacterName": "Character12",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 3,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "dfbb5601ea162ca04167ebc5b5a4d136756f34d04d8b2c0e81b5be61bacfc6df",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "e1c7ada97ebd6d7a10ca0b413deef4f8804129168695b7b45dac65b02e850206": {
+   "id": "e1c7ada97ebd6d7a10ca0b413deef4f8804129168695b7b45dac65b02e850206",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller6#0001",
+     "lastCharacterName": "Character6",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 4,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "e1c7ada97ebd6d7a10ca0b413deef4f8804129168695b7b45dac65b02e850206",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "75ce911ca7ba4e6d08a3334f9ac43dd467b24bdbe1b51a25f7da267661212374": {
+   "id": "75ce911ca7ba4e6d08a3334f9ac43dd467b24bdbe1b51a25f7da267661212374",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller13#0001",
+     "lastCharacterName": "Character13",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 4,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 5,
+       "id": "75ce911ca7ba4e6d08a3334f9ac43dd467b24bdbe1b51a25f7da267661212374",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "9eb25cc56c9f81685327334456d6e7077097025a0ab9bf03059e1e5596b55dec": {
+   "id": "9eb25cc56c9f81685327334456d6e7077097025a0ab9bf03059e1e5596b55dec",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller14#0001",
+     "lastCharacterName": "Character14",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 4,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "9eb25cc56c9f81685327334456d6e7077097025a0ab9bf03059e1e5596b55dec",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "dd8822d18d0a1f073db593e2fc530a6d66bfe13e78a8b6ad18519a266af7ff53": {
+   "id": "dd8822d18d0a1f073db593e2fc530a6d66bfe13e78a8b6ad18519a266af7ff53",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller7#0001",
+     "lastCharacterName": "Character7",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "dd8822d18d0a1f073db593e2fc530a6d66bfe13e78a8b6ad18519a266af7ff53",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "eae99d25aa73f81ca09ce0d0dd99774c19c992e234b9034cedb9286f18325e61": {
+   "id": "eae99d25aa73f81ca09ce0d0dd99774c19c992e234b9034cedb9286f18325e61",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller8#0001",
+     "lastCharacterName": "Character8",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 7,
+       "id": "eae99d25aa73f81ca09ce0d0dd99774c19c992e234b9034cedb9286f18325e61",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "9c1bb1fcfcda8123b9205a75e46d8d30a543e57d7b90efb76a2565c2df076cc6": {
+   "id": "9c1bb1fcfcda8123b9205a75e46d8d30a543e57d7b90efb76a2565c2df076cc6",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller9#0001",
+     "lastCharacterName": "Character9",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 15,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 3,
+       "stock": 10,
+       "id": "9c1bb1fcfcda8123b9205a75e46d8d30a543e57d7b90efb76a2565c2df076cc6",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "fe7f2959bbf085bedf6d16d154b223f644a5b7155fa6cf509a1248179a01991e": {
+   "id": "fe7f2959bbf085bedf6d16d154b223f644a5b7155fa6cf509a1248179a01991e",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller10#0001",
+     "lastCharacterName": "Character10",
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "fe7f2959bbf085bedf6d16d154b223f644a5b7155fa6cf509a1248179a01991e",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "e6fc0e08090c9f6d056c838ed63ee496cca26dac66dbec1151fd95ceede7f328": {
+   "id": "e6fc0e08090c9f6d056c838ed63ee496cca26dac66dbec1151fd95ceede7f328",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller11#0001",
+     "lastCharacterName": "Character11",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "e6fc0e08090c9f6d056c838ed63ee496cca26dac66dbec1151fd95ceede7f328",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "93f3b81e6ad9bb3c74bd5b7c5c33611f98952fcc24873d572288ec62d1ec749e": {
+   "id": "93f3b81e6ad9bb3c74bd5b7c5c33611f98952fcc24873d572288ec62d1ec749e",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller12#0001",
+     "lastCharacterName": "Character12",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 7,
+       "id": "93f3b81e6ad9bb3c74bd5b7c5c33611f98952fcc24873d572288ec62d1ec749e",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "ee0af15c169c3883a88d356aaffa778b507de25e8d59b99b418267a197eaf3ef": {
+   "id": "ee0af15c169c3883a88d356aaffa778b507de25e8d59b99b418267a197eaf3ef",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller13#0001",
+     "lastCharacterName": "Character13",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "ee0af15c169c3883a88d356aaffa778b507de25e8d59b99b418267a197eaf3ef",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "678e45f320c5d89b952844d10a4dc1ef79aad741cfe5c6045456910d183cf56a": {
+   "id": "678e45f320c5d89b952844d10a4dc1ef79aad741cfe5c6045456910d183cf56a",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller14#0001",
+     "lastCharacterName": "Character14",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "678e45f320c5d89b952844d10a4dc1ef79aad741cfe5c6045456910d183cf56a",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "e42f276ccf195036ea12f87e75823c91aab640239b5ba572f6d523434000e9b9": {
+   "id": "e42f276ccf195036ea12f87e75823c91aab640239b5ba572f6d523434000e9b9",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller15#0001",
+     "lastCharacterName": "Character15",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 3,
+       "id": "e42f276ccf195036ea12f87e75823c91aab640239b5ba572f6d523434000e9b9",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "c84b06a82e88cfb632493454d8d794e24a72ba881015335e3e4049bfa996a687": {
+   "id": "c84b06a82e88cfb632493454d8d794e24a72ba881015335e3e4049bfa996a687",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller16#0001",
+     "lastCharacterName": "Character16",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "c84b06a82e88cfb632493454d8d794e24a72ba881015335e3e4049bfa996a687",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "911da6d4d6a56496367db7ecccb97050b849b59cd0265220fe7005174308ec2b": {
+   "id": "911da6d4d6a56496367db7ecccb97050b849b59cd0265220fe7005174308ec2b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller15#0001",
+     "lastCharacterName": "Character15",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "911da6d4d6a56496367db7ecccb97050b849b59cd0265220fe7005174308ec2b",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "b8cb6c9f91f06a2b46b728621d121b40c6018598bbd204348f4d10b1b95ed91e": {
+   "id": "b8cb6c9f91f06a2b46b728621d121b40c6018598bbd204348f4d10b1b95ed91e",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller16#0001",
+     "lastCharacterName": "Character16",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "b8cb6c9f91f06a2b46b728621d121b40c6018598bbd204348f4d10b1b95ed91e",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "5493bd9965a792eb33cdcc36176079ea3b80d65012ddf3d5feea75e3da1e4334": {
+   "id": "5493bd9965a792eb33cdcc36176079ea3b80d65012ddf3d5feea75e3da1e4334",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller0#0001",
+     "lastCharacterName": "Character0",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "5493bd9965a792eb33cdcc36176079ea3b80d65012ddf3d5feea75e3da1e4334",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "dde2dbfbd83c7e909098fc35503ab027f27fae779b98f023a5dfa1a94e93c098": {
+   "id": "dde2dbfbd83c7e909098fc35503ab027f27fae779b98f023a5dfa1a94e93c098",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller1#0001",
+     "lastCharacterName": "Character1",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "dde2dbfbd83c7e909098fc35503ab027f27fae779b98f023a5dfa1a94e93c098",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "b08a3e524d4ddd1f14e1d68610dbc98a00c4775a556506f920ed4dfd5b56306f": {
+   "id": "b08a3e524d4ddd1f14e1d68610dbc98a00c4775a556506f920ed4dfd5b56306f",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller2#0001",
+     "lastCharacterName": "Character2",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "b08a3e524d4ddd1f14e1d68610dbc98a00c4775a556506f920ed4dfd5b56306f",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "e616a671b887c11774fc32928c2903ab707dee637edabdde192181662a7eb883": {
+   "id": "e616a671b887c11774fc32928c2903ab707dee637edabdde192181662a7eb883",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller3#0001",
+     "lastCharacterName": "Character3",
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "e616a671b887c11774fc32928c2903ab707dee637edabdde192181662a7eb883",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "dc6e4ce45de10f7c96572e566757546803e4bcf31d697f3f7443d134f016abaa": {
+   "id": "dc6e4ce45de10f7c96572e566757546803e4bcf31d697f3f7443d134f016abaa",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller4#0001",
+     "lastCharacterName": "Character4",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "dc6e4ce45de10f7c96572e566757546803e4bcf31d697f3f7443d134f016abaa",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "23649aea624d5b02f4199ff97302c1f2de5f8c3c7cca109323fadf66381e9a60": {
+   "id": "23649aea624d5b02f4199ff97302c1f2de5f8c3c7cca109323fadf66381e9a60",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller5#0001",
+     "lastCharacterName": "Character5",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "23649aea624d5b02f4199ff97302c1f2de5f8c3c7cca109323fadf66381e9a60",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "5b619f34521cb8d22a213c15eea9aba38377bb8cd77cfffb792daa7b2f283429": {
+   "id": "5b619f34521cb8d22a213c15eea9aba38377bb8cd77cfffb792daa7b2f283429",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller6#0001",
+     "lastCharacterName": "Character6",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "5b619f34521cb8d22a213c15eea9aba38377bb8cd77cfffb792daa7b2f283429",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "bc436d6ce1ac8d9ecfc34e96da78743feebb9b1620c61607beefc222c6e8f427": {
+   "id": "bc436d6ce1ac8d9ecfc34e96da78743feebb9b1620c61607beefc222c6e8f427",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller7#0001",
+     "lastCharacterName": "Character7",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "bc436d6ce1ac8d9ecfc34e96da78743feebb9b1620c61607beefc222c6e8f427",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "24096ba0a981285d305579dbe09f67ba2e39be63c3b0364324b207aa7d087f7e": {
+   "id": "24096ba0a981285d305579dbe09f67ba2e39be63c3b0364324b207aa7d087f7e",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller8#0001",
+     "lastCharacterName": "Character8",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "24096ba0a981285d305579dbe09f67ba2e39be63c3b0364324b207aa7d087f7e",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "23a36184bf338917010197567f0ce31442011386c78a628becafa8fe6cd2b6dd": {
+   "id": "23a36184bf338917010197567f0ce31442011386c78a628becafa8fe6cd2b6dd",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller9#0001",
+     "lastCharacterName": "Character9",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "23a36184bf338917010197567f0ce31442011386c78a628becafa8fe6cd2b6dd",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a4d52c9bf6dae0dab0bf280847b842aefa1f4304fb77fa4299ebee2b33ef488a": {
+   "id": "a4d52c9bf6dae0dab0bf280847b842aefa1f4304fb77fa4299ebee2b33ef488a",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller10#0001",
+     "lastCharacterName": "Character10",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 5,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "a4d52c9bf6dae0dab0bf280847b842aefa1f4304fb77fa4299ebee2b33ef488a",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "3dd799d142c10515cdfce9e4b586bca9893b04c4a82c1d8ec6622719846adf3b": {
+   "id": "3dd799d142c10515cdfce9e4b586bca9893b04c4a82c1d8ec6622719846adf3b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller11#0001",
+     "lastCharacterName": "Character11",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 7,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "3dd799d142c10515cdfce9e4b586bca9893b04c4a82c1d8ec6622719846adf3b",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "465439396285610bf90778209427d9297dac145f43e9238830f988aa557a5c06": {
+   "id": "465439396285610bf90778209427d9297dac145f43e9238830f988aa557a5c06",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller12#0001",
+     "lastCharacterName": "Character12",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 7,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "ukatoas-ducat",
+       "amount": 1,
+       "stock": 3,
+       "id": "465439396285610bf90778209427d9297dac145f43e9238830f988aa557a5c06",
+       "whisper": "{0} ukatoas-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "43e4696ba4750468c9e97811cd46c389cb6655e2cc42905f380b9cc96030dcd4": {
+   "id": "43e4696ba4750468c9e97811cd46c389cb6655e2cc42905f380b9cc96030dcd4",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller0#0001",
+     "lastCharacterName": "Character0",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 8,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 11,
+       "id": "43e4696ba4750468c9e97811cd46c389cb6655e2cc42905f380b9cc96030dcd4",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "ce8aae8102ed3bd5f8dd536a024647ebd39536b3b8fa3bc66ebc311f47128df3": {
+   "id": "ce8aae8102ed3bd5f8dd536a024647ebd39536b3b8fa3bc66ebc311f47128df3",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller1#0001",
+     "lastCharacterName": "Character1",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 8,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 10,
+       "id": "ce8aae8102ed3bd5f8dd536a024647ebd39536b3b8fa3bc66ebc311f47128df3",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "61ddbebeb3a59259d7a778e4a663d34d13444f89b64e57b6f1dfd27478f658a4": {
+   "id": "61ddbebeb3a59259d7a778e4a663d34d13444f89b64e57b6f1dfd27478f658a4",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller2#0001",
+     "lastCharacterName": "Character2",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 9,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "61ddbebeb3a59259d7a778e4a663d34d13444f89b64e57b6f1dfd27478f658a4",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "1a9bfdff9fe4e65f962133858970198a2064df0191a95be4c65c105baa1a2d24": {
+   "id": "1a9bfdff9fe4e65f962133858970198a2064df0191a95be4c65c105baa1a2d24",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller3#0001",
+     "lastCharacterName": "Character3",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 9,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "1a9bfdff9fe4e65f962133858970198a2064df0191a95be4c65c105baa1a2d24",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "8d9c526637fac081a3bdcfc70f19fb34458b0ee8a7b702b26365c4a6413d20ab": {
+   "id": "8d9c526637fac081a3bdcfc70f19fb34458b0ee8a7b702b26365c4a6413d20ab",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller4#0001",
+     "lastCharacterName": "Character4",
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 6,
+       "id": "8d9c526637fac081a3bdcfc70f19fb34458b0ee8a7b702b26365c4a6413d20ab",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "4d6770750a88066cc9555f75a83999680dad6f6ee8f91aaa0dc526bb2ac87330": {
+   "id": "4d6770750a88066cc9555f75a83999680dad6f6ee8f91aaa0dc526bb2ac87330",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller5#0001",
+     "lastCharacterName": "Character5",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "4d6770750a88066cc9555f75a83999680dad6f6ee8f91aaa0dc526bb2ac87330",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "24ac0050f17366ebceec65f5d45009402a20f942684b45c8c46228960b6d7c91": {
+   "id": "24ac0050f17366ebceec65f5d45009402a20f942684b45c8c46228960b6d7c91",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller6#0001",
+     "lastCharacterName": "Character6",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "24ac0050f17366ebceec65f5d45009402a20f942684b45c8c46228960b6d7c91",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a7491879b3660d6f44214502930c33f1c421b09720cc549602d16be07a632e9b": {
+   "id": "a7491879b3660d6f44214502930c33f1c421b09720cc549602d16be07a632e9b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller7#0001",
+     "lastCharacterName": "Character7",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "a7491879b3660d6f44214502930c33f1c421b09720cc549602d16be07a632e9b",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a66af2fd1a18689bb03f4191dac4b7aaacdd1bf202014cccb163be37e61cf85c": {
+   "id": "a66af2fd1a18689bb03f4191dac4b7aaacdd1bf202014cccb163be37e61cf85c",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller8#0001",
+     "lastCharacterName": "Character8",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "a66af2fd1a18689bb03f4191dac4b7aaacdd1bf202014cccb163be37e61cf85c",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "a6d208c45e7948707e2848d5e2977b85e1e25889a8bb940a62cd67c3fba526dd": {
+   "id": "a6d208c45e7948707e2848d5e2977b85e1e25889a8bb940a62cd67c3fba526dd",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller9#0001",
+     "lastCharacterName": "Character9",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 10,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "a6d208c45e7948707e2848d5e2977b85e1e25889a8bb940a62cd67c3fba526dd",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "cb99cae74eed4fc9fb61771e5268f58901f58f4900ba0c665b307805371e516b": {
+   "id": "cb99cae74eed4fc9fb61771e5268f58901f58f4900ba0c665b307805371e516b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller10#0001",
+     "lastCharacterName": "Character10",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 15,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "cb99cae74eed4fc9fb61771e5268f58901f58f4900ba0c665b307805371e516b",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "2646dcfa741cd609b980eb536d1fb3b3bf8daa24c9c6fecccd60432f177e690d": {
+   "id": "2646dcfa741cd609b980eb536d1fb3b3bf8daa24c9c6fecccd60432f177e690d",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller11#0001",
+     "lastCharacterName": "Character11",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 15,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 3,
+       "id": "2646dcfa741cd609b980eb536d1fb3b3bf8daa24c9c6fecccd60432f177e690d",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "99172629941246ac52f3fc37237e300ce8b3ec08124b81da076fc865336bc2b4": {
+   "id": "99172629941246ac52f3fc37237e300ce8b3ec08124b81da076fc865336bc2b4",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller12#0001",
+     "lastCharacterName": "Character12",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 15,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 2,
+       "id": "99172629941246ac52f3fc37237e300ce8b3ec08124b81da076fc865336bc2b4",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "93539f81043607234d8d3b46ee371446e40e69940a490cad4bef90b0c9c5a390": {
+   "id": "93539f81043607234d8d3b46ee371446e40e69940a490cad4bef90b0c9c5a390",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller13#0001",
+     "lastCharacterName": "Character13",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 15,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "93539f81043607234d8d3b46ee371446e40e69940a490cad4bef90b0c9c5a390",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "1769b5c533b7f4241e828d1031a5278e7743836b9cbb2e6083ec2e6a570033de": {
+   "id": "1769b5c533b7f4241e828d1031a5278e7743836b9cbb2e6083ec2e6a570033de",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller14#0001",
+     "lastCharacterName": "Character14",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 20,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 28,
+       "id": "1769b5c533b7f4241e828d1031a5278e7743836b9cbb2e6083ec2e6a570033de",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "98fd3cb90d894df4a1cf1ad1617949b90b7f073d11c86fb87d954dbd9e5d5c49": {
+   "id": "98fd3cb90d894df4a1cf1ad1617949b90b7f073d11c86fb87d954dbd9e5d5c49",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller15#0001",
+     "lastCharacterName": "Character15",
+     "language": "en_US",
+     "realm": "pc"
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 20,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "98fd3cb90d894df4a1cf1ad1617949b90b7f073d11c86fb87d954dbd9e5d5c49",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "00e89485a86a0126d7741f2f77c567526dcf7456e7b46fb5e41acd8ca564a7b7": {
+   "id": "00e89485a86a0126d7741f2f77c567526dcf7456e7b46fb5e41acd8ca564a7b7",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller16#0001",
+     "lastCharacterName": "Character16",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 20,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "00e89485a86a0126d7741f2f77c567526dcf7456e7b46fb5e41acd8ca564a7b7",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "6ce46c0429ffff6a2d58ff280f1bb8d9d06afbea8d18123b739044da36d99c7b": {
+   "id": "6ce46c0429ffff6a2d58ff280f1bb8d9d06afbea8d18123b739044da36d99c7b",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller0#0001",
+     "lastCharacterName": "Character0",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 20,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 1,
+       "id": "6ce46c0429ffff6a2d58ff280f1bb8d9d06afbea8d18123b739044da36d99c7b",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  },
+  "7049a82d8bbf62bc630aa007f214242c6a650256e99f8280f74a6b02cc62a3b9": {
+   "id": "7049a82d8bbf62bc630aa007f214242c6a650256e99f8280f74a6b02cc62a3b9",
+   "item": null,
+   "listing": {
+    "indexed": "2026-08-10T02:28:31+00:00",
+    "account": {
+     "name": "Seller1#0001",
+     "lastCharacterName": "Character1",
+     "language": "en_US",
+     "realm": "pc",
+     "online": {
+      "league": "Allflame",
+      "status": "online"
+     }
+    },
+    "offers": [
+     {
+      "exchange": {
+       "currency": "chaos",
+       "amount": 20,
+       "whisper": "{0} Chaos Orb"
+      },
+      "item": {
+       "currency": "merricks-ducat",
+       "amount": 1,
+       "stock": 16,
+       "id": "7049a82d8bbf62bc630aa007f214242c6a650256e99f8280f74a6b02cc62a3b9",
+       "whisper": "{0} merricks-ducat"
+      }
+     }
+    ],
+    "whisper": "@Character{0} Hi, I'd like to buy your {0} for my {1} in Allflame"
+   }
+  }
+ },
+ "total": 62
+}

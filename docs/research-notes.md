@@ -505,3 +505,107 @@ the fetch, so the filter is applied again after fetching.
 ⚠️ **Listings carry third-party PII**: `account.name`, `lastCharacterName`, `language`,
 and a `whisper` string containing the seller's character name. The recorded fixture is
 scrubbed; anything that logs a raw listing would not be.
+
+### 9.6 There is no per-league type index — measured
+
+**Measured 2026-08-10.** Asked directly, because Phase 4b needed to stop hardcoding the type list
+and the honest first question is whether poe.ninja will simply tell us.
+
+It will not. Every plausible sibling of `/poe1/api/economy/leagues` returns `404` with an empty
+body:
+
+```
+/poe1/api/economy/types                    404
+/poe1/api/economy/exchange/current/types   404
+/poe1/api/economy/exchange/current         404
+/poe1/api/economy/exchange/current/index   404
+/poe1/api/economy/categories               404
+/poe1/api/economy/overview                 404
+```
+
+The economy pages are client-rendered Astro islands with the category list inside serialised
+props, not in a fetchable document. The one machine-readable index that exists is
+**`https://poe.ninja/sitemap.xml`**: 1,139 URLs, of which the `/poe1/economy/{league}/{slug}`
+entries give **44 distinct category slugs, identical for every league** (`allflame`,
+`allflamehc`, `standard`, `hardcore`). It is an index of *categories*, not of what a league
+serves — so it tells you the names and you still have to probe.
+
+Slug → API `type` is derivable: de-pluralise the last word (with `ies → y`) and PascalCase.
+That resolves **43 of 44**. The single exception is `temples → IncursionTemple`. This is the part
+that matters: a discovery that only validated names already in the code would have confirmed all
+twenty-six of the old catalogue and still missed `Ducat`.
+
+**`HEAD` works** on the overview routes and returns `content-length` and `etag` — a cheap way to
+size a table before fetching it. Not used: an empty exchange overview is 545 B against 972 B for
+a one-line one, and a byte-size threshold is a fragile way to ask a yes/no question when the
+`GET` you would make anyway answers it exactly.
+
+**Which types serve data, both leagues, all 44** (lines / bytes):
+
+| | Allflame | Standard |
+|---|---|---|
+| Empty (0 lines) | `DjinnCoin` `Incubator` `Memory` `ShrineBelt` | `DjinnCoin` `Ducat` `Memory` |
+| Largest | `BaseType` 20,165 / 9.4 MB · `SkillGem` 7,508 / 4.0 MB · `ValdoMap` 1,509 / 1.6 MB | `BaseType` 10,879 / 5.0 MB · `SkillGem` 6,951 / 3.6 MB · `ImbuedGem` 5,412 / 2.4 MB |
+| Candidate set (38, excluding the six never-fetched) | 36 served, 3.4 MB | 37 served, 4.0 MB |
+
+`Ducat` is 11 lines in Allflame and 0 in Standard, which is exactly the league-specific pattern
+`AllflameEmber` and `Runegraft` show — and exactly why a hardcoded list is wrong in both
+directions at once.
+
+---
+
+## 11. Bulk exchange — measured
+
+**Measured 2026-08-10**, anonymous, no credential needed.
+
+`POST /api/trade/exchange/{league}`, body
+`{"query":{"status":{"option":"online"},"have":["chaos"],"want":[…]},"sort":{"have":"asc"},"engine":"new"}`.
+
+```
+x-rate-limit-policy: trade-exchange-request-limit
+x-rate-limit-rules:  Ip
+x-rate-limit-ip:     5:15:60,10:90:300,30:300:1800
+```
+
+Tighter than search, `Ip`-ruled like the other two, and its own policy — so a bag valuation can
+use it without touching the account's item budget.
+
+Response: `{id, complexity, result: {hash: {id, item: null, listing}}, total}`. `result` is a
+**dict keyed by hash**, not an array, and it carries the full listings inline — there is no
+separate fetch step. Each `listing.offers[]` entry is `{exchange: {currency, amount}, item:
+{currency, amount, stock, id}}`; the unit price is `exchange.amount / item.amount`, because the
+wire says "N chaos for M ducats" and never a unit price.
+
+**Two hard numbers.** The `want` array takes at most **10** ids — eleven is a `400` with
+`Too many items \`want\` items selected.` And the response is capped at **100 rows**, sorted by
+price ascending **across the whole batch**.
+
+That second cap is the trap, and it was measured rather than reasoned about:
+
+| `want` size | total | returned | Merrick's Ducat offers seen | median of its cheapest 10 |
+|---|---|---|---|---|
+| 1 | 39 | 39 | 39 (1c–5c+) | **3.0c** |
+| 2 | 164 | 100 | 39 | 3.0c |
+| 5 | 1,854 | 100 | 2 | 1.0c |
+| 10 | 3,917 | 100 | 2 | 1.0c |
+
+A naive ten-id batch prices Merrick's Ducat at a third of its real rate and looks exactly as
+confident doing it. The fix is not "do not batch": *a want that received at least N offers from a
+globally cheapest-first result set holds precisely its own cheapest N*, so a batch is trusted per
+want and only the starved wants are re-queried alone.
+
+The eleven ducats and their live Allflame prices, for reference: Ukatoa's 17.57c, Telesia's 12.4c,
+Tzamoto's 7.67c, Brinehook's 6.28c, The Genteel's 4.95c, Katakohi's 4.25c, Cyaxan's 3.93c,
+Kishara's 2.83c, Merrick's 1.11c, Rotmother's 0.6966c, The Changeling's 0.1269c — *from
+poe.ninja's `Ducat` exchange overview*, which had them all along.
+
+`GET /api/trade/data/static` → `{result: [23 groups]}` (`Currency` 103, `Fragments` 245,
+`Ducats` 11, `Cards` 468, …), 195 kB, `cache-control: public, max-age=1800`, **no rate-limit
+headers**. Entries are `{id, text, image}`. This is the only place an item *name* maps to a bulk
+exchange id, and it is why tier 1b needs it.
+
+⚠️ The response sets a `POESESSID` cookie on an anonymous request. `net` strips `set-cookie` from
+every response it returns, so nothing downstream can mistake it for the account's session.
+
+⚠️ Same third-party PII as trade listings: `account.name`, `lastCharacterName`, `whisper`. The
+recorded fixture is scrubbed; only numbers survive parsing.

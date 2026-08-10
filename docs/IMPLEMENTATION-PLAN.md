@@ -377,6 +377,42 @@ What can be said from the code and from the real account data that *was* read:
 It is one GGG request. If the answer is "I knew all that", the panel to build is a total and a
 tally, not a grid.
 
+### Phase 4b — pricing coverage — **done**
+
+Three gaps the user found against their real account, in the order they matter.
+
+**Table discovery, and the bug behind it.** `CATALOGUE` was twenty-six poe.ninja types typed in
+by hand. `Ducat` was not one of them — it has been a live exchange type all along, with eleven
+priced lines in Allflame — so for a whole league every ducat in a bag came back `unpriceable`.
+The catalogue is now the full documented 44, and, more importantly, **which of them a league
+serves is asked rather than assumed**: `sitemap.xml` for the category slugs, a derivation rule
+for the API type name (43 of 44 by rule, one irregular), a probe per candidate, a per-league
+record cached for a day, and the static list as a stated fallback. There is no per-league type
+endpoint — the four 404s that establish that are in research-notes §9.6.
+
+The property worth protecting in review: **discovery can find a type nobody has typed into the
+catalogue.** A mechanism that only validated known names against a league would have confirmed
+all twenty-six and reproduced the bug exactly.
+
+**Tier 1b, the bulk exchange.** `POST /api/trade/exchange/{league}` for currency-class items
+poe.ninja does not index *at all*. Demoted from its original brief once discovery turned out to
+be the real ducat fix: it is a safety net for the case discovery cannot reach. Batched (10 ids
+max) with a re-query for starved wants — the response caps at 100 rows sorted cheapest-first
+across the whole batch, so a naive ten-id batch priced Merrick's Ducat at a third of its rate
+(research-notes §11).
+
+**Eager tier 3 for a bag.** SPEC §5.3's "never eager" was written against stash scale. A bag of
+three to five rares fits inside `5:10:60` comfortably, and without escalation every rare in a bag
+came back with a gate opinion and no number. Parameterised on the existing `Strictness`:
+`generous` escalates, capped and timed out; `strict` never does, and an explicit `escalate=True`
+cannot override it. `prices` gained `quote_many`; the decision to spend lives in `appraisal`,
+because when to spend a shared budget is a feature opinion.
+
+`net`'s foreign-host courtesy budget went from 40/min to 90/min — sized, as before, to the worst
+honest burst, which is now one discovery pass plus a forced refresh.
+
+**Done:** ducats price at tier 1; a bag's rares come back with numbers; 821 tests, all offline.
+
 ### Phase 5 — UI kit, web surface, appraisal UI
 Primitive **contracts** designed against both profiles up front — informed by the existing
 mockups, which already show what each surface needs. `full` profile implemented; `compact`
@@ -426,6 +462,10 @@ navigation.
 | Stash deferred | Prototype is bag-only; the digest reuses `prices` and the strict gate |
 | `appraisal` requires `poeapi` as well as `prices` | Its API is defined over `NormalizedItem`, and without a bag accessor `appraise_bag` would have to be a method the frontend posts a whole bag to. Feature→core is the ordinary direction |
 | A rare with no bulk price is *not* `unpriceable` | Bulk has never priced rares. Calling that a gap in poe.ninja's coverage would fill the panel with question marks and hide the gaps that are real |
+| Which poe.ninja tables exist is discovered per league | A hardcoded list of 26 types omitted `Ducat` and made a whole item class unpriceable for a league. Being more careful with the list is not a fix; asking the league is |
+| Discovery derives type names from sitemap slugs | It has to be able to find a type nobody typed in, or it is a slower way to have the same bug. There is no type-index endpoint (research-notes §9.6) |
+| Tier 3 is eager for a bag and never for a stash | "Never eager" was a stash rule applied to a bag. `Strictness` already encodes exactly that distinction, so it is reused rather than duplicated |
+| Tier 1b is numbered 1b, not 2 | Tiers 2 and 3 are referenced by number across four documents and every module docstring. The new source is a bulk answer that runs where tier 1 missed, so it belongs beside tier 1 |
 | Mod "tiers" are one regex and one threshold per group | A real mod database is tens of thousands of rows that go stale every league. Stated as an approximation in `gate.py`, used only by the generous gate, and off entirely at strict |
 
 ---

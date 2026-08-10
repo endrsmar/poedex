@@ -28,12 +28,32 @@ run against this module from the moment it lands.
 
 ## What this module does not do
 
-It does not price anything. There is no poe.ninja parsing here, no trade query, no
-currency conversion — every number comes from ``PricesApi`` and is carried through
-untouched, including the ``unpriceable`` state, which arrives as a distinct outcome
-and leaves as a distinct verdict. And it never issues a trade request:
-:attr:`BagAppraisal.trade_requests` is read straight off the valuation, which reads
-it off a client that a valuation pass has no handle on.
+It does not price anything. There is no poe.ninja parsing here, no trade query
+building, no currency conversion — every number comes from ``PricesApi`` and is
+carried through untouched, including the ``unpriceable`` state, which arrives as a
+distinct outcome and leaves as a distinct verdict.
+
+## What it now *does* do: decide when tier 3 runs
+
+SPEC §5.3 said "never eager". That rule was written against **stash** scale, where a
+generous gate over 818 items produces hundreds of candidates and eager escalation is
+a self-inflicted rate-limit violation. A bag is not a stash: the real account's
+backpack holds three to five rares, and ``trade-search-request-limit`` is
+``5:10:60``. Four searches and four fetches fit inside it with room left over.
+
+So the rule is now parameterised by the thing that already encodes exactly this
+distinction — :class:`Strictness`.
+
+* **generous (bag)** — gate-passing rares are quoted eagerly, up to
+  ``max_eager_quotes``, bounded by ``eager_timeout_seconds``. Anything still in
+  flight when the timeout expires comes back marked ``pricing…`` rather than
+  delaying the output; the bag total is then a floor and says so.
+* **strict (stash)** — never. Unchanged, and the setting cannot override it.
+
+`prices` did not gain an eager path: ``PricesApi.quote_many`` is explicit, bounded,
+and this module is its only caller. The decision about *when* spending a shared
+budget is appropriate is a feature opinion, which is why it lives here and not in
+the module that owns the socket.
 """
 
 from __future__ import annotations
@@ -55,7 +75,7 @@ from modules.appraisal.backend.api import (
 from modules.appraisal.backend.gate import HIGH_VALUE_BASES, evaluate
 from modules.appraisal.backend.verdict import appraise_bag, appraise_one
 from modules.poeapi.backend.api import NormalizedItem, PoeApi, Source
-from modules.prices.backend.api import PricesApi
+from modules.prices.backend.api import BagValuation, Price, PricesApi, PriceSource
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
 from runtime.log import get_logger
@@ -66,6 +86,15 @@ _fallback_log = get_logger("module.appraisal")
 
 DEFAULT_STRICTNESS = Strictness.GENEROUS
 """The bag is the default surface and the bag wants the generous gate (SPEC §5.2)."""
+
+DEFAULT_MAX_EAGER = 4
+"""Gate-passing rares priced per bag pass. Two requests each — one search, one
+fetch — against a measured ``5:10:60, 15:60:300`` search budget on an IP the
+player's own browser session also uses. Four is the largest number that still looks
+like a person using a website."""
+
+DEFAULT_EAGER_TIMEOUT = 12.0
+"""Seconds the pass will wait for tier 3 before showing ``pricing…`` instead."""
 
 
 class AppraisalModule:
@@ -147,6 +176,41 @@ class AppraisalModule:
                     "safe, and a generous gate at stash scale is all noise."
                 ),
             },
+            "eager_tier3": {
+                "type": "bool",
+                "default": True,
+                "label": "Price a bag's rares automatically",
+                "description": (
+                    "A rare has no bulk price and never will, so without this every "
+                    "rare in the bag comes back with a gate opinion and no number. "
+                    "Only ever runs for a bag, only for items the gate flagged, and "
+                    "at most a few per pass — a stash is never escalated eagerly."
+                ),
+            },
+            "max_eager_quotes": {
+                "type": "int",
+                "default": DEFAULT_MAX_EAGER,
+                "min": 0,
+                "max": 10,
+                "label": "Rares to price per bag",
+                "description": (
+                    "One trade search plus one fetch each. The measured limit is 5 "
+                    "searches per 10 seconds and 15 per minute, and the player's own "
+                    "browser shares that IP — four leaves real headroom."
+                ),
+            },
+            "eager_timeout_seconds": {
+                "type": "float",
+                "default": DEFAULT_EAGER_TIMEOUT,
+                "min": 0.1,
+                "max": 60.0,
+                "label": "How long to wait for rare prices",
+                "description": (
+                    "Whatever has not answered by then is shown as 'pricing…' and "
+                    "the bag total is reported as a floor. A slow query may cost a "
+                    "number; it must never cost the output."
+                ),
+            },
             "extra_high_value_bases": {
                 "type": "list",
                 "default": [],
@@ -198,12 +262,15 @@ class AppraisalModule:
         threshold_chaos: float | None = None,
         league: str | None = None,
         override: str | None = None,
+        escalate: bool | None = None,
     ) -> BagAppraisal:
         rows = list(items)
         level = strictness or self.strictness()
         keep = self.threshold() if threshold_chaos is None else float(threshold_chaos)
         valued = await self._require_prices().value_all(rows, league=league, override=override)
         gates = [self.gate(item, strictness=level) for item in rows]
+        if self._should_escalate(level, escalate):
+            valued = await self._escalate(rows, valued, gates, league=league, override=override)
         return appraise_bag(
             rows,
             valued,
@@ -211,6 +278,86 @@ class AppraisalModule:
             keep_chaos=keep,
             check_chaos=min(self.check_floor(), keep),
             strictness=level,
+        )
+
+    def _should_escalate(self, level: Strictness, explicit: bool | None) -> bool:
+        """Whether this pass may spend trade requests.
+
+        Strictness is checked **after** the explicit argument and cannot be
+        overridden by it. ``--escalate`` on a stash run is a request to do something
+        SPEC §5.3 forbids for a reason that has not changed: hundreds of candidates
+        against a five-per-ten-seconds budget.
+        """
+        if level is not Strictness.GENEROUS:
+            return False
+        if explicit is not None:
+            return bool(explicit)
+        return bool(self._setting("eager_tier3", True))
+
+    async def _escalate(
+        self,
+        items: Sequence[NormalizedItem],
+        valued: BagValuation,
+        gates: Sequence[GateResult],
+        *,
+        league: str | None,
+        override: str | None,
+    ) -> BagValuation:
+        """Tier 3 over the bag's gated rares, bounded, then folded back in.
+
+        Only rows that are **unpriceable and gated** are candidates. A rare with a
+        note already has the player's own number; an item bulk priced does not need
+        a search; an item the gate ignored is one the gate has already said is not
+        worth a request.
+        """
+        limit = max(0, int(self._setting("max_eager_quotes", DEFAULT_MAX_EAGER)))
+        if not limit:
+            return valued
+        candidates = [
+            (position, item)
+            for position, (item, gate) in enumerate(zip(items, gates, strict=True))
+            if gate.passed and valued.items[position].unpriceable
+        ]
+        if not candidates:
+            return valued
+        # Most signals first: with a budget of four and five candidates, the one left
+        # out should be the least interesting, not the last one in the bag.
+        candidates.sort(key=lambda pair: -len(gates[pair[0]].signals))
+        chosen = candidates[:limit]
+
+        prices = self._require_prices()
+        before = prices.trade_requests
+        quotes = await prices.quote_many(
+            [item for _position, item in chosen],
+            league=league or override,
+            timeout=float(self._setting("eager_timeout_seconds", DEFAULT_EAGER_TIMEOUT)),
+        )
+        rows = list(valued.items)
+        for position, item in chosen:
+            quote = quotes.get(item.uid)
+            if quote is None or quote.chaos is None:
+                # Nothing came back: still unpriceable, and marked so the surface can
+                # say "we looked" rather than implying we never tried.
+                rows[position].pricing = True
+                continue
+            rows[position] = rows[position].replace_price(
+                Price(
+                    quote.chaos,
+                    PriceSource.TRADE,
+                    detail=f"median of {len(quote.listings)} online listing(s)",
+                    listing_count=quote.total or None,
+                    sample_size=len(quote.listings) or None,
+                ),
+            )
+        return BagValuation(
+            rows,
+            league=valued.league,
+            league_source=valued.league_source,
+            divine_rate=valued.divine_rate,
+            table=valued.table,
+            lookups=valued.lookups,
+            trade_requests=max(0, prices.trade_requests - before),
+            exchange_requests=valued.exchange_requests,
         )
 
     async def appraise_item(
@@ -239,6 +386,7 @@ class AppraisalModule:
         character: str | None = None,
         strictness: str | None = None,
         threshold_chaos: float | None = None,
+        escalate: bool | None = None,
     ) -> dict[str, Any]:
         prices = self._require_prices()
         bag = await self._require_poeapi().get_items(character)
@@ -251,6 +399,7 @@ class AppraisalModule:
             strictness=_parse_strictness(strictness),
             threshold_chaos=threshold_chaos,
             league=bag.league,
+            escalate=escalate,
         )
         await self._announce(result, character=bag.character)
         payload = result.to_json()
@@ -293,6 +442,9 @@ class AppraisalModule:
                 "counts": result.counts,
                 "total_chaos": round(result.total_chaos, 4),
                 "unpriceable_stack": result.unpriceable_stack,
+                "pricing_count": len(result.pricing),
+                "total_is_floor": result.total_is_floor,
+                "trade_requests": result.trade_requests,
                 "threshold_chaos": result.threshold_chaos,
                 "strictness": result.strictness.value,
             },

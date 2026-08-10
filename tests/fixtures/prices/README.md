@@ -29,6 +29,19 @@ The trade files are **scrubbed**, because trade listings carry other people's da
   placeholders and the query id with `FIXTUREQID`. `total` and `complexity` are real.
 - `trade-stats.json` — a real subset of GGG's stat document. Public data, no scrubbing
   needed; trimmed from 409 kB to four mod texts across the groups that carry them.
+- `trade-static.json` — a real subset of `/api/trade/data/static`, the name→bulk-exchange-id
+  map. Public data; trimmed from 195 kB to three groups (`Currency`, `Fragments`,
+  `Ducats`) and the entries the tier-1b tests name.
+- `trade-exchange.json` — captured **2026-08-10** from
+  `POST /api/trade/exchange/Allflame` asking for two ducats. Every `account.name`,
+  `lastCharacterName` and `whisper` is replaced with `SellerN#0001` / `CharacterN`
+  and every hash with `sha256("poedex-fixture:exchange:<n>")`. **The rates are real**
+  — that is the point of the file: Merrick's Ducat's cheapest offers really are two at
+  1 chaos, and the median of its cheapest ten really is 3 chaos, which is the
+  difference between this tier working and this tier reporting a floor. Trimmed to 62
+  rows so the default 100-row cap does *not* bite; `Server.exchange_cap` is the knob a
+  test turns to reach the truncated regime deliberately. One row is priced in divine
+  and one seller in eleven is offline, both so the parser's exclusions are exercised.
 
 `bag.json` is **synthetic**, written for this phase rather than captured. It is in the
 GGG wire format and goes through the real `normalize.py`, but no item in it came off
@@ -48,6 +61,8 @@ re-capturing, which means re-scrubbing. Read this file first if you do.
 | `trade-stats.json` | `{result: [{id, label, entries: [{id, text, type}]}]}` — the opaque stat ids. |
 | `trade-search.json` | `{id, complexity, result: [hash…], total}`. |
 | `trade-fetch.json` | `{result: [{id, listing, item}]}`, ten listings, five online. |
+| `trade-static.json` | `{result: [{id, label, entries: [{id, text}]}]}` — item name → bulk exchange id. |
+| `trade-exchange.json` | `{id, result: {hash: {listing: {account, offers}}}, total}`. Note `result` is a **dict**, and the listings are inline — there is no fetch step. |
 | `bag.json` | A backpack chosen to exercise every branch of the pricing engine. |
 
 ## Why these particular lines
@@ -71,3 +86,16 @@ The trimming is not arbitrary — each file keeps the awkward cases:
   absent from the index — the `unpriceable` case from research-notes §7), a note that
   parses, a note in a fraction, a note naming an unknown currency, a note that is a
   sentence, and one worn belt that must never reach the bag total.
+
+## The sitemap is not a file here
+
+`tests/conftest.py` builds poe.ninja's `sitemap.xml` from a list of the 44 category slugs
+recorded off the live document rather than shipping 1,139 URLs. What is asserted about it — that
+43 of 44 slugs derive their API type by rule, and that `temples` does not — is a property of the
+slugs, and the surrounding XML is three tags.
+
+Everything poe.ninja documents but this directory has no table for is answered by the fixture
+server as **200 with an empty `lines` array**, which is what the live site does for a type a
+league does not serve (measured: `DjinnCoin` in both leagues, `Ducat` in Standard). Discovery
+reads that as "this league has none of those" and a `404` as "ask again tomorrow", and the
+difference is load-bearing — so the fixture has to reproduce it rather than 404 for both.

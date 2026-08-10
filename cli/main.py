@@ -188,8 +188,9 @@ def build_parser() -> argparse.ArgumentParser:
             "Prices the backpack and turns each price into a verdict. Four states, "
             "and 'unpriceable' is one of them: an item the price index does not "
             "carry is excluded from the total and counted separately, never folded "
-            "into 'trash' and never summed as zero. Costs the same one GGG request "
-            "'value' does, and no trade requests at all."
+            "into 'trash' and never summed as zero. Costs the same one account "
+            "request 'value' does; gate-flagged rares are also priced against the "
+            "trade API, which is a separate budget — see --no-escalate."
         ),
     )
     appraise.add_argument("--character", help="character name (default: most recently played)")
@@ -218,6 +219,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     appraise.add_argument(
         "--all", action="store_true", help="list the trash rows instead of collapsing them"
+    )
+    appraise.add_argument(
+        "--no-escalate",
+        dest="escalate",
+        action="store_false",
+        default=None,
+        help=(
+            "do not price the gate's rares against the trade API. The default is to "
+            "price up to four of them — a rare has no bulk price and never will, so "
+            "without it they come back with an opinion and no number. Ignored at "
+            "--strictness strict, which is never escalated"
+        ),
     )
     _add_league_argument(appraise)
 
@@ -453,6 +466,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 threshold=args.threshold,
                 show_all=args.all,
                 league=args.league,
+                escalate=args.escalate,
             )
 
     elif args.command == "limits":

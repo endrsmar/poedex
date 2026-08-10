@@ -14,13 +14,14 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4 and 6 done.** `runtime/` (registry, context, events, storage, settings,
+**Phases 1, 2, 3, 4, 4b and 6 done.** `runtime/` (registry, context, events, storage, settings,
 methods, redacting log); core modules `credentials`, `net` (header-driven limiter + httpx),
 `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); feature
-modules `prices` (poe.ninja bulk tables, tier-0 notes, an on-demand trade client) and
-`appraisal` (the strictness-parameterized tier-2 gate, four-state verdicts); a `poedex` CLI; and
-the boundary tests, which now have both a core→feature rejection and a real feature→feature edge
-to enforce against. Next action is **Phase 5** (UI kit, web surface, appraisal UI).
+modules `prices` (poe.ninja bulk tables with per-league type discovery, tier-0 notes, a bulk
+exchange fallback, a trade client) and `appraisal` (the strictness-parameterized tier-2 gate,
+four-state verdicts, eager tier 3 for a bag); a `poedex` CLI; and the boundary tests, which now
+have both a core→feature rejection and a real feature→feature edge to enforce against. Next
+action is **Phase 5** (UI kit, web surface, appraisal UI).
 
 **Read Phase 4's validation finding before building UI on the bag screen**
 (IMPLEMENTATION-PLAN §5, Phase 4). The four-state verdict works and the totals are honest, but
@@ -51,7 +52,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/ruff check .
 poedex sync             # normalized bag; spends real rate-limit budget
 poedex value            # the bag, priced. one GGG request; poe.ninja is free
-poedex appraise         # the bag, judged. same one request, zero trade requests
+poedex appraise         # the bag, judged. one account request; a few trade requests for rares
+poedex appraise --no-escalate   # ...or none at all
 poedex limits           # what the limiter has learned
 ```
 
@@ -95,6 +97,18 @@ sustained rate-limit violations.
   budget keyed by hostname, pinned so no response header can merge it into GGG's buckets.
 - **poe.ninja's routes moved and will move again.** They are measured in research-notes §9, not
   guessed, and the operator states there is no stability guarantee. Re-measure before debugging.
+- **Never hardcode which price tables exist.** The list was 26 types typed in by hand, `Ducat`
+  was not one of them, and a whole item class was `unpriceable` for a league while poe.ninja
+  published prices for it the entire time. `modules/prices/backend/discovery.py` asks the league:
+  sitemap slugs → derived type names → probe → per-league record. It must stay able to find a
+  type nobody has typed into `CATALOGUE`; a discovery that only confirms known names is the same
+  bug with more steps. There is no type-index endpoint — research-notes §9.6 has the 404s.
+- **Tier 3 is eager for a bag and never for a stash.** SPEC §5.3's original "never eager" was a
+  stash rule; a bag holds 3–5 rares and the search budget is `5:10:60`. The switch is the
+  existing `Strictness`, and `strict` cannot be overridden into escalating.
+- **Batching the bulk exchange is not free.** The response caps at 100 rows sorted cheapest-first
+  across the whole batch, so ten ids in one request returns everyone's floor. Starved wants are
+  re-queried alone. research-notes §11 has the table.
 - **`unpriceable` is never zero.** A removed item absent from the price index is a hole in the
   total, and reporting it as worthless understates the bag badly (SPEC §5.4). `appraisal` splits
   it further: an item the index *should* carry and does not is `unpriceable`; a rare, which no

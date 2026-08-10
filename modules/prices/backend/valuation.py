@@ -7,7 +7,14 @@ the work to have no way of making one.
 
 ## The order
 
-Tier 0 (the player's own note) → tier 1 (a bulk table) → ``unpriceable``.
+Tier 0 (the player's own note) → tier 1 (a poe.ninja bulk table) → tier 1b (a bulk
+exchange rate the caller fetched first) → ``unpriceable``.
+
+Tier 1b arrives as a plain ``{name: chaos}`` mapping the caller has already
+resolved, which is what keeps this file free of I/O: :class:`PriceIndex` still
+cannot make a request, and the network cost of the fallback is visible at the call
+site instead of buried in a lookup. Tier 3 never appears here at all — a trade quote
+is applied to a finished :class:`~modules.prices.backend.api.Valuation` afterwards.
 
 Note first, per the phase brief. It is defensible on its own terms — the player
 looked at the item and decided — but it is also the reason both prices are kept side
@@ -39,7 +46,7 @@ league's without anything here knowing what a map series is.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from modules.poeapi.backend.api import NormalizedItem, Rarity
@@ -56,9 +63,11 @@ from modules.prices.backend.notes import NotePrice, parse_note
 
 __all__ = [
     "DIVINE_TRADE_ID",
+    "EXCHANGEABLE_CATEGORIES",
     "PriceIndex",
     "candidate_tables",
     "choose_line",
+    "exchangeable",
     "lookup_keys",
     "price_key",
 ]
@@ -181,12 +190,38 @@ def choose_line(lines: Sequence[PriceLine], item: NormalizedItem) -> PriceLine |
     return best
 
 
+# Categories for which a bulk-exchange rate is a sensible answer. The exchange
+# trades currency and fragments in stacks; it does not price a rare ring, and asking
+# it to would be tier 3's job done badly.
+EXCHANGEABLE_CATEGORIES: frozenset[str] = frozenset({"currency", "fragment", "card"})
+
+
+def exchangeable(item: NormalizedItem) -> bool:
+    """Whether tier 1b could conceivably price ``item``.
+
+    Rarity as well as category: ``normalize.py`` derives the category from icon art,
+    and a *unique* whose art lives under ``2DItems/Currency`` would otherwise be sent
+    to an endpoint that has never heard of it.
+    """
+    if item.rarity in (Rarity.UNIQUE, Rarity.RELIC, Rarity.RARE, Rarity.MAGIC):
+        return False
+    return item.category in EXCHANGEABLE_CATEGORIES
+
+
 @dataclass
 class PriceIndex:
     """Every loaded table, plus the two lookups the resolver needs."""
 
     tables: Mapping[str, PriceTable]
     league: str = ""
+    exchange_rates: Mapping[str, Price] = field(default_factory=dict)
+    """Tier 1b, by item name, resolved by the caller before this index was built.
+    Empty is the normal case: it is only populated for names tier 1 missed."""
+
+    exchange_attempted: bool = False
+    """Whether the caller actually asked the bulk exchange. Distinct from
+    ``exchange_rates`` being empty, which happens both when we asked and got nothing
+    and when we never asked — and those want different words on an unpriceable row."""
 
     def table(self, key: str) -> PriceTable | None:
         return self.tables.get(key)
@@ -271,16 +306,42 @@ class PriceIndex:
 
     # -- the resolution order --------------------------------------------------
 
+    # -- tier 1b ---------------------------------------------------------------
+
+    def exchange_price(self, item: NormalizedItem) -> Price | None:
+        """Tier 1b. A rate the caller fetched from GGG's bulk exchange, or ``None``."""
+        if not self.exchange_rates or not exchangeable(item):
+            return None
+        for key in (item.name, item.base_type):
+            if key and key in self.exchange_rates:
+                return self.exchange_rates[key]
+        return None
+
+    def _no_price_reason(self, item: NormalizedItem) -> str:
+        """Why nothing priced it, in the terms of whatever *should* have.
+
+        "Not in the index" is the right sentence for a Veiled Scarab and the wrong
+        one for a rare ring, and after this phase there is a third case: something
+        the index misses *and* nobody is bulk-selling. Saying which is what keeps
+        ``unpriceable`` a statement about our knowledge rather than a shrug.
+        """
+        if self.exchange_attempted and exchangeable(item):
+            return "not in the poe.ninja index, and no bulk-exchange offers for it"
+        return "not in the poe.ninja index for this league"
+
+    # -- the resolution order --------------------------------------------------
+
     def value(self, item: NormalizedItem) -> Valuation:
         note, parsed = self.note_price(item)
         market = self.market_price(item)
-        price = note or market
+        exchange = self.exchange_price(item) if market is None else None
+        price = note or market or exchange
         reason = None
         if price is None:
             reason = (
                 f"note {parsed.text!r} names a currency the price tables do not carry"
                 if parsed is not None
-                else "not in the poe.ninja index for this league"
+                else self._no_price_reason(item)
             )
         return Valuation(
             uid=item.uid,
@@ -290,7 +351,7 @@ class PriceIndex:
             stack_size=item.stack_size,
             price=price,
             note_price=note,
-            market=market,
+            market=market or exchange,
             reason=reason,
         )
 
@@ -300,6 +361,7 @@ class PriceIndex:
         *,
         table_status: TableStatus | None = None,
         league_source: LeagueSource | None = None,
+        exchange_requests: int = 0,
     ) -> BagValuation:
         """Price a bag. One lookup per distinct :func:`price_key`, fanned out."""
         resolved: dict[tuple, Valuation] = {}
@@ -331,4 +393,7 @@ class PriceIndex:
             table=table_status,
             lookups=len(resolved),
             trade_requests=0,
+            exchange_requests=exchange_requests,
         )
+
+
