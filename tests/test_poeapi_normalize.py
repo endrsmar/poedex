@@ -14,7 +14,7 @@ import pytest
 
 from modules.poeapi.backend.api import Location
 from modules.poeapi.backend.models import Rarity, Source
-from modules.poeapi.backend.module import _characters_from, _tabs_from
+from modules.poeapi.backend.module import _characters_from
 from modules.poeapi.backend.normalize import (
     category_of,
     icon_art_path,
@@ -22,6 +22,7 @@ from modules.poeapi.backend.normalize import (
     normalize_items,
     strip_set_tokens,
 )
+from modules.poeapi.backend.stash import tabs_from as _tabs_from
 from tests.conftest import REPO_ROOT
 
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "poeapi"

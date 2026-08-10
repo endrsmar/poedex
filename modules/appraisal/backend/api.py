@@ -52,7 +52,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from modules.poeapi.backend.api import NormalizedItem, Rarity
+from modules.poeapi.backend.api import CrawlPlan, NormalizedItem, Rarity, StashTab, TabState
 from modules.prices.backend.api import (
     LeagueSource,
     ModFocus,
@@ -72,6 +72,7 @@ __all__ = [
     "AppraisalApi",
     "AppraisalError",
     "BagAppraisal",
+    "Composition",
     "GateResult",
     "GateSignal",
     "ItemHighlight",
@@ -80,7 +81,10 @@ __all__ = [
     "PriceCheck",
     "Selection",
     "Slot",
+    "StashDigest",
     "Strictness",
+    "TabAppraisal",
+    "TabSummary",
     "Verdict",
     "indexable",
     "not_loot",
@@ -1108,6 +1112,265 @@ class BagAppraisal:
         return f"BagAppraisal({counts}, {self.total_chaos:.0f}c)"
 
 
+# -- the stash (Phase 10) ------------------------------------------------------
+#
+# These live here rather than in ``stash.py`` for the same reason every other public
+# type does: ``api.py`` is the only file a dependent may import (plan §1.4), and the
+# CLI is a dependent. ``stash.py`` keeps the one thing that needs the gate to decide
+# it — :func:`~modules.appraisal.backend.stash.classify`.
+
+
+class Composition(StrEnum):
+    """What a tab is made of, decided from its contents on first read (SPEC §5.2)."""
+
+    EMPTY = "empty"
+    """Nothing in it. Not the same as *not read yet*, which is not a composition at
+    all and is why :attr:`TabSummary.known` exists."""
+
+    BULK = "bulk"
+    """Nothing the gate would look at — currency, cards, fragments, maps, gems. These
+    never enter tier 2 or 3, which is most of a real stash."""
+
+    GEAR = "gear"
+    """Every item in it is something the gate has an opinion about. On the measured
+    account the rares are *spatially segregated* into one or two tabs like this,
+    because players sort their stash."""
+
+    MIXED = "mixed"
+
+
+class TabSummary:
+    """One row of the stash list: what the tab is, how old, and what it is worth.
+
+    Built without a request. Every field is either tab metadata, a cache fact, or a
+    valuation of items already on disk — which is what makes a 117-tab list openable
+    at all.
+    """
+
+    __slots__ = (
+        "age_seconds",
+        "cached",
+        "composition",
+        "fetched_at",
+        "highlighted",
+        "item_count",
+        "known",
+        "permanent",
+        "stale",
+        "state",
+        "tab",
+        "total_chaos",
+        "units",
+        "unpriceable_count",
+    )
+
+    def __init__(
+        self,
+        state: TabState,
+        *,
+        composition: Composition | None = None,
+        total_chaos: float = 0.0,
+        highlighted: int = 0,
+        unpriceable_count: int = 0,
+        units: int = 0,
+    ) -> None:
+        self.state = state
+        self.tab: StashTab = state.tab
+        self.known = composition is not None
+        """Has anybody read this tab? ``False`` is *unknown*, and its value is a hole
+        in the digest's total rather than a zero in it."""
+
+        self.composition = composition or Composition.EMPTY
+        self.total_chaos = total_chaos
+        self.highlighted = highlighted
+        self.unpriceable_count = unpriceable_count
+        self.units = units
+        self.item_count = state.item_count
+        self.cached = state.cached
+        self.fetched_at = state.fetched_at
+        self.age_seconds = state.age_seconds
+        self.stale = state.stale
+        self.permanent = state.permanent
+
+    @property
+    def supported(self) -> bool:
+        return self.tab.supported
+
+    @property
+    def hole(self) -> bool:
+        """Is this tab's value missing from the digest's total?
+
+        Two ways, and both of them are *unknown* rather than nothing: nobody has read
+        it, or it cannot be read (a map tab).
+        """
+        return not self.known or not self.supported
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "index": self.tab.index,
+            "name": self.tab.name,
+            "type": self.tab.type,
+            "kind": self.tab.kind.value,
+            "cols": self.tab.layout.cols,
+            "rows": self.tab.layout.rows,
+            "grid": self.tab.layout.grid,
+            "colour": self.tab.colour,
+            "hidden": self.tab.hidden,
+            "remove_only": self.tab.remove_only,
+            "supported": self.tab.supported,
+            "unsupported_reason": self.tab.unsupported_reason,
+            "known": self.known,
+            "cached": self.cached,
+            "fetched_at": self.fetched_at.isoformat() if self.fetched_at else None,
+            "age_seconds": (
+                round(self.age_seconds, 1) if self.age_seconds is not None else None
+            ),
+            "stale": self.stale,
+            "permanent": self.permanent,
+            "item_count": self.item_count,
+            "units": self.units,
+            "composition": self.composition.value if self.known else None,
+            "total_chaos": round(self.total_chaos, 4),
+            "highlighted": self.highlighted,
+            "unpriceable_count": self.unpriceable_count,
+            "hole": self.hole,
+        }
+
+    def __repr__(self) -> str:
+        return f"TabSummary({self.tab.index}, {self.tab.name!r}, {self.composition.value})"
+
+
+class StashDigest:
+    """Every tab, what is known about it, and an honest total over the known part.
+
+    Costs **zero** item requests beyond the tab list. What it cannot see it names:
+    :attr:`unread` and :attr:`unsupported` are lists, not omissions, and
+    :attr:`total_is_floor` is true whenever either is non-empty.
+    """
+
+    __slots__ = ("cost", "divine_rate", "league", "strictness", "tabs")
+
+    def __init__(
+        self,
+        tabs: Sequence[TabSummary],
+        *,
+        league: str,
+        strictness: Strictness,
+        cost: CrawlPlan,
+        divine_rate: float | None = None,
+    ) -> None:
+        self.tabs = list(tabs)
+        self.league = league
+        self.strictness = strictness
+        self.cost = cost
+        self.divine_rate = divine_rate
+
+    @property
+    def total_chaos(self) -> float:
+        return sum(tab.total_chaos for tab in self.tabs)
+
+    @property
+    def total_divine(self) -> float | None:
+        if not self.divine_rate:
+            return None
+        return self.total_chaos / self.divine_rate
+
+    @property
+    def unread(self) -> list[TabSummary]:
+        return [tab for tab in self.tabs if not tab.known and tab.supported]
+
+    @property
+    def unsupported(self) -> list[TabSummary]:
+        return [tab for tab in self.tabs if not tab.supported]
+
+    @property
+    def highlighted(self) -> int:
+        return sum(tab.highlighted for tab in self.tabs)
+
+    @property
+    def total_is_floor(self) -> bool:
+        return bool(self.unread) or bool(self.unsupported)
+
+    def ranked(self) -> list[TabSummary]:
+        """Most valuable first, then the tabs nobody has read, then the rest.
+
+        Unread tabs sort above the cheap known ones on purpose: an unknown is a thing
+        to go and look at, and a 0c tab that has actually been read is not.
+        """
+        return sorted(
+            self.tabs,
+            key=lambda tab: (
+                0 if tab.total_chaos > 0 else (1 if tab.hole else 2),
+                -tab.total_chaos,
+                -tab.highlighted,
+                tab.tab.index,
+            ),
+        )
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "league": self.league,
+            "strictness": self.strictness.value,
+            "tabs": [tab.to_json() for tab in self.ranked()],
+            "total_chaos": round(self.total_chaos, 4),
+            "total_divine": (
+                round(self.total_divine, 4) if self.total_divine is not None else None
+            ),
+            "divine_rate": self.divine_rate,
+            "tab_count": len(self.tabs),
+            "known_count": sum(1 for tab in self.tabs if tab.known),
+            "unread_count": len(self.unread),
+            "unsupported_count": len(self.unsupported),
+            "highlighted_count": self.highlighted,
+            "total_is_floor": self.total_is_floor,
+            "cost": self.cost.to_json(),
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"StashDigest({self.league}, {len(self.tabs)} tabs, "
+            f"{self.total_chaos:.0f}c, {len(self.unread)} unread)"
+        )
+
+
+class TabAppraisal:
+    """One tab's contents, judged at stash strictness.
+
+    The appraisal itself is an ordinary :class:`BagAppraisal` — the same verdicts, the
+    same totals, the same ranking. A stash tab is not a different kind of question
+    about an item; it is the same question asked about items that live somewhere else.
+    """
+
+    __slots__ = ("appraisal", "summary", "unsupported")
+
+    def __init__(
+        self,
+        summary: TabSummary,
+        appraisal: BagAppraisal,
+        *,
+        unsupported: str | None = None,
+    ) -> None:
+        self.summary = summary
+        self.appraisal = appraisal
+        self.unsupported = unsupported
+        """Set for a tab whose contents this API cannot read. The item list is then
+        empty **and says why**, rather than being an empty tab."""
+
+    @property
+    def supported(self) -> bool:
+        return self.unsupported is None
+
+    def to_json(self) -> dict[str, Any]:
+        payload = self.appraisal.to_json()
+        payload["tab"] = self.summary.to_json()
+        payload["unsupported"] = self.unsupported
+        payload["composition"] = self.summary.composition.value if self.summary.known else None
+        return payload
+
+    def __repr__(self) -> str:
+        return f"TabAppraisal({self.summary.tab.index}, {self.appraisal!r})"
+
+
 @runtime_checkable
 class AppraisalApi(Protocol):
     """What dependents get from ``ctx.require(AppraisalApi)``.
@@ -1191,4 +1454,37 @@ class AppraisalApi(Protocol):
 
     def threshold(self) -> float:
         """The configured keep threshold in chaos."""
+        ...
+
+    # -- the stash (Phase 10) --------------------------------------------------
+    #
+    # Three methods, and only one of them can spend anything. They are declared here
+    # rather than on a separate stash API because there is nothing new to decide: a
+    # stash tab is the same items, judged by the same gate at the other strictness.
+
+    async def stash_digest(self, league: str | None = None, *, refresh: bool = False) -> Any:
+        """Every tab, with what is already known about it. **No item requests.**
+
+        Reads the tab list (cached 15 minutes) and prices whatever tabs are already on
+        disk. Tabs nobody has read are named, not guessed at: the total is a floor and
+        says so. This is the accessor a stash screen opens on, and it is why opening
+        the screen does not cost 34 minutes.
+        """
+        ...
+
+    async def appraise_tab(
+        self,
+        tab_index: int,
+        *,
+        league: str | None = None,
+        strictness: Strictness | None = None,
+        refresh: bool = False,
+        override: str | None = None,
+    ) -> Any:
+        """One tab, judged at stash strictness. **One request, about a second** —
+        and zero when the tab is remove-only and already on disk.
+
+        This is the primary path (SPEC §6.6): lazy per-tab fetch when the player
+        opens a tab, never a crawl.
+        """
         ...

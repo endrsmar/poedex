@@ -13,6 +13,10 @@ Commands:
     poedex sync                        fetch the bag and print the normalized model
     poedex value                       price the bag: per-item values and a total
     poedex appraise                    the bag, judged: keep/check/trash/unpriceable
+    poedex stash                       the tab list: freshness, contents, value
+    poedex stash tab N                 one tab, judged at stash strictness
+    poedex stash plan                  what a full refresh would cost right now
+    poedex stash crawl --yes           the cold crawl. Minutes. Never automatic
     poedex price UID [--mods ...]      ask the market about one item, your query
     poedex limits                      print what the rate limiter currently knows
     poedex moddb                       the mod database: how old, and what it says
@@ -41,6 +45,7 @@ from cli.moddb import cmd_moddb
 from cli.price import cmd_price
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
 from cli.serve import DEFAULT_PORT, cmd_serve
+from cli.stash import cmd_stash_crawl, cmd_stash_list, cmd_stash_plan, cmd_stash_tab
 from cli.sync import cmd_sync, render_limits
 from cli.value import cmd_value
 from modules.appraisal.backend.api import AppraisalApi, Strictness
@@ -258,6 +263,66 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_league_argument(appraise)
 
+    stash = sub.add_parser(
+        "stash",
+        help="the stash: tab list, one tab, and the crawl",
+        description=(
+            "Stash tabs are one request each and there is no batch endpoint, so this "
+            "command is organised by what each thing costs. The bare form lists tabs "
+            "and spends nothing but the tab list; 'tab N' reads one tab; 'crawl' "
+            "reads everything and refuses to start without --yes. Remove-only tabs "
+            "are fetched once and cached forever — they cannot gain items — which is "
+            "why a second full refresh is seconds rather than half an hour."
+        ),
+    )
+    # Deliberately **not** argparse subparsers. A subparser re-applies its own
+    # defaults over the parent namespace, so `poedex stash --league Standard tab 3`
+    # would silently drop the league — and a silently wrong league is the most
+    # expensive bug this project has had (see `_add_league_argument`). One flat parser
+    # accepts the flag on either side of the action.
+    stash.add_argument(
+        "action",
+        nargs="?",
+        choices=["list", "tab", "plan", "crawl"],
+        default="list",
+        help="what to do. Default: list the tabs",
+    )
+    stash.add_argument(
+        "index",
+        nargs="?",
+        type=int,
+        default=None,
+        help="which tab, for 'tab'. The index 'poedex stash' prints",
+    )
+    stash.add_argument(
+        "--force",
+        action="store_true",
+        help="ignore the cache: re-fetch the tab list, or the tab being read",
+    )
+    stash.add_argument(
+        "--strictness",
+        choices=[level.value for level in Strictness],
+        default=None,
+        help="override the tier-2 gate for this run. The stash default is 'strict'",
+    )
+    stash.add_argument(
+        "--all", action="store_true", help="list the trash rows instead of collapsing them"
+    )
+    stash.add_argument(
+        "--yes",
+        action="store_true",
+        help="for 'crawl': actually spend the requests it just described",
+    )
+    stash.add_argument(
+        "--restart",
+        action="store_true",
+        help="for 'crawl': ignore the saved progress and walk every tab again",
+    )
+    stash.add_argument(
+        "--limit", type=int, default=None, help="for 'crawl': stop after this many tabs"
+    )
+    _add_league_argument(stash)
+
     price = sub.add_parser(
         "price",
         help="ask the market about one item, with the mods you choose",
@@ -274,6 +339,15 @@ def build_parser() -> argparse.ArgumentParser:
         "uid", help="which item: a name, a uid, or enough of either to be unambiguous"
     )
     price.add_argument("--character", help="character name (default: most recently played)")
+    price.add_argument(
+        "--tab",
+        type=int,
+        default=None,
+        help=(
+            "look for the item in this stash tab instead of the bag. The same check, "
+            "on an item that lives somewhere else — 'poedex stash tab N' lists uids"
+        ),
+    )
     price.add_argument(
         "--mods",
         default=None,
@@ -589,6 +663,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                 league=args.league,
             )
 
+    elif args.command == "stash":
+
+        async def runner(registry: Registry) -> int:
+            appraisal = registry.api(AppraisalApi)
+            prices = registry.api(PricesApi)
+            if args.action == "tab":
+                if args.index is None:
+                    print("which tab? 'poedex stash tab N'", file=sys.stderr)
+                    return 2
+                return await cmd_stash_tab(
+                    appraisal,
+                    prices,
+                    args.index,
+                    league=args.league,
+                    strictness=args.strictness,
+                    refresh=args.force,
+                    show_all=args.all,
+                )
+            if args.action == "plan":
+                return await cmd_stash_plan(appraisal, league=args.league)
+            if args.action == "crawl":
+                return await cmd_stash_crawl(
+                    registry.api(PoeApi),
+                    appraisal,
+                    league=args.league,
+                    yes=args.yes,
+                    resume=not args.restart,
+                    limit=args.limit,
+                )
+            return await cmd_stash_list(
+                appraisal, prices, league=args.league, refresh=args.force
+            )
+
     elif args.command == "price":
 
         async def runner(registry: Registry) -> int:
@@ -598,6 +705,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 registry.api(PricesApi),
                 uid=args.uid,
                 character=args.character,
+                tab_index=args.tab,
                 mods=args.mods,
                 open_prefixes=args.open_prefixes,
                 open_suffixes=args.open_suffixes,

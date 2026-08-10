@@ -572,6 +572,13 @@ duplicate of the 16-tab set from every league ever played). Active tabs hold 818
 takes steady state from 117 tabs to 16, and a full refresh from ~34 minutes to ~45 seconds. It
 is the highest-leverage rule in the feature.
 
+*Phase 10 measured both ends against the real tab list and the account's published policy:* a
+cold crawl is **107 requests / ~30 minutes** (117 tabs less the 10 map tabs, and the `100:1800`
+bucket is what binds), and steady state is **15 requests / ~15 seconds**. Note what that is
+*not*: `requests × 18 s`. Eighteen seconds is the sustained rate, thirty requests fit inside the
+first minute, and multiplying turns a fifteen-second refresh into four and a half minutes —
+research-notes §7.2.
+
 Never auto-crawl. A cold crawl is user-initiated, resumable, disk-backed, with an honest
 *"~30 min, will pause inventory syncing"* warning. Lazy per-tab fetch on open (1 request, ~1s) is
 the primary path.
@@ -662,7 +669,7 @@ hedge, and it can move earlier.
 | 1b | Should `check` be one state or two? §5.4 gives it two jobs — "cheap but non-trivial" and "unknown value, tier-3 pending" — and on a real bag the first will swamp the second | The Phase 5 bag screen | Decide before the panel is drawn, not after |
 | 2 | ~~Which league is primary?~~ **Resolved: none is.** A bag is priced against the league of the character it came from (`ItemSet.league`, read off `get-characters`). `prices.league` became an override, empty by default; `--league` overrides it for one run; an unknown league raises `LeagueUnknownError` instead of defaulting. The old `"Standard"` default priced an Allflame bag against a 897.7c divine instead of 209.0c | — | Done |
 | 3 | Does pathofexile.com login + Cloudflare work in Steam's CEF browser? | All of M7 | Hardware test |
-| 4 | Do map stash tabs need substash traversal? Nine returned zero items across two leagues. | Stash value accuracy | M5, inspect raw JSON |
+| 4 | **Answered as far as this API allows: yes, and this endpoint cannot do it.** Five map tabs sampled across two leagues — including an *active* one — all returned zero items. GGG's documented stash API gives `StashTab` a `children` array, says its list endpoint "includes sub-tabs and stash tabs in folders", and takes a `substash_id` so "the inner tab will be wrapped by the parent"; a forum answer describes reading a map stash as "1 call per map type". `get-stash-items?tabIndex=N` has no equivalent parameter. Phase 10 therefore reports a map tab as **`not supported yet`**, excludes it from every total and spends no request on it | Stash value accuracy | OAuth (blocks on row 3). One `list stashes` call showing `children` on a map tab settles it for good — research-notes §7.1 |
 | 5 | Does GGG issue refresh tokens to public clients at all? Docs contradict themselves (7d vs 90d) and offer to disable them. | M7 UX | Ask in the application email |
 | 6 | Suspend/resume behaviour of the plugin process | Sync correctness | M3 hardware test |
 | 7 | Is `Generating level N area` emitted on re-entry to a persistent hideout? | Trigger classification | M1, log capture |

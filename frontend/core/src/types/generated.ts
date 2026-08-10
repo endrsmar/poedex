@@ -50,6 +50,7 @@ export interface ItemSet {
   tab_index?: number | null
   tab_name?: string | null
   meta: Meta
+  unsupported?: string | null
 }
 
 export interface CharacterList {
@@ -304,6 +305,116 @@ export interface PriceCheckPayload {
   spent: number
   selection: SelectionPayload
   quote: TradeQuotePayload | null
+}
+
+/**
+ * What a full stash refresh costs *right now*. Mirrors ``poeapi.CrawlPlan``.
+ * On the wire because a surface offering a crawl has to be able to say what it
+ * costs before the press, and because the figure falls as the cache fills — a
+ * screen that hardcoded "~30 min" would keep saying it after the crawl was
+ * done.
+ */
+export interface CrawlPlanPayload {
+  league: string
+  total_tabs: number
+  cached_tabs: number
+  permanent_tabs: number
+  unsupported_tabs: number
+  requests: number
+  seconds: number
+  warning: string
+}
+
+/**
+ * One row of the stash list. Mirrors ``appraisal.TabSummary.to_json``. Three
+ * fields carry the whole honesty of this screen and none of them may be
+ * collapsed into a number: * ``known`` — has anybody read this tab? ``false``
+ * means its value is *unknown*, and ``total_chaos`` is 0 only because there is
+ * nothing to add, not because the tab is empty. ``item_count`` is ``null`` for
+ * the same reason. * ``supported`` / ``unsupported_reason`` — a map tab, which
+ * this API cannot read at all. Rendered as "not supported yet", never as 0c. *
+ * ``grid`` — whether the tab has a lattice. A currency tab does not, and
+ * drawing one produces a picture that looks right and is not.
+ */
+export interface StashTabPayload {
+  index: number
+  name: string
+  type: string
+  kind: string
+  cols: number | null
+  rows: number | null
+  grid: boolean
+  colour: string | null
+  hidden: boolean
+  remove_only: boolean
+  supported: boolean
+  unsupported_reason: string | null
+  known: boolean
+  cached: boolean
+  fetched_at: string | null
+  age_seconds: number | null
+  stale: boolean
+  permanent: boolean
+  item_count: number | null
+  units: number
+  composition: "empty" | "bulk" | "gear" | "mixed" | null
+  total_chaos: number
+  highlighted: number
+  unpriceable_count: number
+  hole: boolean
+}
+
+/**
+ * Every tab, and an honest total over the ones that have been read.
+ */
+export interface StashDigestPayload {
+  league: string
+  strictness: "generous" | "strict"
+  tabs: StashTabPayload[]
+  total_chaos: number
+  total_divine: number | null
+  divine_rate: number | null
+  tab_count: number
+  known_count: number
+  unread_count: number
+  unsupported_count: number
+  highlighted_count: number
+  total_is_floor: boolean
+  cost: CrawlPlanPayload
+}
+
+/**
+ * One tab's contents, judged. A ``BagAppraisal`` plus where it came from.
+ * Inherits rather than repeats, because that is the claim: a stash tab is the
+ * same verdicts over items that live somewhere else, not a second verdict
+ * model.
+ */
+export interface TabAppraisalPayload {
+  league: string
+  league_source: "argument" | "setting" | "character" | null
+  league_overridden: boolean | null
+  strictness: "generous" | "strict"
+  threshold_chaos: number
+  items: ItemVerdictPayload[]
+  counts: VerdictCounts
+  total_chaos: number
+  total_divine: number | null
+  divine_rate: number | null
+  unpriceable_count: number
+  unpriceable_stack: number
+  highlighted_count: number
+  unchecked_count: number
+  pricing_count: number
+  no_listings_count: number
+  total_is_floor: boolean
+  lookups: number
+  trade_requests: number
+  table: TableStatusPayload | null
+  character?: string | null
+  stale?: boolean
+  tab: StashTabPayload
+  unsupported?: string | null
+  composition?: "empty" | "bulk" | "gear" | "mixed" | null
 }
 
 /**

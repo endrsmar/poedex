@@ -1,0 +1,103 @@
+{
+ "numTabs": 8,
+ "tabs": [
+  {
+   "n": "C",
+   "i": 0,
+   "id": "effd05ed46a557221fc441a3932ff22f2e1abaef392a027c37168092616f4cfd",
+   "type": "CurrencyStash",
+   "selected": false,
+   "colour": {
+    "r": 200,
+    "g": 100,
+    "b": 50
+   }
+  },
+  {
+   "n": "Gear",
+   "i": 1,
+   "id": "b0d094bedf3c8a2d5c07728b4837df934a4a9fd05ecd33a84c221b6ba319decb",
+   "type": "PremiumStash",
+   "selected": false,
+   "colour": {
+    "r": 54,
+    "g": 84,
+    "b": 226
+   }
+  },
+  {
+   "n": "Sext",
+   "i": 2,
+   "id": "6e9c055424ca3896a1156607e2ad2b47ce862c9b085e7ae73132a6b129629f19",
+   "type": "QuadStash",
+   "selected": false,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  },
+  {
+   "n": "(Remove-only) Placeholder League",
+   "i": 3,
+   "id": "90f7e30ba730c3fa1b97963c2486a30fc28e79fe7b5546b6d594b1b0c1c7b42e",
+   "type": "NormalStash",
+   "selected": false,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  },
+  {
+   "n": "M",
+   "i": 4,
+   "id": "4e24852df976018e9a4606d2ba9e2d519b203ea4f8ba1a3aef1e0fd2d92c89d2",
+   "type": "MapStash",
+   "selected": false,
+   "hidden": true,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  },
+  {
+   "n": "D",
+   "i": 5,
+   "id": "268ae9aef599e2007062c98e7c26a5abcea8b2561985fe4c822173839488eda5",
+   "type": "DivinationCardStash",
+   "selected": false,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  },
+  {
+   "n": "(Remove-only) Placeholder Heist",
+   "i": 6,
+   "id": "07f5c6dbd1040dd553d4d8d5da52acb33194e4dead9a6fe5e97f05849f22c06a",
+   "type": "NormalStash",
+   "selected": false,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  },
+  {
+   "n": "Later",
+   "i": 7,
+   "id": "507881e2ddd0048f13c9e93f082c0d735f8362ffc6601802a0ce3240aaa28f73",
+   "type": "PremiumStash",
+   "selected": false,
+   "colour": {
+    "r": 124,
+    "g": 81,
+    "b": 50
+   }
+  }
+ ],
+ "items": []
+}

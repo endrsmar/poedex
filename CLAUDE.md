@@ -14,7 +14,7 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9, 9b and 9c done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9, 9b, 9c and 10 done.** `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
 httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
 `moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
@@ -24,11 +24,15 @@ five-state verdicts, and a player-driven price check); a `poedex` CLI; and **the
 surface** — `ui-kit/` (`@poedex/ui`, two profiles behind a build-time alias), `frontend/core/`
 (transports, stores, TS types generated from the pydantic models), `transports/http/` (FastAPI
 on 127.0.0.1 + SSE + the built SPA), `surfaces/web/` and `modules/appraisal/ui/`. Boundaries are
-enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`. Next
-action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel), then
-**Phase 10** (stash tabs).
+enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`.
+**Phase 10** added the stash: tab enumeration with per-tab layouts and staleness, the remove-only
+cache rule, a resumable user-initiated crawl, the strict gate over a tab, `poedex stash`, and a
+`full`-only stash screen. Next action is **Phase 7** (compact profile against `@decky/ui`, Decky
+transport, panel).
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
+    poedex stash      # the tab list: freshness, contents, value. Zero item requests
+    poedex stash tab N   # one tab, judged at stash strictness. One request, ~1s
     poedex price UID  # one item's mods with real tiers, then the query you chose
     poedex moddb      # how old the mod database is, and what it says about a mod
     pnpm install && pnpm build && pnpm run check
@@ -83,6 +87,11 @@ poedex price <uid> --mods 0,3 --open-prefixes 1   # ...and the query you chose
 poedex limits           # what the limiter has learned
 poedex config list      # every setting, its value, and whether it is stored or the default
 poedex config set net.contact you@example.com    # the setting three messages used to ask for
+poedex stash                    # tab list, freshness and value. Spends no item requests
+poedex stash tab 3              # one tab, judged strict. One request, or none if cached
+poedex stash plan               # what a full refresh costs right now, in requests and minutes
+poedex stash crawl --yes        # the cold crawl. Minutes. Resumable. Never automatic
+poedex price <uid> --tab 3      # the same manual check, on an item in a stash tab
 ```
 
 **Every message that names a setting names the command that sets it.** `poedex config`
@@ -251,6 +260,31 @@ sustained rate-limit violations.
   of them turns a six-mod rare into a near-exact-match search: measured, that returned 0, 0 and 1
   listings for the three rares in a real bag. `GateResult.focus()` is the join, and it exists
   because `prices` cannot import `appraisal` without making a cycle.
+- **A stash tab nobody has read is worth *unknown*, and never `0c`.** The same rule
+  `unpriceable` follows for an item, one level up. An unread tab, an unreadable one (a map tab)
+  and a genuinely empty one look identical in a total and mean three different things, so
+  `TabSummary.known` and `StashTab.supported` are separate fields, the stash total says `≥`, and
+  `poedex stash` prints `—` rather than a number nobody computed. Phase 10's whole failure mode
+  was a screen that quietly summed holes as zero.
+
+- **Remove-only tabs are fetched once, ever, and map tabs are not fetched at all.** 101 of the
+  measured 117 Standard tabs cannot gain items, so their TTL is literally infinite; and a map tab
+  returns nothing through this endpoint on every one of five samples across two leagues, so
+  spending a request to receive a zero we would then have to disbelieve is the worst of both.
+  research-notes §7.1 has the evidence and the fix (OAuth `children` traversal).
+
+- **A crawl states its cost from the buckets, not from the sustained rate.** `requests × 18 s` is
+  right for "forever" and wrong by an order of magnitude for anything small: the same policy
+  allows 30 requests in the first minute, so a 15-tab refresh is fifteen seconds and not four and
+  a half minutes. Measured both ends in research-notes §7.2 — cold 107 requests / ~30 min, steady
+  state 15 / ~15 s. And **nothing crawls by itself**: there is no registered method that could
+  start one, only `poedex stash crawl --yes`.
+
+- **The stash gate is strict and has its own setting.** SPEC §5.2's two biases are two settings —
+  `appraisal.strictness` (bag, generous) and `appraisal.stash_strictness` (stash, strict) —
+  because a player who loosens the bag panel has said nothing about whether they want 818 stash
+  items flagged. Strict is generous minus the *soft* signals, and it is the same `evaluate()`.
+
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.
 - **PoE 2 has no data path.** GGG removed inventory from its character endpoint in 3.27.0.

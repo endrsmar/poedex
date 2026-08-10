@@ -1,0 +1,35 @@
+{
+ "items": [
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "league": "Standard",
+   "id": "36d4336a3c46e6deb0a46a58fad3e5e38f0baec1f494ed88bde4625895fe31ed",
+   "identified": true,
+   "ilvl": 0,
+   "x": 0,
+   "y": 0,
+   "inventoryId": "Stash1",
+   "icon": "https://web.poecdn.com/image/Art/2DItems/Divination/InventoryIcon.png",
+   "name": "",
+   "typeLine": "Choking Guilt",
+   "baseType": "Choking Guilt",
+   "frameType": 6,
+   "stackSize": 3,
+   "maxStackSize": 6,
+   "properties": [
+    {
+     "name": "Stack Size",
+     "values": [
+      [
+       "2/6",
+       0
+      ]
+     ],
+     "displayMode": 0
+    }
+   ]
+  }
+ ]
+}

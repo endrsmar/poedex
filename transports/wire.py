@@ -36,6 +36,7 @@ __all__ = [
     "BagAppraisalPayload",
     "CallError",
     "CallResponse",
+    "CrawlPlanPayload",
     "GatePayload",
     "GateSignalPayload",
     "ItemHighlightPayload",
@@ -48,7 +49,10 @@ __all__ = [
     "SelectionPayload",
     "ServerMeta",
     "SlotPayload",
+    "StashDigestPayload",
+    "StashTabPayload",
     "SyncMeta",
+    "TabAppraisalPayload",
     "TableStatusPayload",
     "TradeQuotePayload",
     "ValuationPayload",
@@ -330,6 +334,98 @@ class PriceCheckPayload(Wire):
     quote: TradeQuotePayload | None
 
 
+class CrawlPlanPayload(Wire):
+    """What a full stash refresh costs *right now*. Mirrors ``poeapi.CrawlPlan``.
+
+    On the wire because a surface offering a crawl has to be able to say what it
+    costs before the press, and because the figure falls as the cache fills — a
+    screen that hardcoded "~30 min" would keep saying it after the crawl was done.
+    """
+
+    league: str
+    total_tabs: int
+    cached_tabs: int
+    permanent_tabs: int
+    unsupported_tabs: int
+    requests: int
+    seconds: float
+    warning: str
+
+
+class StashTabPayload(Wire):
+    """One row of the stash list. Mirrors ``appraisal.TabSummary.to_json``.
+
+    Three fields carry the whole honesty of this screen and none of them may be
+    collapsed into a number:
+
+    * ``known`` — has anybody read this tab? ``false`` means its value is *unknown*,
+      and ``total_chaos`` is 0 only because there is nothing to add, not because the
+      tab is empty. ``item_count`` is ``null`` for the same reason.
+    * ``supported`` / ``unsupported_reason`` — a map tab, which this API cannot read
+      at all. Rendered as "not supported yet", never as 0c.
+    * ``grid`` — whether the tab has a lattice. A currency tab does not, and drawing
+      one produces a picture that looks right and is not.
+    """
+
+    index: int
+    name: str
+    type: str
+    kind: str
+    cols: int | None
+    rows: int | None
+    grid: bool
+    colour: str | None
+    hidden: bool
+    remove_only: bool
+    supported: bool
+    unsupported_reason: str | None
+    known: bool
+    cached: bool
+    fetched_at: str | None
+    age_seconds: float | None
+    stale: bool
+    permanent: bool
+    """Remove-only: cached once and correct forever. Never offer to refresh it."""
+
+    item_count: int | None
+    units: int
+    composition: Literal["empty", "bulk", "gear", "mixed"] | None
+    total_chaos: float
+    highlighted: int
+    unpriceable_count: int
+    hole: bool
+
+
+class StashDigestPayload(Wire):
+    """Every tab, and an honest total over the ones that have been read."""
+
+    league: str
+    strictness: StrictnessName
+    tabs: list[StashTabPayload]
+    total_chaos: float
+    total_divine: float | None
+    divine_rate: float | None
+    tab_count: int
+    known_count: int
+    unread_count: int
+    unsupported_count: int
+    highlighted_count: int
+    total_is_floor: bool
+    cost: CrawlPlanPayload
+
+
+class TabAppraisalPayload(BagAppraisalPayload):
+    """One tab's contents, judged. A ``BagAppraisal`` plus where it came from.
+
+    Inherits rather than repeats, because that is the claim: a stash tab is the same
+    verdicts over items that live somewhere else, not a second verdict model.
+    """
+
+    tab: StashTabPayload
+    unsupported: str | None = None
+    composition: Literal["empty", "bulk", "gear", "mixed"] | None = None
+
+
 class SyncMeta(Wire):
     """How old the answer on screen is, and whether the tool can get a fresher one.
 
@@ -410,6 +506,10 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     SelectionPayload,
     TradeQuotePayload,
     PriceCheckPayload,
+    CrawlPlanPayload,
+    StashTabPayload,
+    StashDigestPayload,
+    TabAppraisalPayload,
     SyncMeta,
     CallError,
     CallResponse,

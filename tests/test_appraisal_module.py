@@ -61,10 +61,15 @@ def test_the_methods_are_namespaced_and_awaitable(appraised_stack):
     names = appraised_stack.methods.for_module("appraisal")
     assert names == [
         "appraisal.appraise_bag",
+        # Phase 10's two, and note what is *not* here: no crawl. A crawl is minutes of
+        # the account's item budget, and it lives behind a press in the CLI rather
+        # than behind a dispatch any surface can make (SPEC §6.6).
+        "appraisal.appraise_tab",
         "appraisal.gate",
         "appraisal.highlight",
         "appraisal.price_check",
         "appraisal.settings",
+        "appraisal.stash_digest",
     ]
 
 

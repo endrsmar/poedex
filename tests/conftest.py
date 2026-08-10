@@ -32,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "poeapi"
 PRICE_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "prices"
 APPRAISAL_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "appraisal"
+STASH_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "stash"
 
 SESSION_VALUE = "0123456789abcdef0123456789abcdef"
 """A syntactically valid POESESSID that has never been a real one."""
@@ -421,9 +422,13 @@ class Server:
         another league. Which league a character is in is now load-bearing — it is
         what every price is denominated in — so it has to be a knob, not a constant."""
 
-        self._payloads = {
-            "/character-window/get-stash-items": payload("get-stash-items.json"),
-        }
+        self.stash_tabs_fixture = FIXTURES / "get-stash-tabs.json"
+        """The ``tabs`` array every stash response carries."""
+
+        self.stash_items: dict[int, Any] = {1: payload("get-stash-items.json")["items"]}
+        """Items per tab index. A tab absent from this dict answers with an empty
+        ``items`` array — which is what GGG does for a tab that is empty **and** for
+        a map tab, and telling those two apart is Phase 10's whole map-tab problem."""
 
     # -- routing ---------------------------------------------------------------
 
@@ -445,11 +450,41 @@ class Server:
             body = self.characters
         elif path == "/character-window/get-items":
             body = bag_payload(self.bag_fixture)
-        elif path == "/character-window/get-stash-items" and request.url.params.get("tabs") == "1":
-            body = payload("get-stash-tabs.json")
+        elif path == "/character-window/get-stash-items":
+            body = self._stash(request)
         else:
-            body = self._payloads.get(path, {})
+            body = {}
         return httpx.Response(200, json=body, headers=headers(self.header_file))
+
+    def _stash(self, request: httpx.Request) -> Any:
+        """One response shape for both stash calls, as the real endpoint has.
+
+        ``get-stash-items`` answers a ``tabIndex`` and, when ``tabs=1``, carries the
+        whole tab list alongside. The tool asks for both together on purpose: the tab
+        list is what says whether a tab is remove-only (cache it forever) or a map tab
+        (do not trust its zero), and a second request to learn that would double the
+        cost of every lazy open.
+        """
+        index = int(request.url.params.get("tabIndex", "0") or 0)
+        tabs = json.loads(self.stash_tabs_fixture.read_text("utf-8"))["tabs"]
+        body: dict[str, Any] = {"numTabs": len(tabs), "items": self.stash_items.get(index, [])}
+        if request.url.params.get("tabs") == "1":
+            body["tabs"] = tabs
+        return body
+
+    def use_stash_fixtures(self) -> None:
+        """Switch to Phase 10's eight-tab stash (``tests/fixtures/stash/``).
+
+        Modelled on the measured account rather than invented: a special tab where
+        ``stackSize`` exceeds ``maxStackSize``, a gear tab holding the rares, a quad
+        with an item in the far corner, two remove-only tabs, a map tab that answers
+        with nothing, a bulk card tab, and a tab nobody has read.
+        """
+        self.stash_tabs_fixture = STASH_FIXTURES / "stash-tabs.json"
+        self.stash_items = {
+            index: json.loads((STASH_FIXTURES / f"tab-{index}.json").read_text("utf-8"))["items"]
+            for index in range(7)
+        }
 
     def _ninja(self, request: httpx.Request) -> httpx.Response:
         if self.ninja_status != 200:
@@ -725,6 +760,59 @@ def appraiser(appraised_stack: Registry):
     from modules.appraisal.backend.api import AppraisalApi
 
     return appraised_stack.api(AppraisalApi)
+
+
+# -- the offline stash ----------------------------------------------------------
+
+
+@pytest.fixture
+async def stash_stack(
+    stack_factory,
+    registry: Registry,
+    server: Server,
+    prices_module,
+    moddb_module,
+    appraisal_module,
+):
+    """The whole stack over Phase 10's eight-tab stash.
+
+    The fixture set is switched **before** anything starts, because the tab list is
+    cached the first time it is read and a stack that had already read the old one
+    would be testing the fixture rather than the code.
+    """
+    server.use_stash_fixtures()
+    server.bag_fixture = "loot-bag.json"
+    result = await stack_factory(prices_module, moddb_module, appraisal_module)
+    await prices_module.refresh()
+    yield result
+    await registry.stop_all()
+
+
+@pytest.fixture
+def stash_api(stash_stack: Registry):
+    from modules.poeapi.backend.api import PoeApi
+
+    return stash_stack.api(PoeApi)
+
+
+@pytest.fixture
+def stash_appraiser(stash_stack: Registry):
+    from modules.appraisal.backend.api import AppraisalApi
+
+    return stash_stack.api(AppraisalApi)
+
+
+def stash_requests(server: Server) -> list[int]:
+    """Which tab index each stash request asked for, in order.
+
+    Counting these is the only honest way to assert the two rules that matter: a
+    remove-only tab is fetched once ever, and opening a digest fetches nothing.
+    """
+    return [
+        int(request.url.params.get("tabIndex", "0") or 0)
+        for request in server.requests
+        if request.url.path == "/character-window/get-stash-items"
+    ]
 
 
 @pytest.fixture

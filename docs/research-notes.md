@@ -307,6 +307,52 @@ layouts, and `stackSize` legitimately exceeds `maxStackSize` (`Vaal Orb 163/20`,
 rather than the tabs being empty. This is exactly the failure mode that silently under-reports
 value. Unresolved.
 
+### 7.1 Map tabs — as far as this can be taken without OAuth (Phase 10)
+
+**Still zero, and now with a named cause.** Two more map tabs were sampled through
+`get-stash-items?tabIndex=N`, including an **active** one (Standard tab 90, `5 [MapStash]`) rather
+than only remove-only leftovers. Both returned `items: []`. That is **five map tabs across two
+leagues, zero items every time** — no longer plausibly a coincidence of empty tabs.
+
+Three pieces of outside evidence say the zero means *not traversed*:
+
+1. **GGG's documented stash API models a map tab as a parent.** `GET /stash/<league>/<stash_id>
+   [/<substash_id>]`; `StashTab` carries `children: StashTab[]`; the list endpoint says it
+   "includes sub-tabs and stash tabs in folders", and the substash parameter exists so "the inner
+   tab will be wrapped by the parent". A map stash is one of those parents.
+2. **A player asking GGG how to read a map stash was told it "needs 1 call per map type"**
+   (forum thread 3415304) — one request per child, not one per tab. Same shape.
+3. **The legacy endpoint has no equivalent parameter.** `tabIndex` addresses the top-level list
+   only, and the tab list gives the map stash exactly one index. There is nothing to traverse
+   *with*.
+
+**So: not a mystery, a missing capability.** The traversal path is the OAuth stash API, and OAuth
+is blocked on Cloudflare in Steam's CEF browser (SPEC §11). Until that lands, a map tab is
+reported **`not supported yet`** — never as `0c`, never counted in a total, and never fetched at
+all (there is nothing to fetch). What would settle it definitively is one OAuth `list stashes`
+call showing `children` on a map tab; that is a ten-minute check for whoever gets OAuth working,
+and it is the only thing left to do here.
+
+*Not* proven: that a map tab's children hold anything on this account. The five samples say the
+API will not tell us, not that there are maps in there.
+
+### 7.2 What a full refresh actually costs, against the real tab list (Phase 10)
+
+Computed from the account's own tab list (117 tabs, 10 of them map tabs) and its own published
+policy (`backend-item-request-limit`, Account `30:60:60` and `100:1800:600` — §3):
+
+| | requests | wall clock |
+|---|---|---|
+| Cold crawl, every readable tab | 107 | **~30 min** (the `100:1800` bucket binds) |
+| Steady state, remove-only cached | **15** | **~15 s** |
+| Opening one tab | 1 | ~1 s |
+
+The ~45 s in the line above is the right order of magnitude and slightly pessimistic; 15 s is what
+the buckets give. **Do not compute this as `requests × 18 s`.** The 18 s figure is the *sustained*
+rate and it is the wrong tool for a small refresh: thirty requests fit in the first minute, so
+multiplying gives 4.5 minutes for a 15-tab refresh that takes fifteen seconds. `estimate_seconds`
+models the windows instead.
+
 ---
 
 ## 8. What the mockup exercise revealed

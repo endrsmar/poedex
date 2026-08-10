@@ -755,7 +755,7 @@ spent, which is the case where withholding would have cost the most.
 **Done:** 1114 Python tests and 147×2 frontend tests, all offline. Four live searches spent, all
 four on the same pair of query shapes.
 
-### Phase 10 — stash tabs
+### Phase 10 — stash tabs — **done**
 Tab enumeration and per-tab fetch (one request per tab; no batch endpoint). Remove-only tabs
 fetched once and cached forever — 86% of the measured Standard stash, taking a full refresh from
 ~34 min to ~45 s. Per-tab staleness. Quad tabs at 24×24. Special tabs have bespoke layouts and
@@ -763,7 +763,35 @@ fetched once and cached forever — 86% of the measured Standard stash, taking a
 leagues and may need substash traversal — unresolved, and the failure mode that silently
 under-reports value.
 
-**Done:** the highlighting and manual check work over stash tabs, not only the bag.
+**Done:** the highlighting and manual check work over stash tabs, not only the bag. What landed,
+and where it deviates from the sketch above:
+
+- **`poeapi` grew the stash; `appraisal` grew one opinion.** `poeapi/backend/stash.py` holds tab
+  kinds, layouts, the remove-only TTL rule, the tree, the crawl bookmark and the cost model —
+  facts about PoE, so core. `appraisal` adds `classify()` (bulk/gear/mixed) and the strict gate,
+  which are opinions. Nothing about the highlighter or the price check is forked: `highlight()`
+  and `price_check()` take a `tab_index` and are otherwise the same call, `MAX_PRETICKED` is
+  untouched, and `PriceCheck.tsx` gained one prop.
+- **Strictness is a *second* setting, not a shared one.** `appraisal.stash_strictness` defaults to
+  `strict` while `appraisal.strictness` stays `generous`: a player who loosens the bag gate has
+  said nothing about whether they want 818 stash items flagged.
+- **The cost estimate models the buckets rather than the sustained rate.** `requests × 18 s` calls
+  a 15-tab refresh four and a half minutes when it is fifteen seconds; research-notes §7.2 has the
+  real table, and `estimate_seconds` is the model.
+- **A digest never fetches a tab.** `PoeApi.cached_stash_items` returns `None` rather than
+  fetching, so a stash screen over 117 tabs costs the tab list and nothing else. `crawl_stash` is
+  deliberately **not** a registered method — a crawl belongs behind a press, not behind a dispatch.
+- **Map tabs: unresolved, with a named cause and a named fix** — research-notes §7.1. Five samples
+  across two leagues, all empty; GGG's own API models a map stash as a parent with children; the
+  traversal path is OAuth-only. A map tab reports **`not supported yet`**, is excluded from every
+  total, and costs no request at all.
+- **The stash screen declares `profiles: ['full']`** (§2.4), and its docstring argues the case: a
+  117-row tab list and a 24×24 quad do not fit at 300 px, and research-notes §8 already found that
+  the bag grid's justification does not transfer to the stash. The compact answer is a *digest* —
+  a ranked list of tabs worth walking to — and that is a different screen, not this one squeezed.
+
+**Done:** 1243 Python tests and 165×2 frontend tests, all offline. **Zero** live searches and zero
+live item requests from the tool; seven MCP reads were spent settling the map-tab question.
 
 ---
 
@@ -781,7 +809,13 @@ under-reports value.
 | `prices` requires `net` as well as `poeapi` | It fetches two non-account hosts; §4 forbids opening a socket outside `net`, and a passthrough on `PoeApi` would be a hole in the rule that protects the account |
 | Third-party hosts get a per-hostname bucket in `net` | Structural rather than requested: a feature module cannot accidentally spend GGG's budget, and it needs no configuration call to avoid doing so |
 | Chaos is the only unit inside `prices` | poe.ninja's item overviews are denominated in exchange chaos (measured); carrying two denominations makes every sum a conversion bug waiting to happen |
-| Stash deferred | Prototype is bag-only; the digest reuses `prices` and the strict gate |
+| ~~Stash deferred~~ | **Landed in Phase 10.** The digest does reuse `prices` and the strict gate, as predicted; what it also needed was a way to say *unknown* per tab, which is the field the prediction was missing |
+| A tab nobody has read is `unpriceable`, not `0c` | Same discipline the item verdict already has. An unread tab and an empty one look identical in a total and mean opposite things, and only one of them is worth walking to the stash for |
+| A map tab is `not supported yet` and costs no request | Five samples across two leagues returned nothing, and GGG's own API models a map stash as a parent whose children are fetched separately. Spending a request per map tab to receive a zero we would then have to disbelieve is the worst of both |
+| The stash gate has its own setting | `strictness` is the bag's. The two contexts have opposite failure costs (SPEC §5.2), so one knob would make every loosening of the bag a loosening of an 818-item digest |
+| The crawl is not a registered method | Every other method costs at most one request; this one costs the account's whole item budget for half an hour. A dispatch any surface can make is not the right shape for that, and SPEC §6.6's "never auto-crawl" is easiest to keep when there is nothing to call |
+| Cost is estimated from the buckets, not the sustained rate | `requests × 18 s` overstates a 15-tab refresh by an order of magnitude, and a warning that does that is one people press through. The policy publishes two windows and both bind |
+| `poedex stash` is one flat parser, not argparse subcommands | A subparser re-applies its own defaults over the parent namespace, so `stash --league X tab 3` would silently drop the league — and a silently wrong league is the most expensive bug this project has had |
 | `appraisal` requires `poeapi` as well as `prices` | Its API is defined over `NormalizedItem`, and without a bag accessor `appraise_bag` would have to be a method the frontend posts a whole bag to. Feature→core is the ordinary direction |
 | A rare with no bulk price is *not* `unpriceable` | Bulk has never priced rares. Calling that a gap in poe.ninja's coverage would fill the panel with question marks and hide the gaps that are real |
 | Which poe.ninja tables exist is discovered per league | A hardcoded list of 26 types omitted `Ducat` and made a whole item class unpriceable for a league. Being more careful with the list is not a fix; asking the league is |
