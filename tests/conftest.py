@@ -31,6 +31,7 @@ from runtime.storage import StorageRoot
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "poeapi"
 PRICE_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "prices"
+APPRAISAL_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "appraisal"
 
 SESSION_VALUE = "0123456789abcdef0123456789abcdef"
 """A syntactically valid POESESSID that has never been a real one."""
@@ -159,6 +160,20 @@ def price_payload(name: str) -> Any:
     return json.loads((PRICE_FIXTURES / name).read_text("utf-8"))
 
 
+def bag_payload(name: str) -> Any:
+    """A ``get-items`` body, from whichever fixture directory owns it.
+
+    Three phases now ship a bag and each keeps it next to the tests that justify it
+    — `poeapi`'s shape fixture, `prices`' pricing exerciser, `appraisal`'s loot bag.
+    The scripted server should not have to know which is which.
+    """
+    for directory in (FIXTURES, PRICE_FIXTURES, APPRAISAL_FIXTURES):
+        candidate = directory / name
+        if candidate.is_file():
+            return json.loads(candidate.read_text("utf-8"))
+    raise FileNotFoundError(f"no bag fixture named {name!r}")
+
+
 def headers(name: str) -> dict[str, str]:
     """A recorded set of rate-limit response headers."""
     return json.loads((FIXTURES / name).read_text("utf-8"))
@@ -276,11 +291,7 @@ class Server:
             )
         path = request.url.path
         if path == "/character-window/get-items":
-            body = (
-                payload(self.bag_fixture)
-                if (FIXTURES / self.bag_fixture).is_file()
-                else price_payload(self.bag_fixture)
-            )
+            body = bag_payload(self.bag_fixture)
         elif path == "/character-window/get-stash-items" and request.url.params.get("tabs") == "1":
             body = payload("get-stash-tabs.json")
         else:
@@ -444,3 +455,47 @@ def priced(priced_stack: Registry):
     from modules.prices.backend.api import PricesApi
 
     return priced_stack.api(PricesApi)
+
+
+# -- the offline appraisal stack ------------------------------------------------
+
+
+@pytest.fixture
+def appraisal_module():
+    from modules.appraisal.backend.module import AppraisalModule
+
+    return AppraisalModule()
+
+
+@pytest.fixture
+async def appraised_stack(
+    stack_factory, registry: Registry, server: Server, prices_module, appraisal_module
+):
+    """The whole stack through `appraisal`, on the Phase 4 loot bag.
+
+    ``tests/fixtures/appraisal/loot-bag.json`` rather than `prices`' ``bag.json``:
+    the pricing fixture's rares carry ``ilvl: 0`` and one mod each, so the tier-2
+    gate has nothing to read and the two strictness levels cannot be shown to
+    diverge on it. See that directory's README for what the loot bag is and is not.
+    """
+    server.bag_fixture = "loot-bag.json"
+    result = await stack_factory(prices_module, appraisal_module)
+    await prices_module.refresh()
+    yield result
+    await registry.stop_all()
+
+
+@pytest.fixture
+def appraiser(appraised_stack: Registry):
+    from modules.appraisal.backend.api import AppraisalApi
+
+    return appraised_stack.api(AppraisalApi)
+
+
+@pytest.fixture
+async def loot(appraised_stack: Registry):
+    """The normalized loot bag, bag slots only — what an appraisal takes."""
+    from modules.poeapi.backend.api import PoeApi, Source
+
+    bag = await appraised_stack.api(PoeApi).get_items()
+    return bag.by_source(Source.BAG)

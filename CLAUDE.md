@@ -14,15 +14,27 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3 and 6 done.** `runtime/` (registry, context, events, storage, settings, methods,
-redacting log); core modules `credentials`, `net` (header-driven limiter + httpx), `poeapi`
-(endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); the first **feature**
-module `prices` (poe.ninja bulk tables, tier-0 notes, an on-demand trade client); a `poedex` CLI;
-and the boundary tests, which from Phase 3 have a real feature module to enforce the core→feature
-rule against. Next action is **Phase 4** (`appraisal`).
+**Phases 1, 2, 3, 4 and 6 done.** `runtime/` (registry, context, events, storage, settings,
+methods, redacting log); core modules `credentials`, `net` (header-driven limiter + httpx),
+`poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail); feature
+modules `prices` (poe.ninja bulk tables, tier-0 notes, an on-demand trade client) and
+`appraisal` (the strictness-parameterized tier-2 gate, four-state verdicts); a `poedex` CLI; and
+the boundary tests, which now have both a core→feature rejection and a real feature→feature edge
+to enforce against. Next action is **Phase 5** (UI kit, web surface, appraisal UI).
 
-**Nothing here has run against the live API, a real Client.txt, or a Deck.** Two things need a
-human and would close most of the open risk:
+**Read Phase 4's validation finding before building UI on the bag screen**
+(IMPLEMENTATION-PLAN §5, Phase 4). The four-state verdict works and the totals are honest, but
+`check` currently absorbs everything between 1c and the keep threshold *and* everything the gate
+flags, which are different questions sharing a colour. Consider splitting them before the panel
+is drawn, not after.
+
+**Nothing here has run against the live API, a real Client.txt, or a Deck.** Phase 4's
+validation checkpoint was therefore answered against a fixture bag somebody wrote, which is a
+much weaker test than it sounds — see the phase note in the plan. Three things need a human and
+would close most of the open risk:
+
+- `poedex appraise` against a real backpack after a real map. Until then nobody knows whether
+  the verdicts are surprising or obvious, and that is the question Phase 4 was supposed to settle.
 
 - `poedex selftest freshness` — needs someone in the game (research-notes §2.1).
 - `poedex gamelog status` and `poedex gamelog watch` on the Deck through one portal-to-hideout
@@ -39,6 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # 3.11+
 .venv/bin/ruff check .
 poedex sync             # normalized bag; spends real rate-limit budget
 poedex value            # the bag, priced. one GGG request; poe.ninja is free
+poedex appraise         # the bag, judged. same one request, zero trade requests
 poedex limits           # what the limiter has learned
 ```
 
@@ -83,7 +96,13 @@ sustained rate-limit violations.
 - **poe.ninja's routes moved and will move again.** They are measured in research-notes §9, not
   guessed, and the operator states there is no stability guarantee. Re-measure before debugging.
 - **`unpriceable` is never zero.** A removed item absent from the price index is a hole in the
-  total, and reporting it as worthless understates the bag badly (SPEC §5.4).
+  total, and reporting it as worthless understates the bag badly (SPEC §5.4). `appraisal` splits
+  it further: an item the index *should* carry and does not is `unpriceable`; a rare, which no
+  bulk table has ever priced, is a tier-2 question and not a gap.
+- **The tier-2 mod thresholds are not mod tiers.** `modules/appraisal/backend/gate.py` scores
+  mods with one regex and one number per group, with no knowledge of base type, item class or
+  item level. It says so at the top of the file. Real tiers need a mod database this project
+  does not have; if one ever lands, delete those constants rather than tuning them.
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.

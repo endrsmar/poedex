@@ -307,6 +307,7 @@ def test_checker_actually_sees_the_source_tree():
     # stops being discovered must be loud. The cost is one conflicting line per
     # phase, which is a feature — the module set should not change unnoticed.
     assert set(manifests(REPO_ROOT)) == {
+        "appraisal",
         "credentials",
         "gamelog",
         "net",
@@ -504,7 +505,11 @@ def test_assembled_real_registry_has_no_boundary_problems():
     real = Registry()
     real.load(REPO_ROOT / MODULES_DIR)
     assert real.check_boundaries() == []
-    assert real.resolve() == ["credentials", "gamelog", "net", "poeapi", "prices"]
+    # `appraisal` requires `prices`, so it must sort after it however the ids fall
+    # alphabetically. That ordering is the toposort doing its job, not a coincidence.
+    order = real.resolve()
+    assert order == ["credentials", "gamelog", "net", "poeapi", "prices", "appraisal"]
+    assert order.index("appraisal") > order.index("prices")
 
 
 def test_shipped_module_kinds():
@@ -519,13 +524,30 @@ def test_shipped_module_kinds():
     """
     kinds = {mid: m.kind for mid, m in manifests(REPO_ROOT).items()}
     assert kinds == {
+        "appraisal": "feature",
         "credentials": "core",
         "gamelog": "core",
         "net": "core",
         "poeapi": "core",
         "prices": "feature",
     }
-    assert [mid for mid, kind in kinds.items() if kind == "feature"] == ["prices"]
+    assert sorted(mid for mid, kind in kinds.items() if kind == "feature") == [
+        "appraisal",
+        "prices",
+    ]
+
+
+def test_feature_to_feature_dependency_is_allowed_and_real():
+    """Phase 4 makes the *other* half of the kind rule falsifiable.
+
+    Phase 3 proved core→feature is rejected. Until `appraisal` there was no real
+    feature→feature edge to prove is *accepted*, so a checker that rejected every
+    cross-module edge would have passed the suite unnoticed.
+    """
+    known = manifests(REPO_ROOT)
+    assert "prices" in known["appraisal"].requires
+    assert known["prices"].kind == "feature" and known["appraisal"].kind == "feature"
+    assert check_all(REPO_ROOT) == []
 
 
 # -- the core -> feature rule, against the real tree ---------------------------

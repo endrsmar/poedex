@@ -308,8 +308,18 @@ async def test_one_module_failing_to_stop_does_not_block_the_others(registry, fa
 def test_discovery_finds_every_shipped_module():
     """The inventory. Spelled out so a module that stops being discovered is loud."""
     found = discover(REPO_ROOT / "modules")
-    assert [m.id for m in found] == ["credentials", "gamelog", "net", "poeapi", "prices"]
+    # Discovery order is the directory listing, which is alphabetical. The *start*
+    # order is the toposort's, and the two are deliberately not the same list.
+    assert [m.id for m in found] == [
+        "appraisal",
+        "credentials",
+        "gamelog",
+        "net",
+        "poeapi",
+        "prices",
+    ]
     assert {m.id: m.kind for m in found} == {
+        "appraisal": "feature",
         "credentials": "core",
         "gamelog": "core",
         "net": "core",
@@ -339,7 +349,15 @@ def test_build_from_the_real_tree_resolves_in_dependency_order():
     registry = Registry()
     registry.load(REPO_ROOT / "modules")
     # poeapi requires net requires credentials, so that chain is forced; gamelog has
-    # no deps and lands by the id tie-break; `prices` requires both net and poeapi and
-    # so comes last, which is what a feature module on top of core looks like.
-    assert registry.resolve() == ["credentials", "gamelog", "net", "poeapi", "prices"]
+    # no deps and lands by the id tie-break; `prices` requires both net and poeapi,
+    # and `appraisal` requires `prices`, so the two feature modules stack on top of
+    # the core in that order — alphabetically first, resolved last.
+    assert registry.resolve() == [
+        "credentials",
+        "gamelog",
+        "net",
+        "poeapi",
+        "prices",
+        "appraisal",
+    ]
     assert registry.record("credentials").state is ModuleState.REGISTERED

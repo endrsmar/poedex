@@ -10,6 +10,7 @@ Commands:
     poedex gamelog watch               tail it and print classified zone events
     poedex sync                        fetch the bag and print the normalized model
     poedex value                       price the bag: per-item values and a total
+    poedex appraise                    the bag, judged: keep/check/trash/unpriceable
     poedex limits                      print what the rate limiter currently knows
     poedex selftest freshness          the in-game freshness experiment (SPEC §4.3)
 
@@ -29,9 +30,11 @@ import sys
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
+from cli.appraise import cmd_appraise
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
 from cli.sync import cmd_sync, render_limits
 from cli.value import cmd_value
+from modules.appraisal.backend.api import AppraisalApi, Strictness
 from modules.credentials.backend.api import CredentialError, CredentialsApi, CredentialState
 from modules.gamelog.backend.api import (
     FROM_START_ENV,
@@ -157,6 +160,45 @@ def build_parser() -> argparse.ArgumentParser:
             "re-fetch every price table, ignoring both the 30-minute TTL and the "
             "stored ETag. Normally unnecessary: the tables are prefetched at start."
         ),
+    )
+
+    appraise = sub.add_parser(
+        "appraise",
+        help="the bag, judged: keep / check / trash / unpriceable, with a total",
+        description=(
+            "Prices the backpack and turns each price into a verdict. Four states, "
+            "and 'unpriceable' is one of them: an item the price index does not "
+            "carry is excluded from the total and counted separately, never folded "
+            "into 'trash' and never summed as zero. Costs the same one GGG request "
+            "'value' does, and no trade requests at all."
+        ),
+    )
+    appraise.add_argument("--character", help="character name (default: most recently played)")
+    appraise.add_argument("--force", action="store_true", help="ignore the inventory cache TTL")
+    appraise.add_argument(
+        "--refresh-prices", action="store_true", help="re-fetch every price table first"
+    )
+    appraise.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help=(
+            "keep threshold in chaos for this run only, overriding the "
+            "appraisal.keep_threshold_chaos setting (default 20)"
+        ),
+    )
+    appraise.add_argument(
+        "--strictness",
+        choices=[level.value for level in Strictness],
+        default=None,
+        help=(
+            "tier-2 gate bias. 'generous' (the default, and what a bag wants) errs "
+            "toward flagging; 'strict' is the stash bias and accepts only hard "
+            "requirements"
+        ),
+    )
+    appraise.add_argument(
+        "--all", action="store_true", help="list the trash rows instead of collapsing them"
     )
 
     sub.add_parser("limits", help="print the rate limiter's current view")
@@ -374,6 +416,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 character=args.character,
                 refresh=args.force,
                 refresh_prices=args.refresh_prices,
+            )
+
+    elif args.command == "appraise":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_appraise(
+                registry.api(AppraisalApi),
+                registry.api(PoeApi),
+                registry.api(PricesApi),
+                character=args.character,
+                refresh=args.force,
+                refresh_prices=args.refresh_prices,
+                strictness=args.strictness,
+                threshold=args.threshold,
+                show_all=args.all,
             )
 
     elif args.command == "limits":

@@ -514,7 +514,8 @@ hedge, and it can move earlier.
 
 | # | Question | Blocks | Resolution path |
 |---|---|---|---|
-| 1 | Keep threshold default (~20c vs divine-tier) | Verdict tuning | User decision |
+| 1 | Keep threshold default (~20c vs divine-tier) | Verdict tuning | User decision. Phase 4 shipped 20c as `appraisal.keep_threshold_chaos`; `poedex appraise --threshold N` on a **real** bag settles it, and no real bag has been appraised yet |
+| 1b | Should `check` be one state or two? §5.4 gives it two jobs — "cheap but non-trivial" and "unknown value, tier-3 pending" — and on a real bag the first will swamp the second | The Phase 5 bag screen | Decide before the panel is drawn, not after |
 | 2 | Which league is primary? | Price table selection | User decision |
 | 3 | Does pathofexile.com login + Cloudflare work in Steam's CEF browser? | All of M7 | Hardware test |
 | 4 | Do map stash tabs need substash traversal? Nine returned zero items across two leagues. | Stash value accuracy | M5, inspect raw JSON |
