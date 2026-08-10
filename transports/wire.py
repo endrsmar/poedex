@@ -237,6 +237,11 @@ class ModOptionPayload(Wire):
     :meth:`ModMatch.describe`'s own wording or the word ``unknown``. ``tier`` is
     populated only where `moddb` committed to a number; a screen that reconstructed a
     label from ``tier``/``tiers`` would eventually print one the database refused.
+
+    ``suggested_minimum`` and ``suggested_maximum`` are exclusive: a row has one bound
+    or the other, and which one is ``higher_is_better``. A ``-9 to Total Mana Cost of
+    Skills`` row searches ``≤ -7.2``, and a panel that printed ``≥ -7.2`` would be
+    describing a filter for strictly worse items in words that read like a promise.
     """
 
     index: int
@@ -253,7 +258,9 @@ class ModOptionPayload(Wire):
     influences: list[str]
     preticked: bool
     tradeable: bool
+    higher_is_better: bool
     suggested_minimum: float | None
+    suggested_maximum: float | None
 
 
 class ItemHighlightPayload(Wire):

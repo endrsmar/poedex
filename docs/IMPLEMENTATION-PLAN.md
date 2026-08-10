@@ -683,21 +683,77 @@ been spent. Still annotated, never disabled.
 
 **Still open, measured rather than guessed.**
 
-- **Negative rolls have no filter, and giving them one would make it worse.** `-9 to Total Mana
-  Cost of Skills` normalizes to `-# to …` where GGG spells the sentence `+# to …`; ~10 gear texts
-  are in this family. Resolving the id is easy and would be a regression: `widened(-9)` is `-7.2`,
-  and `min: -7.2` *excludes* the −9 item. The filter needs a direction before it needs an id.
-- **`moddb` does not model two affixes summing into one displayed line.** The game adds them;
-  `+161 to Evasion Rating` in the fixture is a P2 hybrid plus a P3 prefix. Asked about the sum,
-  `moddb` finds the one tier containing 161 and answers `T1 of 8` confidently, then pre-ticks it.
-  2 of 104 lines in the sample. `test_a_line_the_game_summed_from_two_affixes_is_the_known_trap`
-  keeps the example in the suite.
 - **77 sentences have two ids in GGG's own document** and the live `StatIndex` picks the first.
   Pre-existing, unchanged, and not fixable from the trade document alone.
 - **Bench-craft tier ladders are numbered differently from GGG's `R<n>`.** Not compared here.
+- **`scripts/build_moddb.py` is not deterministic.** Rebuilt from byte-identical sources (same
+  four sha256s) it produced a different artifact: 16 mods with their local-reading flag flipped
+  and 76 `game_stats` keys changed. Found while checking whether the bridge fix below could
+  simply be regenerated; it cannot, because the diff would not be attributable. Almost certainly
+  set iteration in `locality_index` / `line_locality`. Nothing downloads at runtime and the
+  committed artifact is fine — what is broken is the ability to *verify* a rebuild.
 
 **Done:** 1092 Python tests and 147×2 frontend tests, all offline. Nine live requests spent on
 investigation — four searches, one fetch-shaped pair, and the build-time stats document.
+
+### Phase 9c — the three measured defects Phase 9b left — **done**
+
+**The pre-tick was worst exactly where the item was best, and the cap is 2 because 2 was
+measured.** On the fixture's 2-divine Soldier Gloves the pre-tick ticked 6 of 6, and a manual
+check never broadens, so the default press sent the six-filter conjunction Phase 9 had already
+measured returning zero. The obvious cap was 3 — the median was 3 and §5b called it fine — so it
+was run live against Allflame with the panel's own widened floors: **6 filters → 0 listings,
+3 → 0, 2 → 3, 1 → 35.** Three is not a smaller version of the bug; the median was an observation
+about what the pre-tick *did*, never a measurement that 3 finds anything. `MAX_PRETICKED` is 2,
+which is also the number Phase 9 measured independently for the automatic path.
+
+Order comes from `highlight.significance`, ranked on **facts `moddb` already has** and on no list
+of mod names: influence pool first, then the **item level the game demands for the roll**
+(`min(required_level)` over the survivors — GGG gates its deepest affixes behind item level, so
+this is the game's own ordering), then proximity to the base's ceiling, then ladder depth, then
+the item's own line order. On the gloves that keeps 96% increased Armour and Energy Shield
+(ilvl 84) and 16% increased Attack Speed (76) and drops the T2 life whose tier unlocks at 44.
+`ItemHighlight.note` says how many eligible rolls were held back, before the request rather than
+after the answer; no row is disabled and `MAX_QUERY_FILTERS` is still 6.
+
+Re-measuring the twenty rares: **ticks 57 → 33, maximum 6 → 2, median 3 → 2, and the 8 noise
+ticks → 4.** Half the noise went without a single mod name being written down — the cap took
+`+15% increased Light Radius` and `20% increased Global Accuracy Rating` off item 1 on
+required-level alone, and the summed-line refusal below took two stun-and-block-recovery ticks.
+The other four survive, and they should: they are genuine T1 rolls and §5b's conclusion still
+holds.
+
+**A negative roll needed a direction before it needed an id, and the reason it had neither was a
+normalizer disagreement.** `-(4-9) to Total Mana Cost of Skills` is stored under the key
+`-# to …` with a *positive* range, and a rolled `-9` normalized to `# to …` with a negative
+value — so every mod in the family came back `unknown mod`, which reads exactly like caution.
+`readings()` now offers both spellings and the vocabulary decides; both are real, since
+`IncreaseFlatManaCost` writes `# to …` for its −4 and −5 tiers and `-# to …` for the rest, so the
+first spelling that merely *exists* is the wrong answer. Ranges are flipped into displayed units
+on load, `ModMatch.higher_is_better` reads the direction off the mod's own reachable range, and
+`ModFocus` gained `maximum`: a ticked `-9` now sends `max: -7.2`, which contains the item it came
+from. `ceiling` follows the same direction — taking the maximum of a negative ladder returned the
+worst tier in the game and measured every roll against it.
+
+The id half is two fixes. `StatIndex` tries `+#` when `-#` misses, which is what the *query* uses
+and is live today; `build_moddb.py` does the same, which is what the offline `tradeable`
+annotation uses and lands at the next league rebuild. Checked against GGG's document:
+`explicit.stat_3736589033` and `explicit.stat_3441651621` exist under `+#` and under nothing
+else. Four sentences in the current vocabulary are in this family and all four were unbridged.
+
+**A tier that might be the sum of two affixes is no longer asserted as one.** The confidence was
+the defect, not the miss: two readings fit `+161 to Evasion Rating` and nothing on the item
+separates them, so the honest-unknown path is the answer and it was not firing.
+`_summed_sides` asks whether two spawnable mods **of different groups**, both of whose other
+sentences the item shows, could add up to the displayed number — and `report` then asks whether
+the item has a **free affix slot** for the second one, counted from the same numbers
+`open_prefixes` publishes. That second question is what makes it a refusal rather than a policy:
+per line the sum is conceivable on 12 of 99 fixture lines, against the affix budget it is 5. The
+Titanium Spirit Shield's `+159 to maximum Life` keeps its T1 because three prefixes are already
+spent, which is the case where withholding would have cost the most.
+
+**Done:** 1114 Python tests and 147×2 frontend tests, all offline. Four live searches spent, all
+four on the same pair of query shapes.
 
 ### Phase 10 — stash tabs
 Tab enumeration and per-tab fetch (one request per tab; no batch endpoint). Remove-only tabs

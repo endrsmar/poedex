@@ -37,7 +37,9 @@
       "influences": [],
       "preticked": true,
       "tradeable": true,
-      "suggested_minimum": 104.0
+      "higher_is_better": true,
+      "suggested_minimum": 104.0,
+      "suggested_maximum": null
     },
     {
       "index": 1,
@@ -54,7 +56,9 @@
       "influences": [],
       "preticked": false,
       "tradeable": true,
-      "suggested_minimum": 9.0
+      "higher_is_better": true,
+      "suggested_minimum": 9.0,
+      "suggested_maximum": null
     },
     {
       "index": 2,
@@ -71,7 +75,9 @@
       "influences": [],
       "preticked": false,
       "tradeable": true,
-      "suggested_minimum": 8.0
+      "higher_is_better": true,
+      "suggested_minimum": 8.0,
+      "suggested_maximum": null
     },
     {
       "index": 3,
@@ -88,7 +94,9 @@
       "influences": [],
       "preticked": false,
       "tradeable": false,
-      "suggested_minimum": null
+      "higher_is_better": true,
+      "suggested_minimum": null,
+      "suggested_maximum": null
     },
     {
       "index": 4,
@@ -105,7 +113,9 @@
       "influences": [],
       "preticked": false,
       "tradeable": true,
-      "suggested_minimum": 12.0
+      "higher_is_better": true,
+      "suggested_minimum": 12.0,
+      "suggested_maximum": null
     }
   ],
   "preticked": [

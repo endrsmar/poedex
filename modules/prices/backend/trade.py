@@ -237,6 +237,26 @@ class StatIndex:
     def age(self, now: float) -> float:
         return max(0.0, now - self.fetched_at)
 
+    def _keys(self, text: str) -> tuple[str, ...]:
+        """The document keys a line could be filed under, in preference order.
+
+        GGG publishes one sentence per *stat*, spelled with the sign the format string
+        carries — ``+# to Total Mana Cost of Skills``, ``+# Physical Damage taken from
+        Attack Hits`` — and an item that rolled the beneficial direction writes the
+        same sentence with a minus. Both were checked against the live document:
+        ``explicit.stat_3736589033`` and ``explicit.stat_3441651621`` exist only under
+        ``+#``. About ten gear sentences are in this family, and every one of them was
+        being dropped from queries as "no trade filter for this" when the filter is
+        right there under the other sign.
+
+        Tried second, never first. ``-#`` and ``+#`` really are different stats for a
+        handful of sentences GGG publishes both ways, and an exact hit is always the
+        answer.
+        """
+        key = normalize_stat_text(text)
+        signed = key.replace("-#", "+#")
+        return (key,) if signed == key else (key, signed)
+
     def stat_ids(self, text: str, *, local: bool = False) -> Mapping[str, str]:
         """Every id this sentence has, keyed by group. Empty when it has none.
 
@@ -246,7 +266,10 @@ class StatIndex:
         ``local=True``, that it has a third id again that neither of those is.
         """
         table = self._local if local else self._entries
-        return dict(table.get(normalize_stat_text(text), {}))
+        for key in self._keys(text):
+            if key in table:
+                return dict(table[key])
+        return {}
 
     def stat_id(
         self, text: str, *, origin: str = "explicit", local: bool | None = None
@@ -267,8 +290,10 @@ class StatIndex:
         sentences including ``#% increased Energy Shield`` exist only locally, and
         answering ``None`` for those is how they were dropped from queries before.
         """
-        plain = self._entries.get(normalize_stat_text(text))
-        localised = self._local.get(normalize_stat_text(text))
+        plain = localised = None
+        for key in self._keys(text):
+            plain = plain or self._entries.get(key)
+            localised = localised or self._local.get(key)
         if local is True:
             ids = localised or plain
         elif local is False:
@@ -438,11 +463,20 @@ def widened(value: float, *, widen: float = WIDEN) -> float:
 
 
 def _stat_filter(focus: ModFocus, stat_id: str) -> tuple[dict[str, Any], str]:
+    """One filter entry, plus the words that describe it.
+
+    ``max`` is not a variant spelling of ``min``. It is what "at least this good" means
+    for a mod whose ladder runs downwards, and there are about ten of those on gear —
+    see :attr:`ModFocus.maximum`.
+    """
     entry: dict[str, Any] = {"id": stat_id, "disabled": False}
     label = focus.label or focus.text
     if focus.minimum is not None:
         entry["value"] = {"min": focus.minimum}
         return entry, f"{label} ≥ {focus.minimum:g}"
+    if focus.maximum is not None:
+        entry["value"] = {"max": focus.maximum}
+        return entry, f"{label} ≤ {focus.maximum:g}"
     return entry, f"{label} (any roll)"
 
 

@@ -401,6 +401,38 @@ class ModMatch:
         return self.values[0] if self.values else None
 
     @property
+    def higher_is_better(self) -> bool:
+        """Which way along the number line is *good* for this mod.
+
+        A fact the database has had all along and nothing was asking it for, and the
+        omission was a one-way bug. About ten gear sentences roll negative — ``-9 to
+        Total Mana Cost of Skills``, ``-# Physical Damage taken from Attack Hits`` —
+        and for those a **lower** number is the better item. Everything downstream
+        assumed the opposite: a ticked roll searches ``roll * 0.8``, so ``-9`` became
+        ``min: -7.2``, which excludes the very item the filter was built from and
+        quietly matches every worse one. A widened floor is only a floor if up is good.
+
+        Read off the reachable range rather than off the sentence, because the sentence
+        cannot say it: ``#% reduced Attribute Requirements`` spells an improvement with
+        a positive number and ``-# to Total Mana Cost of Skills`` spells one with a
+        minus. What settles it is that this mod's own values never rise above zero, so
+        its ladder runs downwards and its top tier is its most negative one.
+
+        Falls back to the sign of the roll where the line could not be attributed at
+        all — the case where the caller most needs an answer and the least is known,
+        and "the item is showing a negative number" is still a fact about the item.
+        """
+        ranges = [
+            (candidate.low, candidate.high)
+            for candidate in self.candidates
+            if candidate.high is not None
+        ]
+        if ranges:
+            return not all(high <= 0 for _low, high in ranges)
+        value = self.value
+        return value is None or value >= 0
+
+    @property
     def influences(self) -> frozenset[Influence]:
         """The influence pools every candidate agrees on.
 
@@ -445,6 +477,7 @@ class ModMatch:
             "top_group": self.top_group,
             "value": self.value,
             "ceiling": self.ceiling,
+            "higher_is_better": self.higher_is_better,
             "influences": sorted(i.value for i in self.influences),
             "local": self.local,
             "description": self.describe(),
