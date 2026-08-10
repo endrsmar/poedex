@@ -14,9 +14,10 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5 and 6 done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6 and 8 done.** `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
-httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail);
+httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
+`moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
 feature modules `prices` (poe.ninja bulk tables with per-league type discovery, tier-0 notes, a
 bulk exchange fallback, a trade client) and `appraisal` (the strictness-parameterized tier-2
 gate, four-state verdicts, eager tier 3 for a bag); a `poedex` CLI; and **the first usable
@@ -24,10 +25,27 @@ surface** — `ui-kit/` (`@poedex/ui`, two profiles behind a build-time alias), 
 (transports, stores, TS types generated from the pydantic models), `transports/http/` (FastAPI
 on 127.0.0.1 + SSE + the built SPA), `surfaces/web/` and `modules/appraisal/ui/`. Boundaries are
 enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`. Next
-action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel).
+action is **Phase 7** (compact profile against `@decky/ui`, Decky transport, panel), and then
+rebuilding `appraisal` on `moddb` — see "The design pivot" below.
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
+    poedex moddb      # how old the mod database is, and what it says about a mod
     pnpm install && pnpm build && pnpm run check
+
+## The design pivot
+
+**Automatic rare pricing is abandoned.** It failed twice against the live account: querying every
+mod gave zero listings; querying one loose mod matched a single listing and reported 10c for an
+item worth 1c. No heuristic recovers *which mods make an item interesting* — that is player
+knowledge.
+
+The model is Awakened PoE Trade's: the tool **highlights items that are potentially expensive**,
+shows their mods as a checkbox list with the significant ones pre-ticked, and the player triggers
+the price check. `moddb` (Phase 8) supplies the facts that make highlighting and pre-ticking
+correct rather than guessed — real tiers per base, prefix/suffix and open-affix counts, influence
+pools, and a per-base ceiling for "is this roll high *here*". `appraisal`'s gate has not been
+rebuilt on it yet; that is the next feature phase, and `gate.py`'s constants should be **deleted
+rather than tuned** when it is.
 
 **Read Phase 4's validation finding before building UI on the bag screen**
 (IMPLEMENTATION-PLAN §5, Phase 4). The four-state verdict works and the totals are honest, but
@@ -69,7 +87,7 @@ module instance; `api.py` is the only file dependents may import.
 ## Module architecture in one paragraph
 
 Everything is a module, and **a module is a vertical slice** — backend logic and its own UI in one
-directory. *Core* modules (`credentials`, `net`, `poeapi`, `gamelog`) are PoE infrastructure with
+directory. *Core* modules (`credentials`, `net`, `poeapi`, `gamelog`, `moddb`) are PoE infrastructure with
 no feature opinion and may not depend on feature modules. *Feature* modules (`prices`,
 `appraisal`, later crafting and guides) hold the opinions and may depend on each other. Modules
 depend on interfaces (`api.py` Protocols), never implementations. Module UI is written once
@@ -119,10 +137,30 @@ sustained rate-limit violations.
   total, and reporting it as worthless understates the bag badly (SPEC §5.4). `appraisal` splits
   it further: an item the index *should* carry and does not is `unpriceable`; a rare, which no
   bulk table has ever priced, is a tier-2 question and not a gap.
-- **The tier-2 mod thresholds are not mod tiers.** `modules/appraisal/backend/gate.py` scores
-  mods with one regex and one number per group, with no knowledge of base type, item class or
-  item level. It says so at the top of the file. Real tiers need a mod database this project
-  does not have; if one ever lands, delete those constants rather than tuning them.
+- **The tier-2 mod thresholds are not mod tiers, and now there is something that is.**
+  `modules/appraisal/backend/gate.py` scores mods with one regex and one number per group, with
+  no knowledge of base type, item class or item level. `moddb` answers all three: `+95 to maximum
+  Life` is T4 of 10 on a helmet and T7 of 13 on a body armour, with ceilings of 144 and 189. When
+  the gate is rebuilt on it, `MOD_GROUPS`, `HIGH_VALUE_BASES`, `ILVL86_BASE_CATEGORIES` and
+  `ILVL86_EXCLUDED_SUBCATEGORIES` are all obsolete — delete them rather than tuning them.
+
+- **A mod database goes stale silently, and that is its whole risk.** It does not fail; it
+  answers confidently and wrongly about tiers GGG re-levelled. So `modules/moddb/data/moddb.json`
+  is a **committed build artifact** stamped with its game version and build date, regenerated by
+  `python scripts/build_moddb.py` **every league**, and four surfaces show its age (the CLI's
+  first two lines, `ModDbApi.version()`, the `moddb.version` method, and a warning in the log
+  past 120 days). `--check` answers "is the committed one current?".
+
+- **Nothing downloads game data at runtime.** 30 MB of repoe-fork JSON trims to 566 KiB at build
+  time. A Decky plugin installs from a zip with no pip, and a runtime fetch would put startup on
+  a GitHub Pages site. `moddb` imports no networking module at all, and a test walks its AST to
+  keep it that way.
+
+- **`moddb` says "unknown" rather than guessing which mod produced a line.** Several groups can
+  render one sentence, hybrids write several, and essence, influence and bench-craft tiers are
+  counted from different ladders. `Attribution` is `exact`/`group`/`ambiguous`/`unknown` and the
+  last two expose no tier. On the live fixtures 79% of affix lines resolve confidently; showing
+  "T2" for the rest would be right most of the time, which is exactly what makes it dangerous.
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
 - **A module's UI writes no CSS and imports no Decky API.** It composes `@poedex/ui` primitives
   and declares density with per-profile hints (`limit={{compact: 5, full: null}}`). The rule is

@@ -310,6 +310,7 @@ def test_checker_actually_sees_the_source_tree():
         "appraisal",
         "credentials",
         "gamelog",
+        "moddb",
         "net",
         "poeapi",
         "prices",
@@ -508,7 +509,15 @@ def test_assembled_real_registry_has_no_boundary_problems():
     # `appraisal` requires `prices`, so it must sort after it however the ids fall
     # alphabetically. That ordering is the toposort doing its job, not a coincidence.
     order = real.resolve()
-    assert order == ["credentials", "gamelog", "net", "poeapi", "prices", "appraisal"]
+    assert order == [
+        "credentials",
+        "gamelog",
+        "moddb",
+        "net",
+        "poeapi",
+        "prices",
+        "appraisal",
+    ]
     assert order.index("appraisal") > order.index("prices")
 
 
@@ -527,6 +536,7 @@ def test_shipped_module_kinds():
         "appraisal": "feature",
         "credentials": "core",
         "gamelog": "core",
+        "moddb": "core",
         "net": "core",
         "poeapi": "core",
         "prices": "feature",

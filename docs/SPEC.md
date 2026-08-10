@@ -391,6 +391,24 @@ engine.
 **Classify each tab by composition on first fetch** (`bulk` / `gear` / `mixed`). Bulk tabs never
 enter tier 2 or 3 at all.
 
+**Superseded in part by `moddb` (Phase 8), and not yet rewired.** Two of the hard requirements
+above are guesses this section had no better source for at the time, and now there is one:
+
+- *"ilvl-86 on a base where it matters"* is per base, not per category. `BaseInfo.top_affix_level`
+  is 86 on body armours, weapons, belts and amulets, **85** on helmets, gloves and rings, and
+  1 on jewels — so a third of the ilvl-86 flags this rule raises buy nothing that 85 did not,
+  and the flask exclusion is backwards (the top flask suffixes need item level 84 and 85).
+- *"a base on an explicit high-value allowlist"* has a factual half: GGG tags the best base of
+  each class `top_tier_base_item_type`, and `BaseInfo.is_top_tier` reads it. That is 187 bases
+  rather than 26 typed from memory. It is **not** a claim about price, and whatever remains of
+  the allowlist after subtracting it is the part that was always an opinion and belongs in
+  `appraisal` as one.
+
+And the mod-roll thresholds are replaced outright: `ModDbApi.identify` gives the real tier on the
+real base, `ModMatch.top_group` answers "is this the best this base gets", and `ModDbApi.ceiling`
+answers "how good is this roll *here*" — which is the question a single number per mod group
+cannot ask. `gate.py`'s constants should be deleted rather than tuned when the gate is rebuilt.
+
 ### 5.3 Tier 3 — trade API query
 
 **Eager for a bag, never for a stash.** The original rule here was "never eager", and it was
