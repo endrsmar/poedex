@@ -59,6 +59,31 @@
      "id": "explicit.stat_681332047",
      "text": "#% increased Attack Speed",
      "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_2866361420",
+     "text": "#% increased Armour",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_1062208444",
+     "text": "#% increased Armour (Local)",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_4015621042",
+     "text": "#% increased Energy Shield (Local)",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_1940865751",
+     "text": "Adds # to # Physical Damage (Local)",
+     "type": "explicit"
+    },
+    {
+     "id": "explicit.stat_210067635",
+     "text": "#% increased Attack Speed (Local)",
+     "type": "explicit"
     }
    ]
   },
@@ -138,6 +163,11 @@
     {
      "id": "crafted.stat_2250533757",
      "text": "#% increased Movement Speed",
+     "type": "crafted"
+    },
+    {
+     "id": "crafted.stat_1062208444",
+     "text": "#% increased Armour (Local)",
      "type": "crafted"
     }
    ]

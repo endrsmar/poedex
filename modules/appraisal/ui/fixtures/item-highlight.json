@@ -75,6 +75,23 @@
     },
     {
       "index": 3,
+      "text": "Projectiles Pierce an additional Target",
+      "origin": "explicit",
+      "affix": null,
+      "tier": null,
+      "tiers": null,
+      "tier_label": "unknown",
+      "attribution": "unknown",
+      "top_tier": false,
+      "value": null,
+      "ceiling": null,
+      "influences": [],
+      "preticked": false,
+      "tradeable": false,
+      "suggested_minimum": null
+    },
+    {
+      "index": 4,
       "text": "+15 to maximum Mana",
       "origin": "crafted",
       "affix": "prefix",
@@ -95,10 +112,10 @@
     0
   ],
   "open_prefixes": 0,
-  "open_suffixes": 1,
+  "open_suffixes": 0,
   "max_prefixes": 3,
   "max_suffixes": 3,
   "counts_are_certain": false,
   "top_affix_level": 85,
-  "note": "3/4 lines attributed, open-affix counts uncertain"
+  "note": "3/5 lines attributed, 1 not in the database, open-affix counts uncertain"
 }

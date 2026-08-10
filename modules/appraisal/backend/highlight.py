@@ -21,9 +21,15 @@ could not read: an unknown line might be the best mod on the item, and pre-ticki
 would put a filter nobody chose into a query somebody else's number comes out of.
 
 **A line the offline bridge cannot name says so, and stays tickable.**
-``tradeable`` is `moddb`'s text→trade-id bridge, which is a trimmed artifact with
-real holes — ``98% increased Energy Shield`` is a common mod it has no entry for. So
-it annotates rather than disables: the live stat document is the authority, and
+``tradeable`` is `moddb`'s text→trade-id bridge. Phase 9 called it "a trimmed
+artifact with real holes" and named ``98% increased Energy Shield`` as one; Phase 9b
+measured the holes at 12.9% of mod lines, found that most of them were the *local*
+reading of a sentence rather than a missing sentence, and closed them — that mod now
+resolves, and coverage is 96.7%. What is left is genuinely absent from GGG's own
+filter list, which makes the annotation mean something it did not mean before: not
+"our copy is thin here" but "the trade site has no filter for this".
+
+It still annotates rather than disables. The live stat document is the authority, and
 ``build_plan`` drops what it cannot resolve and reports the count in the query
 description. Greying out a filter that would have worked is the same mistake as
 building the query for the player, in the other direction.
@@ -105,7 +111,8 @@ def options_for(
                 ceiling=match.ceiling,
                 influences=tuple(sorted(pool.value for pool in match.influences)),
                 preticked=_preticked(match),
-                tradeable=_tradeable(match.text, match.origin, moddb),
+                local=match.local,
+                tradeable=_tradeable(match.text, match.origin, moddb, match.local),
             )
         )
     return options
@@ -142,19 +149,26 @@ def _first_number(text: str) -> float | None:
     return float(digits) if digits else None
 
 
-def _tradeable(text: str, origin: Origin, moddb: ModDbApi | None) -> bool:
+def _tradeable(
+    text: str, origin: Origin, moddb: ModDbApi | None, local: bool | None = None
+) -> bool:
     """Whether the trade API has an id for this sentence, asked offline.
 
-    `moddb` carries ``stat_translations.json``'s bridge, so the panel can annotate a
-    row without a network round trip and without `prices` having fetched its 400 kB
-    stat document yet. Neither answer is a promise about the live document, which is
-    why this only ever adds a note: :func:`modules.prices.backend.trade.build_plan`
-    drops what it cannot resolve and says how many it dropped.
+    `moddb` carries the bridge, so the panel can annotate a row without a network
+    round trip and without `prices` having fetched its 2 MB stat document yet. Neither
+    answer is a promise about the live document, which is why this only ever adds a
+    note: :func:`modules.prices.backend.trade.build_plan` drops what it cannot resolve
+    and says how many it dropped.
+
+    ``local`` is passed through because the same sentence can have an id in one
+    reading and not the other, and asking the wrong one would put "cannot be searched"
+    on a row that searches fine — a false alarm on a panel is how a true alarm stops
+    being read.
     """
     if moddb is None:
         return True
     try:
-        return moddb.trade_stat_id(text, origin=origin) is not None
+        return moddb.trade_stat_id(text, origin=origin, local=local) is not None
     except Exception:  # pragma: no cover - a broken artifact must not disable ticking
         return True
 

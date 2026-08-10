@@ -406,6 +406,16 @@ class ModOption:
 
     influences: tuple[str, ...] = ()
     preticked: bool = False
+
+    local: bool | None = None
+    """Which reading of the sentence this line is — `moddb`'s :attr:`ModMatch.local`.
+
+    Deliberately **not** on the wire. It is not something a panel can show or a player
+    can act on; it exists so :meth:`Selection.spec` can hand the fact to `prices`,
+    which needs it to choose between two ids GGG publishes for the same words. Putting
+    it in the payload would invite a frontend to have an opinion about it, and the
+    frontend has no way to form one."""
+
     tradeable: bool = True
     """Whether `moddb`'s **offline** bridge found a trade stat id for this sentence.
 
@@ -607,6 +617,11 @@ class Selection:
                     minimum=minimum,
                     label=option.text,
                     origin=option.origin,
+                    # Which of the two ids this sentence has. `moddb` decided it from
+                    # the mod; the live stats document cannot, and before Phase 9b
+                    # every local defence and weapon mod went out as the global id,
+                    # which matches nothing.
+                    local=option.local,
                 )
             )
         return QuerySpec(

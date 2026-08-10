@@ -39,11 +39,41 @@ change.
 |---|---|---|
 | `mods.min.json` | ~22 MB | prefix/suffix mods in the affix domains, with their rendered text, roll ranges, required level, spawn weights and influence pool |
 | `base_items.min.json` | ~2.9 MB | bases that roll affixes: item class, tags, drop level, domain |
-| `stat_translations.min.json` | ~4.6 MB | the text ↔ trade-stat-id ↔ game-stat-id bridge, for the texts that survived |
+| `stat_translations.min.json` | ~4.6 MB | the text ↔ trade-stat-id ↔ game-stat-id bridge, for the texts that survived, and which of a sentence's readings is the local one |
+
+...plus one document that is not RePoE's, added in Phase 9b:
+
+| upstream file | size | what survives the trim |
+|---|---|---|
+| `pathofexile.com/api/trade/data/stats` | ~2 MB | the *local* stat ids, and any sentence RePoE cannot bridge at all |
 
 **Do not commit the upstream files.** `scripts/build_moddb.py --source-dir` exists so
 they can be kept outside the repository (`/tmp`, a scratch directory) and the build
-re-run offline.
+re-run offline; put a copy of the trade document there as `trade_stats.json`.
+
+### Why GGG's own filter list had to be a source
+
+RePoE renders `98% increased Energy Shield` correctly and carries **no trade id for
+it at all**; it renders `+95 to maximum Energy Shield` correctly and gives it the
+*global* id, which is a different stat from the one a body armour rolls. Phase 9
+therefore shipped a bridge that resolved 94.3% of mod lines to some id and 87.1% to
+the right one, and nothing offline could see the difference — both halves of the
+bridge came from the same file and agreed with each other.
+
+Measured against the live trade API: a rare body armour searched by the global
+`#% increased Armour` id matched **0** listings; searched by the local id, 10 000+.
+
+GGG's document marks the on-the-item reading with a suffix — `#% increased Armour
+(Local)`, and `(Shields)`/`(Staves)` for the narrower cases — so it supplies those
+ids. Which reading a given line wants is a property of the mod, not of the sentence
+(`+# to maximum Energy Shield` is local on a chest and global on a ring), so it is
+read from the mod's own `local_*` stat ids and stored as a per-line bit. Correct
+coverage is now **96.9%**; what remains is mostly flask utility text GGG publishes
+no filter for (flasks bridge at 69%, gear at 98%).
+
+RePoE stays *primary* because GGG's document carries 77 sentences under two different
+ids with nothing to choose between them, and only RePoE knows which game stat wrote
+the line.
 
 ## What was dropped, and why it is safe
 

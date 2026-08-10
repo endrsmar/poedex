@@ -509,6 +509,13 @@ HIGHLIGHT_ITEM = NormalizedItem(
             # Ambiguous: several ladders reach it, so `moddb` names no tier at all
             # and the panel must print `unknown`.
             "10% increased Rarity of Items found",
+            # Phase 9b: a line GGG's own filter list has no entry for — it publishes
+            # only "Arrows Pierce an additional Target", which is a different stat.
+            # The panel annotates it and still lets the player tick it, and the
+            # "not searchable" notice needs a real example to be about. Typed here
+            # rather than into the fixture so that `tradeable: false` in the payload
+            # is `moddb`'s answer and not somebody's assumption about it.
+            "Projectiles Pierce an additional Target",
         ],
         crafted=[
             # The bench pool is not in the artifact, so this is `unknown` for a

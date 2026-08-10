@@ -37,7 +37,7 @@ import {
 } from '@poedex/ui'
 import { getClient } from '@poedex/core'
 import type { ItemHighlightPayload, PriceCheckPayload } from '@poedex/core'
-import { checkNote, optionsOf, priceLine, ticksOf } from './model'
+import { checkNote, optionsOf, priceLine, ticksOf, unsearchableNote } from './model'
 
 export interface PriceCheckProps {
   /** The selected item, or `null`. `null` renders the invitation, not an error. */
@@ -98,6 +98,10 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
   }, [])
 
   const options = useMemo(() => (highlight ? optionsOf(highlight) : []), [highlight])
+  const unsearchable = useMemo(
+    () => (highlight ? unsearchableNote(highlight, ticks) : null),
+    [highlight, ticks],
+  )
   const asksNothing = ticks.length === 0 && openPrefixes === null && openSuffixes === null
 
   const check = useCallback(() => {
@@ -160,6 +164,21 @@ export function PriceCheck({ uid, divineRate }: PriceCheckProps): ReactElement |
           fields={{ compact: ['badge'], full: ['badge', 'meta'] }}
           emptyLabel="no readable mods on this item"
         />
+
+        {unsearchable ? (
+          // Said before the button, not after the answer. `build_plan` already reports
+          // what it dropped, but it reports it in the query description — which arrives
+          // once the trade requests have been spent. A tick that cannot become a filter
+          // is a question the player will not get an answer to, and they should find
+          // that out while it still costs a tick to fix.
+          <Stat
+            label="not searchable"
+            value={String(unsearchable.split(' ')[0])}
+            note={unsearchable}
+            tone="warn"
+            size="sm"
+          />
+        ) : null}
 
         <Row gap="md" wrap={{ compact: true, full: false }} align="end">
           <Stepper

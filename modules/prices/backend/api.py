@@ -234,6 +234,21 @@ class ModFocus:
     crafted ``+# to maximum Life`` searched as an explicit one excludes every item
     whose life roll *is* the bench craft."""
 
+    local: bool | None = None
+    """Whether this line is the *local* reading of its sentence — the other axis
+    ``origin`` cannot cover, and one the stats document cannot answer for itself.
+
+    Twenty-two sentences are published twice. ``#% increased Armour`` is a global stat on
+    a ring and ``#% increased Armour (Local)`` on a body armour, and searching the
+    wrong one is not a near miss: measured live in Phase 9b, the global id matched
+    **0** rare body armours where the local id matched 10 000+. Only `moddb` can tell
+    them apart, because the difference is which game stat the mod carries, so
+    :attr:`ModMatch.local` is carried down here rather than re-derived from the text.
+
+    ``None`` means nobody knew — a caller with no `moddb` report, or a line whose
+    candidates disagreed. The global reading then wins, except for the six sentences
+    that have no global reading at all."""
+
 
 @dataclass(frozen=True, slots=True)
 class QuerySpec:

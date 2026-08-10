@@ -412,11 +412,13 @@ export function optionsOf(highlight: ItemHighlightPayload): CheckOptionModel[] {
 
 function metaOf(mod: ModOptionPayload): string | undefined {
   const parts: string[] = []
-  // Annotated, never disabled. `moddb`'s offline bridge is a trimmed artifact with
-  // real holes (`98% increased Energy Shield` is one), and greying out a filter that
-  // would have worked narrows what the player is allowed to ask. The live document
-  // decides, and the query description reports whatever it could not resolve.
-  if (!mod.tradeable) parts.push('no offline trade id')
+  // Annotated, never disabled — and the words changed in Phase 9b because what they
+  // mean changed. Phase 9's bridge missed 12.9% of mod lines, most of them the local
+  // reading of a sentence rather than a missing sentence, so `no offline trade id`
+  // was as often a gap in our copy as a gap in the trade site. At 96.9% coverage the
+  // remainder really is "GGG publishes no filter for this", which is a fact about the
+  // search rather than about us, and is worth saying in the player's terms.
+  if (!mod.tradeable) parts.push('no trade filter')
   if (mod.affix) parts.push(mod.affix)
   if (mod.origin !== 'explicit') parts.push(mod.origin)
   if (mod.value !== null && mod.ceiling !== null) {
@@ -441,6 +443,32 @@ function toneOf(mod: ModOptionPayload): Tone {
   if (mod.top_tier) return 'good'
   if (mod.tier === null) return 'quiet'
   return 'neutral'
+}
+
+/**
+ * What the current ticks will silently fail to ask for, in one sentence.
+ *
+ * A row with no trade filter stays tickable on purpose — the live stat document is
+ * the authority and the offline bridge only advises — but a tick that cannot become
+ * a filter is a question the player asked and will not get an answer to. Without this
+ * line the difference is invisible until the query description comes back, which is
+ * *after* the trade requests have been spent.
+ *
+ * Returns `null` when every tick can be searched, which is the ordinary case: at
+ * 96.9% bridge coverage this is a rare notice, and a rare notice is one that still
+ * gets read.
+ */
+export function unsearchableNote(
+  highlight: ItemHighlightPayload,
+  ticks: readonly string[],
+): string | null {
+  const picked = new Set(ticks)
+  const lost = highlight.mods.filter((mod) => picked.has(String(mod.index)) && !mod.tradeable)
+  if (lost.length === 0) return null
+  const names = lost.map((mod) => mod.text).join('; ')
+  return `${lost.length} ticked mod${lost.length === 1 ? '' : 's'} ${
+    lost.length === 1 ? 'has' : 'have'
+  } no trade filter and will not be searched: ${names}`
 }
 
 /** The pre-ticked ids: top-tier rolls and influence mods, as the backend decided. */

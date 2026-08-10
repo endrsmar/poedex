@@ -612,6 +612,93 @@ off, and six affixes is the game's ceiling anyway. Both profiles run the same 14
 prints an item's mods with real per-base tiers and the word `unknown` where `moddb` will not
 commit; without `--dry-run` it spends two trade requests on the query the player chose.
 
+### Phase 9b — the three gaps Phase 9 flagged in its own report — **done**
+
+Phase 9 wrote "I did not measure the coverage rate" about the trade-id bridge, offered the
+open-affix filter without ever running one, and shipped the checkbox list without seeing it on an
+identified item. All three are now measured.
+
+**The bridge was not 94% covered, it was 87% correct, and the 7-point gap was invisible.**
+Measured over all 9 353 mod lines in the artifact: 8 823 (94.3%) resolved to *some* trade stat id.
+But 678 of those were the **global** stat where the mod is **local**, and 169 more had no id at
+all for the same reason — `#% increased Energy Shield`, the four defence hybrids and a shield's
+`+#% Chance to Block` exist only in the local reading. Correct coverage was **8 145 of 9 353,
+87.1%**.
+
+This is not a near miss. A rare body armour searched by the global `#% increased Armour` id
+(`explicit.stat_2866361420`) matched **0** listings against the live API; the local id
+(`explicit.stat_1062208444`) matched **10 000+**. A dropped filter at least shows up in the query
+description; a filter with the wrong id returns an empty search that reads as "worthless".
+
+Two upstream facts cause it and neither is fixable inside `stat_translations.json`:
+`local_energy_shield_+%` carries no `trade_stats` block, and `local_energy_shield` carries one
+pointing at the global id. GGG's own `/api/trade/data/stats` distinguishes the readings with a
+`(Local)` suffix (plus `(Shields)`/`(Staves)`), so it is now a **fourth build-time source** —
+a supplement, because GGG's document also carries 77 sentences under two ids with nothing to
+choose between them, and only RePoE knows which game stat wrote the line. Nothing is downloaded at
+runtime and the document is not committed; 22 sentences' worth of ids are.
+
+Which reading a line wants is a property of the **mod**, not the sentence — `+# to maximum Energy
+Shield` is local on a chest and global on a ring — so it is read off the mod's own `local_*` stat
+ids at build time and carried as `ModMatch.local` → `ModOption.local` → `ModFocus.local` →
+`StatIndex.stat_id(local=…)`. Deliberately computed from everything the base can spawn rather than
+from the attribution survivors: which id to search does not depend on how well the mod rolled, and
+attribution fails on about one line in five. **Correct coverage is now 96.9%** (582 KiB, schema 2).
+What is left is mostly flask utility text GGG publishes no filter for at all — flasks bridge at
+69%, gear at 98%.
+
+**Twenty real rares now check `moddb` against GGG instead of against itself.**
+`tests/fixtures/moddb/live_trade_rares.json` is scrubbed public listing data carrying, per line,
+the stat id GGG's filter list uses and GGG's own tier label. Over 104 mod lines: **104 ids match,
+0 mismatch, 0 missing**; prefix/suffix agrees 90/90 where `moddb` commits; tiers agree 85 of 86.
+Every other test in the project compared the artifact to expectations written from the same file
+it was built from, which is exactly why a *shared* mistake survived a green suite.
+
+**The open-affix filter works, and its name and shape are right.** `# Empty Prefix Modifiers` →
+`pseudo.pseudo_number_of_empty_prefix_mods`, `{"value": {"min": N}}`. Live: rare body armours with
+`≥40% increased Armour` and **≥1** free prefix → 10 000+; the same query with **≥3** → **0**,
+which is the right answer, since a 40% armour roll *is* a prefix. Five live searches total.
+
+**The pre-ticking is usable and it does tick noise, and the noise is not a bug to fix here.**
+Across the twenty items it ticks a median of 3 rows out of 5; the distribution is 1×4, 2×5, 3×5,
+4×3, 5×2, 6×1. Of 53 ticks, **8 are on mods nobody prices** — `increased Stun and Block Recovery`
+five times, plus light radius, global accuracy and physical reflect — every one of them a genuine
+T1/T2 roll of a group nobody searches. That is `NEAR_TOP_TIER` working exactly as specified: it is
+a claim about the *roll*, and §5b's own conclusion is that which mods matter is not derivable from
+the item. A junk-mod list would be `MOD_GROUPS` coming back.
+
+Two failure modes are worth naming. On the best item in the sample — 2-divine Soldier Gloves, six
+T1/T2 rolls — it pre-ticks **6 of 6**, and a manual check never broadens, so the default button
+press sends the six-filter conjunction that Phase 9 measured returning zero listings. And where
+`moddb` mis-tiers, the pre-tick misses the mod that *makes* the item expensive: a 2-divine Platinum
+Kris's `+1 to Level of all Lightning Spell Skill Gems` is GGG's P1 and `moddb`'s "T3 of 3", so it
+starts unticked while two lesser suffixes start ticked.
+
+**A row that cannot become a filter now says so before the button, not after the answer.**
+The panel's annotation moved from `no offline trade id` to `no trade filter` — at 96.9% coverage
+the remainder really is "GGG publishes none", which is a fact about the search rather than about
+us — and ticking such a row raises a `not searchable` line naming the mods. `build_plan` already
+reported this, but it reported it in the query description, which arrives once the requests have
+been spent. Still annotated, never disabled.
+
+**Still open, measured rather than guessed.**
+
+- **Negative rolls have no filter, and giving them one would make it worse.** `-9 to Total Mana
+  Cost of Skills` normalizes to `-# to …` where GGG spells the sentence `+# to …`; ~10 gear texts
+  are in this family. Resolving the id is easy and would be a regression: `widened(-9)` is `-7.2`,
+  and `min: -7.2` *excludes* the −9 item. The filter needs a direction before it needs an id.
+- **`moddb` does not model two affixes summing into one displayed line.** The game adds them;
+  `+161 to Evasion Rating` in the fixture is a P2 hybrid plus a P3 prefix. Asked about the sum,
+  `moddb` finds the one tier containing 161 and answers `T1 of 8` confidently, then pre-ticks it.
+  2 of 104 lines in the sample. `test_a_line_the_game_summed_from_two_affixes_is_the_known_trap`
+  keeps the example in the suite.
+- **77 sentences have two ids in GGG's own document** and the live `StatIndex` picks the first.
+  Pre-existing, unchanged, and not fixable from the trade document alone.
+- **Bench-craft tier ladders are numbered differently from GGG's `R<n>`.** Not compared here.
+
+**Done:** 1092 Python tests and 147×2 frontend tests, all offline. Nine live requests spent on
+investigation — four searches, one fetch-shaped pair, and the build-time stats document.
+
 ### Phase 10 — stash tabs
 Tab enumeration and per-tab fetch (one request per tab; no batch endpoint). Remove-only tabs
 fetched once and cached forever — 86% of the measured Standard stash, taking a full refresh from

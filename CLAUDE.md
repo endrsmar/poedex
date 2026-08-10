@@ -14,7 +14,7 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6, 8 and 9 done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9 and 9b done.** `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
 httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
 `moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
@@ -154,11 +154,35 @@ sustained rate-limit violations.
   `min = roll * 0.8`, never the exact value; a manual check never broadens itself, because
   broadening answers a different question and reports the answer under the player's heading.
 
+- **The same sentence is two different stats, and the item decides which.** GGG publishes 22
+  sentences twice — `#% increased Armour` is a global stat on a ring and `#% increased Armour
+  (Local)` on a body armour. Phase 9's bridge sent the global id for both, and measured live that
+  matched **0** rare body armours against 10 000+ for the local one. Correct bridge coverage was
+  87.1%, not the 94.3% that "resolved to an id" suggested; it is 96.9% now. Which reading a line is
+  comes from the *mod's* own `local_*` stat id, is decided at build time, and travels
+  `ModMatch.local` → `ModOption.local` → `ModFocus.local` → `StatIndex.stat_id(local=…)`. It is
+  never re-derived from the text, because the text is exactly what cannot say.
+
+- **`moddb`'s build has a fourth source, and it is GGG's own filter list.**
+  `/api/trade/data/stats` is fetched by `scripts/build_moddb.py` because it is the only published
+  place the local stat ids exist. It is a *supplement*: RePoE stays primary, since GGG's document
+  carries 77 sentences under two ids with nothing to choose between them and only RePoE knows
+  which game stat wrote the line. Still no runtime download, still not committed.
+
 - **The trade stat index keys by `(text, group)`, and `pseudo` never wins.** `StatIndex` used
   `setdefault` and GGG puts `pseudo` first, so `Adds 12 to 30 Physical Damage` resolved to
   `pseudo.pseudo_adds_physical_damage` — an aggregate over the whole item — rather than
   `explicit.stat_960081730`. Measured live, the aggregate matches a strict superset: 161 listings
   against 160 for the same movement-speed filter on Two-Toned Boots.
+
+- **The pre-tick is a claim about rolls, and roughly one tick in seven is on a mod nobody
+  prices.** Measured on twenty real identified rares from public listings: a median of 3 ticks per
+  item, and 8 of 53 ticks landed on genuine T1/T2 rolls of groups no one searches — stun and block
+  recovery, light radius, global accuracy. That is not a bug in `NEAR_TOP_TIER`; it is §5b's own
+  conclusion, that which mods matter is player knowledge. **A junk-mod list is `MOD_GROUPS` coming
+  back** and must not be added. Two things that *are* worth fixing: on an item where every roll is
+  high the pre-tick ticks all six, which is the conjunction that returned zero listings live; and
+  where `moddb` mis-tiers, the pre-tick misses the mod that makes the item expensive.
 
 - **A checkbox list is the one list that may not truncate.** Every other kit list takes a `limit`
   and reports what it hid; `CheckList` takes none. A hidden row is a filter the player can neither

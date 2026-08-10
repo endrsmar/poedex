@@ -321,6 +321,19 @@ class ModMatch:
     unless the group is certain — a ceiling averaged across two possible groups is
     a number with no meaning."""
 
+    local: bool | None = None
+    """Whether this line is the **local** reading of its sentence, when that is known.
+
+    Twenty-two sentences mean two different things depending on where they sit: a body
+    armour's ``#% increased Armour`` is ``local_physical_damage_reduction_rating_+%``
+    and a ring's is ``physical_damage_reduction_rating_+%``, and the trade site gives
+    them different ids. Filtering the wrong one is not a near miss — measured live in
+    Phase 9b, the global id matched **0** rare body armours and the local id 10 000+.
+
+    ``None`` means the candidates disagreed, or the line was never resolved against a
+    base. It is not "global": a caller that has to choose gets to see that nobody
+    chose for it."""
+
     note: str = ""
     """Why, when the answer is not confident. Written for a developer reading a log,
     not for a panel."""
@@ -433,6 +446,7 @@ class ModMatch:
             "value": self.value,
             "ceiling": self.ceiling,
             "influences": sorted(i.value for i in self.influences),
+            "local": self.local,
             "description": self.describe(),
             "note": self.note or None,
         }
@@ -608,13 +622,25 @@ class ModDbApi(Protocol):
         """
         ...
 
-    def trade_stat_id(self, text: str, *, origin: Origin = Origin.EXPLICIT) -> str | None:
+    def trade_stat_id(
+        self,
+        text: str,
+        *,
+        origin: Origin = Origin.EXPLICIT,
+        local: bool | None = None,
+    ) -> str | None:
         """The trade API's opaque id for this sentence, e.g. ``explicit.stat_3299347043``.
 
         The bridge between the two id spaces. ``prices`` resolves mod text through
         ``/api/trade/data/stats`` at runtime; this answers the same question offline
         and from the same underlying data, so a tier lookup and a trade filter can be
         talking about the same mod and be checked against each other.
+
+        ``local`` is :attr:`ModMatch.local` — pass it whenever you have a report,
+        because twenty-two sentences have two ids and the sentence cannot say which. With
+        ``None`` the global reading wins, except for the six sentences that exist
+        *only* locally (``#% increased Energy Shield`` and the defence hybrids), where
+        the alternative is the ``None`` that used to drop them from the query.
         """
         ...
 

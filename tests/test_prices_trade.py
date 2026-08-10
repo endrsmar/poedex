@@ -120,6 +120,65 @@ def test_attack_speed_resolves_and_is_not_a_normalization_gap():
     assert index.stat_id("20% increased Attack Speed") == "explicit.stat_681332047"
 
 
+def test_a_local_sentence_is_filed_under_the_words_an_item_actually_writes():
+    """Phase 9b. GGG publishes 22 sentences twice, distinguished by a suffix.
+
+    An item's tooltip says ``35% increased Armour``; GGG's document spells the body
+    armour's version ``#% increased Armour (Local)``. Leaving the suffix on the key
+    filed those entries under a sentence nothing ever writes, so the global id — a
+    stat a body armour cannot have — won by default. Measured against the live API:
+    the global id matched **0** rare body armours and the local id matched 10 000+.
+    """
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    assert index.stat_ids("35% increased Armour", local=True) == {
+        "explicit": "explicit.stat_1062208444",
+        "crafted": "crafted.stat_1062208444",
+    }
+    # The suffix is gone from the key, so nothing resolves by quoting it back.
+    assert index.stat_id("35% increased Armour (Local)") is None
+
+
+def test_the_locality_hint_chooses_between_two_ids_for_one_sentence():
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    assert index.stat_id("35% increased Armour", local=True) == "explicit.stat_1062208444"
+    assert index.stat_id("35% increased Armour", local=False) == "explicit.stat_2866361420"
+    # `origin` still selects within the chosen reading — the two axes are independent.
+    assert (
+        index.stat_id("35% increased Armour", origin="crafted", local=True)
+        == "crafted.stat_1062208444"
+    )
+
+
+def test_without_a_hint_the_global_reading_wins_but_a_local_only_sentence_still_resolves():
+    """``None`` is "nobody knew", and it is not the same as "global".
+
+    A caller with no `moddb` report gets the global reading, which is what Phase 9
+    did and is the safe default. But six sentences have **no** global reading at all;
+    answering ``None`` for those is how ``98% increased Energy Shield`` was silently
+    dropped from every query it belonged in.
+    """
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    assert index.stat_id("35% increased Armour") == "explicit.stat_2866361420"
+    assert index.stat_id("98% increased Energy Shield") == "explicit.stat_4015621042"
+
+
+def test_the_locality_hint_travels_from_the_spec_into_the_query():
+    """The whole point of :attr:`ModFocus.local` — that it reaches the filter."""
+    index = StatIndex.from_payload(price_payload("trade-stats.json"), 0.0)
+    subject = _rare("Vaal Regalia", ["35% increased Armour"])
+    spec = QuerySpec(
+        mods=(
+            ModFocus(text="35% increased Armour", minimum=28, local=True),
+            ModFocus(text="35% increased Armour", minimum=28, local=False),
+        )
+    )
+    filters = build_plan(subject, index, spec)[0].body["query"]["stats"][0]["filters"]
+    assert [entry["id"] for entry in filters] == [
+        "explicit.stat_1062208444",
+        "explicit.stat_2866361420",
+    ]
+
+
 def test_an_empty_stats_document_is_an_error():
     with pytest.raises(TradeUnavailable):
         StatIndex.from_payload({"result": []}, 0.0)

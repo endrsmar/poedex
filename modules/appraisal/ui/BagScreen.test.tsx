@@ -723,6 +723,25 @@ describe('the checkbox list', () => {
     expect(spy.mock.calls.at(-1)![1].open_prefixes).toBe(1)
   })
 
+  it('says which ticked mods cannot become a filter, before the button is pressed', async () => {
+    // Phase 9b. The bridge covers 96.9% of mod lines, and the rest is not "our copy
+    // is thin" but "GGG publishes no filter for this sentence". The row stays
+    // tickable — the live document is the authority — but a tick that cannot become
+    // a filter has to be visible while it still costs a tick to fix, not afterwards
+    // in the query description, which arrives once the requests have been spent.
+    await openCheck()
+    const unsearchable = HIGHLIGHT.mods.find((mod) => !mod.tradeable)!
+    expect(panel().textContent).not.toContain('no trade filter and will not be searched')
+
+    await userEvent.click(checkRow(String(unsearchable.index)))
+    expect(panel().textContent).toContain('no trade filter and will not be searched')
+    expect(panel().textContent).toContain(unsearchable.text)
+
+    // ...and it goes away again, rather than becoming furniture.
+    await userEvent.click(checkRow(String(unsearchable.index)))
+    expect(panel().textContent).not.toContain('no trade filter and will not be searched')
+  })
+
   it('says how much of the item the database could read', async () => {
     await openCheck()
     expect(panel().textContent).toContain(HIGHLIGHT.note)
