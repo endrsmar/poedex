@@ -1,0 +1,1054 @@
+<title>PoE Deck Helper — UI mockups</title>
+
+<style>
+  /* ---------- page tokens: light ground ---------- */
+  :root {
+    --bg:        #eceef1;
+    --surface:   #ffffff;
+    --surface-2: #f4f6f8;
+    --line:      #d3d8de;
+    --line-soft: #e3e7ec;
+    --ink:       #171c22;
+    --ink-2:     #4a5560;
+    --ink-3:     #74808c;
+    --accent:    #2f6f9e;
+    --accent-dim:#e2edf5;
+    --good:      #2c7a4b;
+    --warn:      #8a6a1f;
+    --bad:       #94414a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #0d1117;
+      --surface:   #151b23;
+      --surface-2: #1b222c;
+      --line:      #2b3440;
+      --line-soft: #212a34;
+      --ink:       #dde5ed;
+      --ink-2:     #a3b0bd;
+      --ink-3:     #75838f;
+      --accent:    #6fb2e0;
+      --accent-dim:#17293a;
+      --good:      #6fc48d;
+      --warn:      #d4ab52;
+      --bad:       #d8848d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #0d1117;
+    --surface:   #151b23;
+    --surface-2: #1b222c;
+    --line:      #2b3440;
+    --line-soft: #212a34;
+    --ink:       #dde5ed;
+    --ink-2:     #a3b0bd;
+    --ink-3:     #75838f;
+    --accent:    #6fb2e0;
+    --accent-dim:#17293a;
+    --good:      #6fc48d;
+    --warn:      #d4ab52;
+    --bad:       #d8848d;
+  }
+
+  :root {
+    --f-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --f-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    /* device palette — fixed literals. SteamOS gaming mode has no light theme,
+       so these never follow the page theme. */
+    --d-game:    #0a0d11;
+    --d-panel:   #171d25;
+    --d-panel-2: #212a35;
+    --d-panel-3: #2b3742;
+    --d-line:    #323d4a;
+    --d-ink:     #c7d5e0;
+    --d-ink-2:   #8b9aa8;
+    --d-ink-3:   #667582;
+    --d-accent:  #58a0d8;
+
+    /* PoE rarity — canonical in-game colors */
+    --r-normal:  #c8c8c8;
+    --r-magic:   #8f8fff;
+    --r-rare:    #ffff77;
+    --r-unique:  #d08130;
+    --r-curr:    #aa9e82;
+    --r-map:     #b3a58a;
+
+    /* verdict semantics */
+    --v-keep:  #4ea86f;
+    --v-check: #c9a13f;
+    --v-trash: #55636f;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-ui);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4.5rem;
+  }
+
+  /* ---------- type ---------- */
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
+  h1 {
+    font-size: clamp(2rem, 4.4vw, 2.9rem);
+    line-height: 1.08;
+    letter-spacing: -0.028em;
+    font-weight: 660;
+    text-wrap: balance;
+    margin: 0.5rem 0 0;
+  }
+  h2 {
+    font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 640;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h3 {
+    font-size: 1rem;
+    font-weight: 640;
+    letter-spacing: -0.005em;
+    margin: 0;
+  }
+  p { margin: 0; max-width: 66ch; }
+  .lede { color: var(--ink-2); font-size: 1.05rem; max-width: 68ch; }
+
+  .head-block { display: flex; flex-direction: column; gap: 1rem; }
+
+  .note {
+    font-size: 0.82rem;
+    color: var(--ink-3);
+    border-left: 2px solid var(--line);
+    padding-left: 0.85rem;
+    max-width: 62ch;
+  }
+
+  /* ---------- section scaffolding ---------- */
+  .mock-section { display: flex; flex-direction: column; gap: 1.5rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sec-tag {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: 3px;
+    padding: 0.2rem 0.5rem;
+    align-self: flex-start;
+  }
+
+  /* ---------- device frame ---------- */
+  .deck {
+    container-type: inline-size;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1280 / 800;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--d-game);
+    color: var(--d-ink);
+    /* 1 unit == 1 device pixel on a 1280px-wide Deck screen */
+    --u: calc(100cqw / 1280);
+    font-family: var(--f-ui);
+    line-height: 1.35;
+  }
+
+  /* abstract stand-in for the running game — not a screenshot */
+  .game {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 90% at 62% 34%, #24303a 0%, #141b22 42%, #080b0f 78%),
+      linear-gradient(200deg, #1d2730 0%, #090c10 60%);
+  }
+  .game::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(38% 30% at 30% 72%, rgba(96,160,190,0.14), transparent 70%),
+      radial-gradient(26% 22% at 74% 26%, rgba(196,132,64,0.12), transparent 70%);
+  }
+  .game-label {
+    position: absolute;
+    left: calc(20 * var(--u));
+    bottom: calc(14 * var(--u));
+    font-family: var(--f-mono);
+    font-size: calc(11 * var(--u));
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(199,213,224,0.28);
+  }
+
+  /* ---------- shared mock atoms ---------- */
+  .m-label {
+    font-family: var(--f-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--d-ink-3);
+  }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: calc(2 * var(--u));
+  }
+  .cell {
+    aspect-ratio: 1;
+    border-radius: calc(2 * var(--u));
+    background: #10151b;
+    border: 1px solid #1e262f;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .cell.filled { background: #182029; }
+  /* verdict is carried by a left stripe + border, so it survives greyscale */
+  .cell.keep   { border-color: var(--v-keep);  box-shadow: inset calc(3 * var(--u)) 0 0 var(--v-keep); }
+  .cell.check  { border-color: var(--v-check); box-shadow: inset calc(3 * var(--u)) 0 0 var(--v-check); }
+  .cell.trash  { border-color: #2a343e;        box-shadow: inset calc(3 * var(--u)) 0 0 var(--v-trash); opacity: 0.55; }
+  .cell.sel    { outline: calc(2 * var(--u)) solid var(--d-accent); outline-offset: calc(-1 * var(--u)); }
+  .cell .g {
+    font-family: var(--f-mono);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .rar-unique { color: var(--r-unique); }
+  .rar-rare   { color: var(--r-rare); }
+  .rar-magic  { color: var(--r-magic); }
+  .rar-curr   { color: var(--r-curr); }
+  .rar-map    { color: var(--r-map); }
+  .rar-normal { color: var(--r-normal); }
+
+  .pill {
+    font-family: var(--f-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 999px;
+    padding: calc(2 * var(--u)) calc(7 * var(--u));
+    white-space: nowrap;
+  }
+  .pill.keep  { color: #0e1a12; background: var(--v-keep); }
+  .pill.check { color: #1a1508; background: var(--v-check); }
+  .pill.trash { color: #cdd7e0; background: #313d49; }
+
+  /* ================= MOCK A — Decky QAM ================= */
+  .qam {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: calc(310 * var(--u));
+    background: var(--d-panel);
+    border-left: 1px solid var(--d-line);
+    box-shadow: calc(-24 * var(--u)) 0 calc(60 * var(--u)) rgba(0,0,0,0.55);
+    display: flex;
+    flex-direction: column;
+  }
+  .qam-dim {
+    position: absolute;
+    inset: 0 calc(310 * var(--u)) 0 0;
+    background: rgba(5,8,11,0.55);
+  }
+  .qam-head {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    padding: calc(11 * var(--u)) calc(12 * var(--u));
+    border-bottom: 1px solid var(--d-line);
+  }
+  .qam-head .dot {
+    width: calc(7 * var(--u));
+    height: calc(7 * var(--u));
+    border-radius: 50%;
+    background: var(--v-keep);
+    flex: none;
+  }
+  .qam-head .t { font-size: calc(13 * var(--u)); font-weight: 620; }
+  .qam-head .s { font-size: calc(10 * var(--u)); margin-left: auto; }
+
+  .qam-body {
+    flex: 1;
+    overflow: hidden;
+    padding: calc(12 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(11 * var(--u));
+  }
+
+  .summary {
+    background: var(--d-panel-2);
+    border: 1px solid var(--d-line);
+    border-radius: calc(5 * var(--u));
+    padding: calc(10 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(8 * var(--u));
+  }
+  .summary .big {
+    font-family: var(--f-mono);
+    font-size: calc(26 * var(--u));
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #e8eff5;
+    line-height: 1;
+  }
+  .summary .big span { font-size: calc(13 * var(--u)); color: var(--d-ink-2); font-weight: 500; }
+  .tallies { display: flex; gap: calc(5 * var(--u)); }
+  .tally {
+    flex: 1;
+    border-radius: calc(3 * var(--u));
+    padding: calc(5 * var(--u)) calc(6 * var(--u));
+    background: #10161d;
+    border-left: calc(3 * var(--u)) solid var(--v-trash);
+  }
+  .tally.k { border-left-color: var(--v-keep); }
+  .tally.c { border-left-color: var(--v-check); }
+  .tally .n { font-family: var(--f-mono); font-size: calc(14 * var(--u)); font-weight: 700; line-height: 1.1; }
+  .tally .l { font-family: var(--f-mono); font-size: calc(8 * var(--u)); letter-spacing: 0.1em; text-transform: uppercase; color: var(--d-ink-3); }
+
+  .block-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: calc(9 * var(--u));
+  }
+
+  .rows { display: flex; flex-direction: column; gap: calc(3 * var(--u)); }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: calc(7 * var(--u));
+    padding: calc(6 * var(--u)) calc(7 * var(--u));
+    border-radius: calc(4 * var(--u));
+    background: #10161d;
+    border: 1px solid transparent;
+  }
+  .row.focus { background: var(--d-panel-3); border-color: var(--d-accent); }
+  .row .sw {
+    width: calc(3 * var(--u));
+    align-self: stretch;
+    border-radius: 999px;
+    background: var(--v-trash);
+    flex: none;
+  }
+  .row.k .sw { background: var(--v-keep); }
+  .row.c .sw { background: var(--v-check); }
+  .row .nm {
+    flex: 1;
+    min-width: 0;
+    font-size: calc(11 * var(--u));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row .sub {
+    font-family: var(--f-mono);
+    font-size: calc(8.5 * var(--u));
+    color: var(--d-ink-3);
+    letter-spacing: 0.03em;
+  }
+  .row .pr {
+    font-family: var(--f-mono);
+    font-size: calc(11 * var(--u));
+    font-weight: 700;
+    color: #e8eff5;
+    flex: none;
+  }
+  .row .pr.muted { color: var(--d-ink-3); font-weight: 500; }
+
+  .qam-foot {
+    border-top: 1px solid var(--d-line);
+    padding: calc(8 * var(--u)) calc(12 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(12 * var(--u));
+    font-size: calc(9.5 * var(--u));
+    color: var(--d-ink-2);
+  }
+  .btn-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(13 * var(--u));
+    height: calc(13 * var(--u));
+    border-radius: 50%;
+    border: 1px solid var(--d-ink-3);
+    font-family: var(--f-mono);
+    font-size: calc(8 * var(--u));
+    font-weight: 700;
+    margin-right: calc(4 * var(--u));
+    color: var(--d-ink);
+  }
+
+  /* ================= MOCK B — Steam overlay browser ================= */
+  .ov-scrim { position: absolute; inset: 0; background: rgba(4,7,10,0.6); }
+  .ov-win {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(1060 * var(--u));
+    height: calc(672 * var(--u));
+    background: var(--d-panel);
+    border: 1px solid #3a4653;
+    border-radius: calc(6 * var(--u));
+    box-shadow: 0 calc(20 * var(--u)) calc(70 * var(--u)) rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .ov-chrome {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    padding: calc(7 * var(--u)) calc(10 * var(--u));
+    background: #11161d;
+    border-bottom: 1px solid var(--d-line);
+    flex: none;
+  }
+  .nav-btn {
+    font-family: var(--f-mono);
+    font-size: calc(12 * var(--u));
+    color: var(--d-ink-3);
+    width: calc(18 * var(--u));
+    text-align: center;
+  }
+  .urlbar {
+    flex: 1;
+    background: #070a0d;
+    border: 1px solid #2a333d;
+    border-radius: calc(3 * var(--u));
+    padding: calc(4 * var(--u)) calc(9 * var(--u));
+    font-family: var(--f-mono);
+    font-size: calc(10.5 * var(--u));
+    color: var(--d-ink-2);
+  }
+  .urlbar b { color: var(--d-ink); font-weight: 600; }
+
+  .ov-body { flex: 1; display: flex; min-height: 0; }
+  .ov-left {
+    flex: 1;
+    padding: calc(16 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(13 * var(--u));
+    min-width: 0;
+  }
+  .ov-right {
+    width: calc(376 * var(--u));
+    flex: none;
+    border-left: 1px solid var(--d-line);
+    background: #12181f;
+    padding: calc(16 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(11 * var(--u));
+    overflow: hidden;
+  }
+
+  .ov-topline { display: flex; align-items: flex-end; gap: calc(18 * var(--u)); }
+  .ov-topline .val {
+    font-family: var(--f-mono);
+    font-size: calc(34 * var(--u));
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: #eaf1f7;
+  }
+  .ov-topline .val span { font-size: calc(15 * var(--u)); color: var(--d-ink-2); font-weight: 500; }
+  .ov-topline .meta { font-size: calc(10 * var(--u)); padding-bottom: calc(2 * var(--u)); }
+
+  .ov-grid-wrap {
+    background: #10151b;
+    border: 1px solid var(--d-line);
+    border-radius: calc(5 * var(--u));
+    padding: calc(11 * var(--u));
+  }
+  .ov-grid-wrap .grid { gap: calc(4 * var(--u)); }
+  .ov-grid-wrap .cell { border-radius: calc(3 * var(--u)); }
+  .ov-grid-wrap .cell .g { font-size: calc(13 * var(--u)); }
+  .ov-grid-wrap .cell .qty {
+    position: absolute;
+    right: calc(2 * var(--u));
+    bottom: calc(1 * var(--u));
+    font-family: var(--f-mono);
+    font-size: calc(8 * var(--u));
+    color: var(--d-ink-2);
+  }
+
+  .legend { display: flex; gap: calc(14 * var(--u)); align-items: center; font-size: calc(9.5 * var(--u)); }
+  .legend .k { display: flex; align-items: center; gap: calc(5 * var(--u)); color: var(--d-ink-2); }
+  .legend .chip { width: calc(9 * var(--u)); height: calc(9 * var(--u)); border-radius: calc(2 * var(--u)); }
+
+  .item-title { display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+  .item-title .n { font-size: calc(15 * var(--u)); font-weight: 640; color: var(--r-unique); line-height: 1.2; }
+  .item-title .b { font-size: calc(11 * var(--u)); color: var(--d-ink-2); }
+
+  .mods {
+    border-top: 1px solid var(--d-line);
+    border-bottom: 1px solid var(--d-line);
+    padding: calc(9 * var(--u)) 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(3 * var(--u));
+  }
+  .mods .imp { color: var(--r-magic); font-size: calc(10.5 * var(--u)); }
+  .mods .ex  { color: #9fb6cc; font-size: calc(10.5 * var(--u)); }
+
+  .quote {
+    background: #0b1016;
+    border: 1px solid var(--d-line);
+    border-radius: calc(4 * var(--u));
+    padding: calc(10 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(7 * var(--u));
+  }
+  .quote .hdr { display: flex; justify-content: space-between; align-items: baseline; font-size: calc(9 * var(--u)); }
+  .comps { display: flex; flex-direction: column; gap: calc(4 * var(--u)); }
+  .comp {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    font-family: var(--f-mono);
+    font-size: calc(10 * var(--u));
+    color: var(--d-ink-2);
+  }
+  .comp .bar { flex: 1; height: calc(4 * var(--u)); background: #1d2630; border-radius: 999px; overflow: hidden; }
+  .comp .bar i { display: block; height: 100%; background: var(--d-accent); border-radius: 999px; }
+  .comp .p { color: #e8eff5; font-weight: 700; width: calc(48 * var(--u)); text-align: right; }
+
+  .ov-actions { display: flex; gap: calc(7 * var(--u)); margin-top: auto; }
+  .ov-btn {
+    flex: 1;
+    text-align: center;
+    padding: calc(8 * var(--u));
+    border-radius: calc(4 * var(--u));
+    font-size: calc(11 * var(--u));
+    font-weight: 600;
+    background: var(--d-panel-3);
+    border: 1px solid var(--d-line);
+    color: var(--d-ink);
+  }
+  .ov-btn.primary { background: #2b6ea3; border-color: #3d86bf; color: #f2f8fc; }
+
+  /* ---------- annotation pins ---------- */
+  .pin {
+    position: absolute;
+    width: calc(19 * var(--u));
+    height: calc(19 * var(--u));
+    border-radius: 50%;
+    background: #f0f4f8;
+    color: #0e1319;
+    font-family: var(--f-mono);
+    font-size: calc(10 * var(--u));
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 calc(2.5 * var(--u)) rgba(10,14,18,0.75);
+    z-index: 5;
+  }
+
+  .callouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem 1.75rem;
+  }
+  .callout { display: flex; gap: 0.6rem; align-items: flex-start; }
+  .callout .key {
+    flex: none;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.12rem;
+  }
+  .callout p { font-size: 0.87rem; line-height: 1.5; color: var(--ink-2); }
+  .callout b { color: var(--ink); font-weight: 620; }
+
+  /* ---------- comparison ---------- */
+  .cmp-scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    min-width: 640px;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-bottom: 1px solid var(--line);
+    font-weight: 500;
+  }
+  tbody th {
+    font-weight: 600;
+    color: var(--ink);
+    width: 26%;
+  }
+  td { color: var(--ink-2); }
+  .yes { color: var(--good); font-weight: 600; }
+  .no  { color: var(--bad); font-weight: 600; }
+
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.5rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  hr { border: 0; border-top: 1px solid var(--line-soft); margin: 0; }
+
+  @media (max-width: 700px) {
+    .wrap { padding: 2.5rem 1rem 4rem; gap: 3rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="head-block">
+    <p class="eyebrow">Path of Exile · Steam Deck helper · UI options</p>
+    <h1>Two ways to put a price check in front of you without leaving the game</h1>
+    <p class="lede">
+      Both mockups are drawn at true Steam Deck proportions (1280&times;800) and filled with the
+      actual contents of Gladefall's bag, pulled live from the character API. Same backend, same
+      data, two very different amounts of room to work with.
+    </p>
+    <p class="note">
+      Prices shown are illustrative placeholders for layout purposes, not live quotes. The verdict
+      colors — keep / check / trash — are the real three-state model the pricing layer would emit.
+    </p>
+  </header>
+
+  <!-- ============ MOCK A ============ -->
+  <section class="mock-section">
+    <div class="sec-head">
+      <span class="sec-tag">Option A — Decky Loader plugin</span>
+      <h2>Lives in the Quick Access menu</h2>
+      <p class="lede">
+        Press the <b>&hellip;</b> button and the panel slides in over the running game. 310&nbsp;px of
+        width is the entire design constraint — everything below is shaped by it.
+      </p>
+    </div>
+
+    <div class="deck">
+      <div class="game"><span class="game-label">Path of Exile — running, not paused</span></div>
+      <div class="qam-dim"></div>
+
+      <div class="pin" style="left: 63%; top: 5.5%;">A</div>
+      <div class="pin" style="left: 78.5%; top: 27%;">B</div>
+      <div class="pin" style="left: 78.5%; top: 45%;">C</div>
+      <div class="pin" style="left: 78.5%; top: 92%;">D</div>
+
+      <div class="qam">
+        <div class="qam-head">
+          <span class="dot"></span>
+          <span class="t">PoE Inventory</span>
+          <span class="s m-label">synced 4s</span>
+        </div>
+
+        <div class="qam-body">
+          <div class="summary">
+            <div>
+              <div class="m-label" style="font-size: calc(8.5 * var(--u)); margin-bottom: calc(4 * var(--u));">Bag value</div>
+              <div class="big tnum">2.04 <span>div</span></div>
+            </div>
+            <div class="tallies">
+              <div class="tally k"><div class="n tnum">3</div><div class="l">Keep</div></div>
+              <div class="tally c"><div class="n tnum">9</div><div class="l">Check</div></div>
+              <div class="tally"><div class="n tnum">11</div><div class="l">Trash</div></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="block-title">
+              <span class="m-label">Bag layout</span>
+              <span class="m-label">23 / 60</span>
+            </div>
+            <div class="grid" style="margin-top: calc(6 * var(--u));">
+              <!-- row 1 -->
+              <div class="cell filled keep sel"><span class="g rar-unique">Y</span></div>
+              <div class="cell filled keep"><span class="g rar-curr">S</span></div>
+              <div class="cell filled keep"><span class="g rar-curr">S</span></div>
+              <div class="cell filled check"><span class="g rar-curr">E</span></div>
+              <div class="cell filled check"><span class="g rar-curr">F</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">e</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">i</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">V</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">c</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">a</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">f</span></div>
+              <div class="cell filled trash"><span class="g rar-curr">t</span></div>
+              <!-- row 2 -->
+              <div class="cell filled trash"><span class="g rar-normal">P</span></div>
+              <div class="cell filled trash"><span class="g rar-normal">W</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled check"><span class="g rar-map">M</span></div>
+              <div class="cell filled trash"><span class="g rar-map">M</span></div>
+              <div class="cell filled trash"><span class="g rar-map">M</span></div>
+              <div class="cell"></div>
+              <!-- rows 3-5 empty -->
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="block-title">
+              <span class="m-label">Worth keeping</span>
+              <span class="m-label">by value</span>
+            </div>
+            <div class="rows" style="margin-top: calc(6 * var(--u));">
+              <div class="row k focus">
+                <span class="sw"></span>
+                <span style="min-width:0; flex:1;">
+                  <div class="nm rar-unique">Yoke of Suffering</div>
+                  <div class="sub">Onyx Amulet · i86</div>
+                </span>
+                <span class="pr tnum">1.2 div</span>
+              </div>
+              <div class="row k">
+                <span class="sw"></span>
+                <span style="min-width:0; flex:1;">
+                  <div class="nm rar-curr">Scarab of Monstrous Lineage</div>
+                  <div class="sub">Scarab</div>
+                </span>
+                <span class="pr tnum">62c</span>
+              </div>
+              <div class="row k">
+                <span class="sw"></span>
+                <span style="min-width:0; flex:1;">
+                  <div class="nm rar-curr">Ultimatum Scarab of Bribing</div>
+                  <div class="sub">Scarab</div>
+                </span>
+                <span class="pr tnum">34c</span>
+              </div>
+              <div class="row c">
+                <span class="sw"></span>
+                <span style="min-width:0; flex:1;">
+                  <div class="nm rar-map">Corrupted T16 maps</div>
+                  <div class="sub">7 items · pricing&hellip;</div>
+                </span>
+                <span class="pr muted tnum">~28c</span>
+              </div>
+              <div class="row c">
+                <span class="sw"></span>
+                <span style="min-width:0; flex:1;">
+                  <div class="nm rar-curr">Greater Eldritch Ember</div>
+                  <div class="sub">Eldritch currency</div>
+                </span>
+                <span class="pr tnum">18c</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="qam-foot">
+          <span><span class="btn-glyph">A</span>Details</span>
+          <span><span class="btn-glyph">Y</span>Resync</span>
+          <span><span class="btn-glyph">X</span>Filter</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="callout">
+        <span class="key">A</span>
+        <p><b>The game keeps running.</b> The QAM does not pause or unfocus PoE — you can read the panel mid-town without dropping your session.</p>
+      </div>
+      <div class="callout">
+        <span class="key">B</span>
+        <p><b>Verdict before detail.</b> Bag total and the keep/check/trash split read in under a second. That is the whole point of the tool.</p>
+      </div>
+      <div class="callout">
+        <span class="key">C</span>
+        <p><b>The grid mirrors your actual bag.</b> The API returns x/y for every item, so a green cell here is the same slot your cursor needs to find. 12&times;5 at 22&nbsp;px per cell fits with room to spare.</p>
+      </div>
+      <div class="callout">
+        <span class="key">D</span>
+        <p><b>Controller-native.</b> D-pad moves the focus ring, A opens details. No cursor, no on-screen keyboard, no trackpad.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============ MOCK B ============ -->
+  <section class="mock-section">
+    <div class="sec-head">
+      <span class="sec-tag">Option B — Steam overlay browser</span>
+      <h2>A local web app, opened over the game</h2>
+      <p class="lede">
+        Same backend serving <code>localhost</code>, viewed through the Steam overlay's built-in
+        browser. Roughly three times the usable area, which buys you a real detail pane — at the
+        cost of a heavier way in.
+      </p>
+    </div>
+
+    <div class="deck">
+      <div class="game"><span class="game-label">Path of Exile — running behind the overlay</span></div>
+      <div class="ov-scrim"></div>
+
+      <div class="pin" style="left: 10.5%; top: 12%;">E</div>
+      <div class="pin" style="left: 24%; top: 20.5%;">F</div>
+      <div class="pin" style="left: 60%; top: 32%;">G</div>
+      <div class="pin" style="left: 60%; top: 79%;">H</div>
+
+      <div class="ov-win">
+        <div class="ov-chrome">
+          <span class="nav-btn">&#8592;</span>
+          <span class="nav-btn">&#8594;</span>
+          <span class="nav-btn">&#8635;</span>
+          <span class="urlbar">localhost:7331<b>/inventory</b></span>
+          <span class="m-label" style="font-size: calc(9.5 * var(--u));">synced 4s</span>
+        </div>
+
+        <div class="ov-body">
+          <div class="ov-left">
+            <div class="ov-topline">
+              <div>
+                <div class="m-label" style="font-size: calc(9 * var(--u)); margin-bottom: calc(5 * var(--u));">Bag value</div>
+                <div class="val tnum">2.04 <span>div</span></div>
+              </div>
+              <div class="meta">
+                <span class="pill keep" style="font-size: calc(8.5 * var(--u));">3 keep</span>
+                <span class="pill check" style="font-size: calc(8.5 * var(--u));">9 check</span>
+                <span class="pill trash" style="font-size: calc(8.5 * var(--u));">11 trash</span>
+              </div>
+            </div>
+
+            <div class="ov-grid-wrap">
+              <div class="grid">
+                <div class="cell filled keep sel"><span class="g rar-unique">Yo</span></div>
+                <div class="cell filled keep"><span class="g rar-curr">Sc</span></div>
+                <div class="cell filled keep"><span class="g rar-curr">Sc</span></div>
+                <div class="cell filled check"><span class="g rar-curr">Em</span></div>
+                <div class="cell filled check"><span class="g rar-curr">Fo</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Em</span><span class="qty tnum">2</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Ic</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Va</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Sc</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Al</span><span class="qty tnum">3</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">Fu</span><span class="qty tnum">3</span></div>
+                <div class="cell filled trash"><span class="g rar-curr">At</span><span class="qty tnum">8</span></div>
+
+                <div class="cell filled trash"><span class="g rar-normal">Po</span><span class="qty tnum">24</span></div>
+                <div class="cell filled trash"><span class="g rar-normal">Wi</span><span class="qty tnum">13</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled check"><span class="g rar-map">T16</span></div>
+                <div class="cell filled trash"><span class="g rar-map">T16</span></div>
+                <div class="cell filled trash"><span class="g rar-map">T16</span></div>
+                <div class="cell"></div>
+
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+                <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              </div>
+            </div>
+
+            <div class="legend">
+              <span class="k"><span class="chip" style="background: var(--v-keep);"></span>Keep — priced above threshold</span>
+              <span class="k"><span class="chip" style="background: var(--v-check);"></span>Check — needs a trade query</span>
+              <span class="k"><span class="chip" style="background: var(--v-trash);"></span>Trash — below threshold</span>
+            </div>
+          </div>
+
+          <div class="ov-right">
+            <div class="item-title">
+              <div class="n">Yoke of Suffering</div>
+              <div class="b">Onyx Amulet &middot; item level 86</div>
+            </div>
+
+            <div class="mods">
+              <div class="imp">+38 to all Attributes</div>
+              <div class="ex">Your Elemental Damage can Shock</div>
+              <div class="ex">+27% to all Elemental Resistances</div>
+              <div class="ex">Enemies take 5% increased Damage for each type of Ailment on them</div>
+              <div class="ex">30% increased Effect of non-Damaging Ailments</div>
+            </div>
+
+            <div class="quote">
+              <div class="hdr">
+                <span class="m-label">Comparable listings</span>
+                <span class="m-label">online &middot; 6 shown</span>
+              </div>
+              <div class="comps">
+                <div class="comp"><span class="bar"><i style="width: 42%;"></i></span><span class="p tnum">1.0 div</span></div>
+                <div class="comp"><span class="bar"><i style="width: 48%;"></i></span><span class="p tnum">1.1 div</span></div>
+                <div class="comp"><span class="bar"><i style="width: 55%;"></i></span><span class="p tnum">1.2 div</span></div>
+                <div class="comp"><span class="bar"><i style="width: 58%;"></i></span><span class="p tnum">1.2 div</span></div>
+                <div class="comp"><span class="bar"><i style="width: 71%;"></i></span><span class="p tnum">1.5 div</span></div>
+                <div class="comp"><span class="bar"><i style="width: 88%;"></i></span><span class="p tnum">1.9 div</span></div>
+              </div>
+              <div class="m-label" style="font-size: calc(9 * var(--u));">Median 1.2 div &middot; queried 9s ago</div>
+            </div>
+
+            <div class="ov-actions">
+              <span class="ov-btn primary">Open on trade site</span>
+              <span class="ov-btn">Mark as keep</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="callout">
+        <span class="key">E</span>
+        <p><b>You have to summon it.</b> STEAM button &rarr; overlay &rarr; browser tab. Slower than the QAM, and the overlay grabs input while it is open.</p>
+      </div>
+      <div class="callout">
+        <span class="key">F</span>
+        <p><b>It is a real browser.</b> Plain web app on localhost — you can build and test the entire thing on your Ubuntu machine before the Deck is ever involved.</p>
+      </div>
+      <div class="callout">
+        <span class="key">G</span>
+        <p><b>Room for the detail pane.</b> Full mod list plus the comparable listings the price came from, side by side with the grid. The QAM has nowhere to put this.</p>
+      </div>
+      <div class="callout">
+        <span class="key">H</span>
+        <p><b>Trackpad-driven.</b> Buttons and links assume a cursor. Workable on the Deck's right pad, but never as clean as D-pad focus.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section class="mock-section">
+    <div class="sec-head">
+      <h2>Where they actually differ</h2>
+    </div>
+    <div class="cmp-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col"></th>
+            <th scope="col">Decky QAM plugin</th>
+            <th scope="col">Steam overlay browser</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Usable area</th>
+            <td>310 &times; 800 px</td>
+            <td class="yes">~1060 &times; 670 px</td>
+          </tr>
+          <tr>
+            <th scope="row">Getting to it</th>
+            <td class="yes">One button (<b>&hellip;</b>)</td>
+            <td>STEAM &rarr; overlay &rarr; tab</td>
+          </tr>
+          <tr>
+            <th scope="row">Input</th>
+            <td class="yes">D-pad focus, native</td>
+            <td>Trackpad cursor</td>
+          </tr>
+          <tr>
+            <th scope="row">Game keeps running</th>
+            <td class="yes">Yes, unobstructed</td>
+            <td>Yes, but covered and input-grabbed</td>
+          </tr>
+          <tr>
+            <th scope="row">Detail depth</th>
+            <td>Summary + top items only</td>
+            <td class="yes">Full mods, comparables, actions</td>
+          </tr>
+          <tr>
+            <th scope="row">Dev loop from Ubuntu</th>
+            <td>Deploy to Deck over SSH to test</td>
+            <td class="yes">Test entirely in a local browser</td>
+          </tr>
+          <tr>
+            <th scope="row">Extra dependency</th>
+            <td>Requires Decky Loader installed</td>
+            <td class="yes">None</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <h3>The pragmatic path is both, in this order</h3>
+    <p>
+      They share a backend — the polling service, the pricing engine, and the verdict model are
+      identical, and only the last layer differs. Build the web app first: it runs on your Ubuntu
+      machine today, needs no Deck and no Decky, and lets you get the hard part (rare pricing under
+      rate limits) correct against your real account.
+    </p>
+    <p>
+      Then wrap the same JSON in a Decky panel. That is the version you will actually use at 2am in
+      handheld mode — one button, D-pad, game still running. The overlay browser stays useful as the
+      place you go when you want the full mod list and the listings behind a price.
+    </p>
+  </section>
+
+</div>
