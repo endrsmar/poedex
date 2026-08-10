@@ -1,0 +1,9 @@
+packages:
+  - ui-kit
+  - frontend/core
+  - surfaces/web
+  - modules/*/ui
+  - tools/eslint-plugin-poedex
+allowBuilds:
+  # esbuild ships a prebuilt binary and its install script only unpacks it.
+  esbuild: true

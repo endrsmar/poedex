@@ -1,0 +1,10 @@
+{
+  "name": "eslint-plugin-poedex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The TypeScript half of IMPLEMENTATION-PLAN §2.6: what a module's UI may import.",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  }
+}

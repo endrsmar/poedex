@@ -1,0 +1,1101 @@
+{
+  "league": "Allflame",
+  "league_source": "character",
+  "league_overridden": false,
+  "strictness": "generous",
+  "threshold_chaos": 20.0,
+  "items": [
+    {
+      "uid": "u-wand",
+      "name": "Doom Bane",
+      "base_type": "Convoking Wand",
+      "category": "weapon",
+      "rarity": "rare",
+      "slot": {
+        "x": 3,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 1,
+      "total_chaos": 192.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": true,
+      "reason": "trade search",
+      "gate": {
+        "passed": true,
+        "considered": true,
+        "strictness": "generous",
+        "signals": [
+          {
+            "name": "influence",
+            "detail": "shaper-influenced",
+            "hard": true
+          },
+          {
+            "name": "base",
+            "detail": "Convoking Wand is on the allowlist",
+            "hard": true
+          },
+          {
+            "name": "ilvl",
+            "detail": "ilvl 86 base",
+            "hard": true
+          }
+        ]
+      },
+      "valuation": {
+        "uid": "u-wand",
+        "name": "Doom Bane",
+        "base_type": "Convoking Wand",
+        "category": "weapon",
+        "stack_size": 1,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "trade",
+        "total_chaos": 192.0,
+        "price": {
+          "chaos": 192.0,
+          "source": "trade",
+          "category": "weapon",
+          "detail": "median of 8 online listing(s)",
+          "listing_count": 64,
+          "sample_size": 8,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-sulphur-a",
+      "name": "Dead Man's Sulphur",
+      "base_type": "Dead Man's Sulphur",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 0,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 40296,
+      "total_chaos": 3223.68,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "40296 x 0.08c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-sulphur-a",
+        "name": "Dead Man's Sulphur",
+        "base_type": "Dead Man's Sulphur",
+        "category": "currency",
+        "stack_size": 40296,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 3223.68,
+        "price": {
+          "chaos": 0.08,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Ultimatum line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-divine",
+      "name": "Divine Orb",
+      "base_type": "Divine Orb",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 3,
+      "total_chaos": 642.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "3 x 214c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-divine",
+        "name": "Divine Orb",
+        "base_type": "Divine Orb",
+        "category": "currency",
+        "stack_size": 3,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 642.0,
+        "price": {
+          "chaos": 214.0,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-yoke",
+      "name": "Yoke of Suffering",
+      "base_type": "Onyx Amulet",
+      "category": "accessory",
+      "rarity": "unique",
+      "slot": {
+        "x": 2,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 1,
+      "total_chaos": 428.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "your own note",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-yoke",
+        "name": "Yoke of Suffering",
+        "base_type": "Onyx Amulet",
+        "category": "accessory",
+        "stack_size": 1,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "note",
+        "total_chaos": 428.0,
+        "price": {
+          "chaos": 428.0,
+          "source": "note",
+          "category": "accessory",
+          "detail": "~price 2 divine",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": {
+          "chaos": 428.0,
+          "source": "note",
+          "category": null,
+          "detail": "~price 2 divine",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "market": {
+          "chaos": 257.0,
+          "source": "bulk",
+          "category": null,
+          "detail": "poe.ninja line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "overpriced_by": 1.6653696498054475,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-1",
+      "name": "Jeweller's Orb",
+      "base_type": "Jeweller's Orb",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 3,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 2615,
+      "total_chaos": 313.8,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "2615 x 0.12c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-1",
+        "name": "Jeweller's Orb",
+        "base_type": "Jeweller's Orb",
+        "category": "currency",
+        "stack_size": 2615,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 313.8,
+        "price": {
+          "chaos": 0.12,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-ducat",
+      "name": "Merrick's Ducat",
+      "base_type": "Merrick's Ducat",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 1,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 88,
+      "total_chaos": 264.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "88 x 3c \u00b7 bulk exchange",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-ducat",
+        "name": "Merrick's Ducat",
+        "base_type": "Merrick's Ducat",
+        "category": "currency",
+        "stack_size": 88,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "exchange",
+        "total_chaos": 264.0,
+        "price": {
+          "chaos": 3.0,
+          "source": "exchange",
+          "category": "currency",
+          "detail": "median of the cheapest 10 offers",
+          "listing_count": 39,
+          "sample_size": 10,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-check-2",
+      "name": "Awakened Sextant",
+      "base_type": "Awakened Sextant",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 6,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "keep",
+      "stack_size": 11,
+      "total_chaos": 44.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "11 x 4c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-check-2",
+        "name": "Awakened Sextant",
+        "base_type": "Awakened Sextant",
+        "category": "currency",
+        "stack_size": 11,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 44.0,
+        "price": {
+          "chaos": 4.0,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-helm",
+      "name": "Corpse Ward",
+      "base_type": "Hubris Circlet",
+      "category": "armour",
+      "rarity": "rare",
+      "slot": {
+        "x": 7,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": true,
+      "reason": "hunter-influenced, ilvl 86 base, life roll in the top group",
+      "gate": {
+        "passed": true,
+        "considered": true,
+        "strictness": "generous",
+        "signals": [
+          {
+            "name": "influence",
+            "detail": "hunter-influenced",
+            "hard": true
+          },
+          {
+            "name": "ilvl",
+            "detail": "ilvl 86 base",
+            "hard": true
+          },
+          {
+            "name": "mods",
+            "detail": "life roll in the top group",
+            "hard": false
+          }
+        ]
+      },
+      "valuation": {
+        "uid": "u-helm",
+        "name": "Corpse Ward",
+        "base_type": "Hubris Circlet",
+        "category": "armour",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": false,
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "no bulk table prices rares"
+      }
+    },
+    {
+      "uid": "u-chest",
+      "name": "Rift Shroud",
+      "base_type": "Astral Plate",
+      "category": "armour",
+      "rarity": "rare",
+      "slot": {
+        "x": 8,
+        "y": 0,
+        "w": 2,
+        "h": 3
+      },
+      "verdict": "check",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": false,
+      "pricing": true,
+      "escalate": true,
+      "reason": "pricing\u2026 \u00b7 6-linked",
+      "gate": {
+        "passed": true,
+        "considered": true,
+        "strictness": "generous",
+        "signals": [
+          {
+            "name": "links",
+            "detail": "6-linked",
+            "hard": true
+          }
+        ]
+      },
+      "valuation": {
+        "uid": "u-chest",
+        "name": "Rift Shroud",
+        "base_type": "Astral Plate",
+        "category": "armour",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": true,
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "tier 3 query outstanding"
+      }
+    },
+    {
+      "uid": "u-check-0",
+      "name": "Greater Eldritch Ember",
+      "base_type": "Greater Eldritch Ember",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 4,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 1,
+      "total_chaos": 18.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-check-0",
+        "name": "Greater Eldritch Ember",
+        "base_type": "Greater Eldritch Ember",
+        "category": "currency",
+        "stack_size": 1,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 18.0,
+        "price": {
+          "chaos": 18.0,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-check-1",
+      "name": "Orb of Annulment",
+      "base_type": "Orb of Annulment",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 5,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 2,
+      "total_chaos": 13.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "2 x 6.5c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-check-1",
+        "name": "Orb of Annulment",
+        "base_type": "Orb of Annulment",
+        "category": "currency",
+        "stack_size": 2,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 13.0,
+        "price": {
+          "chaos": 6.5,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-0",
+      "name": "Orb of Alchemy",
+      "base_type": "Orb of Alchemy",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 2,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 31,
+      "total_chaos": 12.4,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "31 x 0.4c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-0",
+        "name": "Orb of Alchemy",
+        "base_type": "Orb of Alchemy",
+        "category": "currency",
+        "stack_size": 31,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 12.4,
+        "price": {
+          "chaos": 0.4,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-3",
+      "name": "Chaos Orb",
+      "base_type": "Chaos Orb",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 5,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 6,
+      "total_chaos": 6.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "6 x 1c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-3",
+        "name": "Chaos Orb",
+        "base_type": "Chaos Orb",
+        "category": "currency",
+        "stack_size": 6,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 6.0,
+        "price": {
+          "chaos": 1.0,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-2",
+      "name": "Orb of Fusing",
+      "base_type": "Orb of Fusing",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 4,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 9,
+      "total_chaos": 4.5,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "9 x 0.5c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-2",
+        "name": "Orb of Fusing",
+        "base_type": "Orb of Fusing",
+        "category": "currency",
+        "stack_size": 9,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 4.5,
+        "price": {
+          "chaos": 0.5,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-6",
+      "name": "Blacksmith's Whetstone",
+      "base_type": "Blacksmith's Whetstone",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 10,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "check",
+      "stack_size": 40,
+      "total_chaos": 2.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "40 x 0.05c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-6",
+        "name": "Blacksmith's Whetstone",
+        "base_type": "Blacksmith's Whetstone",
+        "category": "currency",
+        "stack_size": 40,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 2.0,
+        "price": {
+          "chaos": 0.05,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-veiled",
+      "name": "Veiled Scarab",
+      "base_type": "Veiled Scarab",
+      "category": "fragment",
+      "rarity": "currency",
+      "slot": {
+        "x": 10,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "unpriceable",
+      "stack_size": 174,
+      "total_chaos": 0.0,
+      "unpriceable": true,
+      "pricing": false,
+      "escalate": false,
+      "reason": "not in Allflame's poe.ninja index",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-veiled",
+        "name": "Veiled Scarab",
+        "base_type": "Veiled Scarab",
+        "category": "fragment",
+        "stack_size": 174,
+        "unpriceable": true,
+        "pricing": false,
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "not in Allflame's poe.ninja index"
+      }
+    },
+    {
+      "uid": "u-relic",
+      "name": "Bottled Faith",
+      "base_type": "Sulphur Flask",
+      "category": "flask",
+      "rarity": "relic",
+      "slot": {
+        "x": 11,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "unpriceable",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": true,
+      "pricing": false,
+      "escalate": false,
+      "reason": "relic variants are not indexed",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-relic",
+        "name": "Bottled Faith",
+        "base_type": "Sulphur Flask",
+        "category": "flask",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": false,
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "relic variants are not indexed"
+      }
+    },
+    {
+      "uid": "u-sulphur-b",
+      "name": "Dead Man's Sulphur",
+      "base_type": "Dead Man's Sulphur",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 1,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "trash",
+      "stack_size": 7,
+      "total_chaos": 0.56,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "7 x 0.08c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-sulphur-b",
+        "name": "Dead Man's Sulphur",
+        "base_type": "Dead Man's Sulphur",
+        "category": "currency",
+        "stack_size": 7,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 0.56,
+        "price": {
+          "chaos": 0.08,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Ultimatum line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-4",
+      "name": "Portal Scroll",
+      "base_type": "Portal Scroll",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 6,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "trash",
+      "stack_size": 24,
+      "total_chaos": 0.48,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "24 x 0.02c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-4",
+        "name": "Portal Scroll",
+        "base_type": "Portal Scroll",
+        "category": "currency",
+        "stack_size": 24,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 0.48,
+        "price": {
+          "chaos": 0.02,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-trash-5",
+      "name": "Scroll of Wisdom",
+      "base_type": "Scroll of Wisdom",
+      "category": "currency",
+      "rarity": "currency",
+      "slot": {
+        "x": 7,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "trash",
+      "stack_size": 13,
+      "total_chaos": 0.13,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "13 x 0.01c \u00b7 poe.ninja",
+      "gate": {
+        "passed": false,
+        "considered": false,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-trash-5",
+        "name": "Scroll of Wisdom",
+        "base_type": "Scroll of Wisdom",
+        "category": "currency",
+        "stack_size": 13,
+        "unpriceable": false,
+        "pricing": false,
+        "source": "bulk",
+        "total_chaos": 0.13,
+        "price": {
+          "chaos": 0.01,
+          "source": "bulk",
+          "category": "currency",
+          "detail": "Currency line",
+          "listing_count": null,
+          "sample_size": null,
+          "as_of": "2026-08-10T14:32:00+00:00"
+        },
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": null
+      }
+    },
+    {
+      "uid": "u-ring",
+      "name": "Blight Loop",
+      "base_type": "Iron Ring",
+      "category": "accessory",
+      "rarity": "rare",
+      "slot": {
+        "x": 11,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      "verdict": "trash",
+      "stack_size": 1,
+      "total_chaos": 0.0,
+      "unpriceable": false,
+      "pricing": false,
+      "escalate": false,
+      "reason": "no bulk price; the gate found nothing",
+      "gate": {
+        "passed": false,
+        "considered": true,
+        "strictness": "generous",
+        "signals": []
+      },
+      "valuation": {
+        "uid": "u-ring",
+        "name": "Blight Loop",
+        "base_type": "Iron Ring",
+        "category": "accessory",
+        "stack_size": 1,
+        "unpriceable": true,
+        "pricing": false,
+        "source": "unpriceable",
+        "total_chaos": 0.0,
+        "price": null,
+        "note_price": null,
+        "market": null,
+        "overpriced_by": null,
+        "reason": "no bulk table prices rares"
+      }
+    }
+  ],
+  "counts": {
+    "keep": 7,
+    "check": 8,
+    "trash": 4,
+    "unpriceable": 2
+  },
+  "total_chaos": 5164.55,
+  "total_divine": 24.1334,
+  "divine_rate": 214.0,
+  "unpriceable_count": 2,
+  "unpriceable_stack": 175,
+  "escalation_candidates": 3,
+  "pricing_count": 1,
+  "total_is_floor": true,
+  "lookups": 17,
+  "trade_requests": 2,
+  "table": {
+    "league": "Allflame",
+    "loaded": 36,
+    "requested": 38,
+    "oldest": "2026-08-10T14:02:00+00:00",
+    "newest": "2026-08-10T14:32:00+00:00",
+    "stale": false,
+    "note": null,
+    "discovery": "36 of 38 candidate types served by Allflame (asked, not assumed)"
+  },
+  "character": "Gladefall",
+  "stale": false
+}

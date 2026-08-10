@@ -12,6 +12,7 @@ Commands:
     poedex value                       price the bag: per-item values and a total
     poedex appraise                    the bag, judged: keep/check/trash/unpriceable
     poedex limits                      print what the rate limiter currently knows
+    poedex serve                       the web surface on http://127.0.0.1:7331
     poedex selftest freshness          the in-game freshness experiment (SPEC §4.3)
 
 **The credential is never accepted as an argument.** ``argv`` is visible to every
@@ -32,6 +33,7 @@ from pathlib import Path
 
 from cli.appraise import cmd_appraise
 from cli.selftest import DEFAULT_INTERVAL, DEFAULT_SECONDS, MIN_INTERVAL, cmd_freshness
+from cli.serve import DEFAULT_PORT, cmd_serve
 from cli.sync import cmd_sync, render_limits
 from cli.value import cmd_value
 from modules.appraisal.backend.api import AppraisalApi, Strictness
@@ -235,6 +237,29 @@ def build_parser() -> argparse.ArgumentParser:
     _add_league_argument(appraise)
 
     sub.add_parser("limits", help="print the rate limiter's current view")
+
+    serve = sub.add_parser(
+        "serve",
+        help="run the web surface on http://127.0.0.1:7331",
+        description=(
+            "Starts the runtime and serves the bag screen over HTTP. Binds to the "
+            "loopback interface only and refuses anything else: this exposes your "
+            "account's inventory, and 0.0.0.0 would put it on whatever network you "
+            "happen to be attached to."
+        ),
+    )
+    serve.add_argument("--port", type=int, default=DEFAULT_PORT, help="TCP port (default 7331)")
+    serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        # Accepted so the refusal is reachable and testable, never advertised.
+        help=argparse.SUPPRESS,
+    )
+    serve.add_argument(
+        "--static",
+        default=None,
+        help="serve this directory as the SPA instead of surfaces/web/dist",
+    )
 
     selftest = sub.add_parser("selftest", help="experiments that need a human")
     selftest_sub = selftest.add_subparsers(dest="selftest_command", required=True)
@@ -471,6 +496,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     elif args.command == "limits":
         runner = cmd_limits
+    elif args.command == "serve":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_serve(
+                registry, host=args.host, port=args.port, static_dir=args.static
+            )
+
     elif args.command == "selftest":
 
         async def runner(registry: Registry) -> int:

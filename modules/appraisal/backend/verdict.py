@@ -41,6 +41,7 @@ from modules.appraisal.backend.api import (
     BagAppraisal,
     GateResult,
     ItemVerdict,
+    Slot,
     Strictness,
     Verdict,
     indexable,
@@ -143,6 +144,7 @@ def appraise_one(
         valuation=valuation,
         gate=gate,
         reason=reason,
+        slot=Slot(x=item.grid.x, y=item.grid.y, w=item.grid.w, h=item.grid.h),
     )
 
 

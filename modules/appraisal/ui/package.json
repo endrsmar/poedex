@@ -1,0 +1,19 @@
+{
+  "name": "@poedex/appraisal-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The appraisal module's own UI. A module is a vertical slice (IMPLEMENTATION-PLAN §1.1), so this lives beside backend/, not in a surface.",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@poedex/core": "workspace:*",
+    "@poedex/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

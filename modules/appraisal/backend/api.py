@@ -38,6 +38,7 @@ Four decisions are encoded in these types rather than left to a caller.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
@@ -55,6 +56,7 @@ __all__ = [
     "GateResult",
     "GateSignal",
     "ItemVerdict",
+    "Slot",
     "Strictness",
     "Verdict",
     "indexable",
@@ -209,6 +211,26 @@ class GateResult:
         return f"GateResult({self.strictness.value}, {[s.name for s in self.signals]})"
 
 
+@dataclass(frozen=True, slots=True)
+class Slot:
+    """Where the item sits in the container it came from.
+
+    Carried on the verdict because SPEC §6.3 makes the bag grid a *map*: a green
+    cell is the exact slot the player's cursor has to find, which is the one thing a
+    verdict list cannot express. It is `poeapi`'s own `Grid`, flattened to four ints
+    rather than re-exported, so `appraisal`'s public surface does not oblige every
+    consumer to import `poeapi`'s models to read a coordinate.
+    """
+
+    x: int = 0
+    y: int = 0
+    w: int = 1
+    h: int = 1
+
+    def to_json(self) -> dict[str, Any]:
+        return {"x": self.x, "y": self.y, "w": self.w, "h": self.h}
+
+
 class ItemVerdict:
     """One item's verdict, the valuation behind it, and why."""
 
@@ -219,6 +241,7 @@ class ItemVerdict:
         "name",
         "rarity",
         "reason",
+        "slot",
         "uid",
         "valuation",
         "verdict",
@@ -236,7 +259,13 @@ class ItemVerdict:
         valuation: Valuation,
         gate: GateResult,
         reason: str,
+        slot: Slot | None = None,
     ) -> None:
+        self.slot = slot
+        """``None`` when the caller had no placement to give — an equipment slot, a
+        synthetic row in a test. A surface draws a grid only from the rows that have
+        one, and lists the rest."""
+
         self.uid = uid
         self.name = name
         self.base_type = base_type
@@ -289,6 +318,7 @@ class ItemVerdict:
             "base_type": self.base_type,
             "category": self.category,
             "rarity": self.rarity,
+            "slot": self.slot.to_json() if self.slot else None,
             "verdict": self.verdict.value,
             "stack_size": self.stack_size,
             "total_chaos": round(self.total_chaos, 4),
