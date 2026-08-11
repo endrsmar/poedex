@@ -265,9 +265,18 @@ describe('StaleBanner', () => {
   const at = new Date(Date.now() - 4000).toISOString()
 
   it('says how long ago when fresh', () => {
-    const { container } = render(<StaleBanner status={{ state: 'fresh', at }} />)
-    expect(container.textContent).toMatch(/synced/)
-    expect(container.textContent).toContain(formatAge(at))
+    // Freeze the clock across render and assertion. Both sides call formatAge
+    // against "now", and a real second boundary falling between them made this
+    // fail as 'expected "synced 4s ago" to contain "5s"' — a flake that says
+    // nothing about the component.
+    vi.useFakeTimers({ now: Date.now(), shouldAdvanceTime: false })
+    try {
+      const { container } = render(<StaleBanner status={{ state: 'fresh', at }} />)
+      expect(container.textContent).toMatch(/synced/)
+      expect(container.textContent).toContain(formatAge(at))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('says "no change since HH:MM" — never "refreshed" — when unchanged', () => {
