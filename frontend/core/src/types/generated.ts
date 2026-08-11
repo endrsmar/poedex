@@ -26,6 +26,7 @@ export interface NormalizedItem {
   stack_size?: number
   max_stack_size?: number | null
   map_tier?: number | null
+  gem?: Gem | null
   grid?: Grid
   sockets?: Sockets
   corrupted?: boolean
@@ -483,6 +484,23 @@ export interface Character {
   level?: number
   experience?: number
   current?: boolean
+}
+
+/**
+ * A skill gem's level and quality — two of the three axes it is priced on. The
+ * third is :attr:`NormalizedItem.corrupted`, which every item already has.
+ * These two are here because a gem is the one thing in the bag whose *name is
+ * not enough* to look up: a level 21 / 20% Cyclone and a level 1 Cyclone share
+ * a name, share a base type, and are three orders of magnitude apart. Without
+ * them the honest answer is `unpriceable`, which is what `prices` returned for
+ * every gem until now — an unpriced gem is honest, a gem priced as the wrong
+ * variant is not. Alternate-quality gems are **not** a fourth axis: the game
+ * gives them their own names (``Blade Flurry of Incision``) and so does
+ * poe.ninja, so they match by name like everything else.
+ */
+export interface Gem {
+  level?: number | null
+  quality?: number
 }
 
 /**

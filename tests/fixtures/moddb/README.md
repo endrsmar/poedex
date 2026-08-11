@@ -1,5 +1,34 @@
 # `tests/fixtures/moddb/`
 
+## `source/`
+
+A 304 KiB sample of the four documents `scripts/build_moddb.py` builds from — 211 mods,
+150 bases, 109 translation entries and 439 of GGG's stat entries, cut down from 30 MB.
+Public game data, verbatim; nothing here identifies anybody and nothing is rewritten.
+
+It exists so `tests/test_moddb_build.py` can build the artifact **twice from the same
+bytes and compare them**, which is the property that was missing and the reason a
+regeneration could not be trusted. The real sources are 30 MB fetched from two live
+endpoints, one of which is neither versioned nor immutable; neither belongs in a test
+run or in a repository.
+
+**Selection is by coverage, not by frequency**, because a determinism test over easy
+cases proves nothing. It carries both readings of the ambiguous local/global sentences
+(94 ambiguous lines, 47 of them local — a sample that answered one way would pass with
+`line_locality` hardwired), the `-#` sentences that reach the signed-key fallback, the
+influence pools, essence-only mods, and at least one prefix and one suffix in every
+surviving domain. `test_the_sample_exercises_the_parts_where_an_ordering_bug_could_hide`
+asserts all of that, so the sample cannot quietly decay into a rubber stamp.
+
+### Refreshing it
+
+Every league, from the same documents the artifact is built from, in the same run:
+
+    ./.venv/bin/python scripts/build_moddb.py --sample-to tests/fixtures/moddb/source
+
+It is a mode of the build script rather than a script of its own on purpose: a sampler
+that drifts from the builder proves nothing about the builder.
+
 ## `live_trade_rares.json`
 
 Twenty **real, identified rares** taken from public trade listings in Allflame on

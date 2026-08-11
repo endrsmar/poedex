@@ -74,6 +74,7 @@ __all__ = [
     "NEVER_PREFETCH",
     "NINJA_BASE_URL",
     "NINJA_ROUTE",
+    "ON_DEMAND",
     "PREFETCH",
     "SITEMAP_PATH",
     "NinjaCategory",
@@ -115,7 +116,13 @@ interval — polling faster spends someone else's bandwidth for identical bytes.
 
 PRIMARY_CURRENCY = "chaos"
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
+"""Bumped when :class:`PriceLine` gained ``gem_level``.
+
+A version-1 file has gem rows with no level on them, and :func:`gem_variant` reads a
+missing level as "this row cannot be matched" — so an old cache would answer
+`unpriceable` for every gem while looking perfectly healthy. Rejecting the file costs
+one refetch; keeping it costs the feature."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,9 +222,27 @@ CATALOGUE: dict[str, NinjaCategory] = {
     )
 }
 
+ON_DEMAND: dict[str, str] = {
+    "skill_gem": "4.0 MB, 7,519 lines; fetched only when a bag or tab holds a gem",
+}
+"""Tables fetched **when something needs them**, never on the refresh cycle.
+
+`skill_gem` is here rather than in :data:`NEVER_PREFETCH` because the reason it was
+excluded has been answered. The exclusion was never about the bytes alone — it was
+that a gem is priced per ``level/quality/corrupted`` variant and nothing scored
+variants, so the table could only ever have produced confident wrong answers. That is
+what :func:`~modules.prices.backend.valuation.gem_variant` and
+:func:`~modules.prices.backend.valuation.gem_line` now do exactly, or not at all.
+
+The bytes are still real, and still not worth spending on a league that never shows a
+gem: 4.0 MB on every startup, for the 30-minute refresh cycle, to answer a question
+most bags do not ask. So it is loaded lazily — `PricesModule.ensure_gem_table` — the
+first time an item with ``category == "gem"`` is actually being valued, and then
+cached and refreshed like any other table."""
+
 NEVER_PREFETCH: dict[str, str] = {
-    "skill_gem": "4.0 MB, 7,508 lines; needs level/quality/corruption matching we do not do",
-    "imbued_gem": "2.4 MB; the same variant problem as skill gems",
+    **ON_DEMAND,
+    "imbued_gem": "2.4 MB; the same variant problem, and no variant grammar measured for it",
     "base_type": "9.4 MB, 20,165 lines; priced per ilvl and influence, which we cannot match",
     "valdo_map": "1.6 MB, 1,509 variant lines; a wrong variant is a wrong order of magnitude",
     "cluster_jewel": "850 lines keyed by enchantment; `choose_line` does not score variants",
@@ -228,8 +253,13 @@ NEVER_PREFETCH: dict[str, str] = {
 Sizes measured against Allflame and Standard on 2026-08-10. Every entry is either
 too large to fetch on a 30-minute cycle or priced by a variant field
 :func:`~modules.prices.backend.valuation.choose_line` does not read — and an item
-priced as the wrong variant is worse than an item left unpriced, which is the same
-rule that has kept skill gems out since Phase 3."""
+priced as the wrong variant is worse than an item left unpriced.
+
+:data:`ON_DEMAND` is a subset: those are excluded from the *cycle*, not from the
+tool. Everything else here is excluded outright, and `imbued_gem` stays out for a
+reason worth stating — the variant work below is specific to the ``SkillGem`` grammar
+that was measured, and applying it to a table nobody has looked at would be assuming
+the thing this whole exclusion exists to avoid assuming."""
 
 CANDIDATES: tuple[str, ...] = tuple(
     key for key in CATALOGUE if key not in NEVER_PREFETCH
@@ -292,6 +322,16 @@ class PriceLine:
     variant: str | None = None
     links: int | None = None
     corrupted: bool | None = None
+    gem_level: int | None = None
+    """``gemLevel``, present on skill-gem rows and nothing else.
+
+    The level is also encoded in :attr:`variant` (``"21/20c"``), and across the 7 519
+    rows of Allflame's ``SkillGem`` table on 2026-08-11 the two never disagreed. It is
+    kept separately anyway so a disagreement can be *detected* rather than silently
+    resolved in favour of whichever the parser happened to read — see
+    :func:`~modules.prices.backend.valuation.gem_variant`, which discards such a row
+    rather than pricing an item against it."""
+
     listing_count: int = 0
     count: int = 0
 
@@ -317,6 +357,7 @@ class PriceLine:
             "variant": self.variant,
             "links": self.links,
             "corrupted": self.corrupted,
+            "gem_level": self.gem_level,
             "listing_count": self.listing_count,
             "count": self.count,
         }
@@ -332,6 +373,7 @@ class PriceLine:
             variant=data.get("variant"),
             links=data.get("links"),
             corrupted=data.get("corrupted"),
+            gem_level=data.get("gem_level"),
             listing_count=int(data.get("listing_count") or 0),
             count=int(data.get("count") or 0),
         )
@@ -564,6 +606,7 @@ def parse_item_overview(payload: Any, category: str) -> list[PriceLine]:
                 corrupted=(
                     bool(entry["corrupted"]) if isinstance(entry.get("corrupted"), bool) else None
                 ),
+                gem_level=_optional_int(entry.get("gemLevel")),
                 listing_count=_int(entry.get("listingCount")),
                 count=_int(entry.get("count")),
             )

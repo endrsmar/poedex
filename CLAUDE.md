@@ -14,7 +14,7 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 9b, 9c and 10 done** — with **Phase 7 built and never run
+**Phases 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 9b, 9c, 10 and 11 done** — with **Phase 7 built and never run
 on a Steam Deck**, which is a different kind of done and is tracked as such in
 [`docs/deck-checklist.md`](docs/deck-checklist.md). `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
@@ -32,8 +32,14 @@ cache rule, a resumable user-initiated crawl, the strict gate over a tab, `poede
 `full`-only stash screen. **Phase 7** added the Deck: the `compact` profile against `@decky/ui`
 behind a guard, `transports/decky/` + `plugin/`, `DeckyTransport`, the QAM panel with a screen
 stack, LAN pairing in `modules/credentials/`, and `scripts/build_plugin.py` producing a 3.4 MB
-Release zip. **Next action is to run `docs/deck-checklist.md` on hardware** — ten items, ten
-minutes, and nothing above the line has been checked against a real Deck.
+Release zip. **Phase 11** closed the last three defects: `scripts/build_moddb.py` is reproducible
+and proved so by a test that builds twice and compares bytes (the artifact was regenerated, and
+the diff is four sentences); skill gems are priced on an exact `level/quality/corrupted` variant
+match against a table fetched **lazily**, only when a bag or tab holds a gem; and every message
+that tells a user to set a setting names `poedex config set <module>.<key>`, checked by a sweep
+over the whole tree rather than a list of four names. **Next action is to run
+`docs/deck-checklist.md` on hardware** — ten items, ten minutes, and nothing above the line has
+been checked against a real Deck.
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
     python scripts/build_plugin.py   # dist/poedex.zip — the Decky plugin, ~3.4 MB

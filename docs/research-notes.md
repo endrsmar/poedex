@@ -668,6 +668,38 @@ a one-line one, and a byte-size threshold is a fragile way to ask a yes/no quest
 `AllflameEmber` and `Runegraft` show — and exactly why a hardcoded list is wrong in both
 directions at once.
 
+### 10a. `SkillGem`'s variant grammar — measured 2026-08-11
+
+Re-fetched Allflame's `SkillGem` overview to settle whether gems could be priced without
+guessing. **7,519 rows, 27 distinct `variant` values, and the grammar is total:**
+
+    <level>            "1", "20", "21"        quality 0, uncorrupted
+    <level>/<quality>  "20/20", "1/23"        uncorrupted
+    <level>c           "21c", "5c"            quality 0, corrupted
+    <level>/<quality>c "21/23c", "20/20c"     corrupted
+
+Two invariants held on **every** row and are checked in code rather than trusted: the trailing
+`c` agrees with the row's own `corrupted` field (0 disagreements), and the leading number agrees
+with `gemLevel` (0 disagreements). `corrupted` is `true` or absent; never `false`.
+
+**The grid is sparse, and that is the whole argument for exact matching.** Across all 7,519 rows
+poe.ninja publishes exactly three quality values — **0, 20 and 23** — and the common level set is
+1, 20 and 21 (plus 2-7 for Awakened/Enlighten-style gems). Cyclone has eleven rows. A level 19 /
+12% Cyclone is none of them, and every "nearest" row is a different gem's price.
+
+There is **no alternate-quality axis**. Anomalous/Divergent/Phantasmal are gone; transfigured
+gems (`Blade Flurry of Incision`) and Vaal gems are separate `name`s in both the game and the
+table, so they match by name. The one shape that cannot be matched is poe.ninja's disambiguated
+`Vaal Cyclone (Cyclone of Tumult)` — no in-game `typeLine` equals it, so it is left unpriced.
+
+**Live check, same day.** The `Sext` tab holds 19 items of which 7 are gems: Static Strike,
+Spirit Offering, Cyclone, Blade Flurry, Penance Brand, Caustic Arrow and Contagion — every one
+of them **level 1**, at 14%, 14%, 13%, 6%, 8%, 17% and 5% quality. poe.ninja has no row for any
+of those, so all seven remain `unpriceable`. What changed is the sentence they carry: "not in the
+poe.ninja index for this league" has become "poe.ninja lists no level 1, 14% quality variant of
+this gem; refusing to price it as a different one". The lookup is not what is missing — the rows
+are.
+
 ---
 
 ## 11. Bulk exchange — measured

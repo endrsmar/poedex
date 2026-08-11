@@ -108,6 +108,33 @@ class Sockets(Base):
     """One entry per socket, in the API's order: ``R``/``G``/``B``/``W``/``A``/``DV``."""
 
 
+class Gem(Base):
+    """A skill gem's level and quality — two of the three axes it is priced on.
+
+    The third is :attr:`NormalizedItem.corrupted`, which every item already has. These
+    two are here because a gem is the one thing in the bag whose *name is not enough*
+    to look up: a level 21 / 20% Cyclone and a level 1 Cyclone share a name, share a
+    base type, and are three orders of magnitude apart. Without them the honest answer
+    is `unpriceable`, which is what `prices` returned for every gem until now — an
+    unpriced gem is honest, a gem priced as the wrong variant is not.
+
+    Alternate-quality gems are **not** a fourth axis: the game gives them their own
+    names (``Blade Flurry of Incision``) and so does poe.ninja, so they match by name
+    like everything else.
+    """
+
+    level: int | None = None
+    """``None`` when the wire carried no readable ``Level`` property.
+
+    Not defaulted to 1. A gem whose level cannot be read cannot be matched to a
+    variant, and guessing the cheapest one is exactly how a level 21 gem gets priced
+    as a level 1 — the failure the exclusion existed to prevent."""
+
+    quality: int = 0
+    """Absent means zero, which is GGG's own encoding: the ``Quality`` property is
+    omitted on a 0% gem rather than sent as ``+0%``."""
+
+
 class Mods(Base):
     """Mod text by origin. Strings, because that is what the API gives and what a
     human reads; structured stat ids are a trade-API concern and belong to Phase 3."""
@@ -165,6 +192,10 @@ class NormalizedItem(Base):
     """The ``Map Tier`` property, for maps only. Pricing needs it: poe.ninja indexes
     ordinary maps as ``Map (Tier 16)`` rather than by their area name (SPEC §5.1), so
     without the tier a map cannot be looked up at all."""
+
+    gem: Gem | None = None
+    """Level and quality, for skill gems only. ``None`` says "not a gem" rather than
+    "a gem nothing is known about", and `prices` needs to tell those apart."""
 
     grid: Grid = Grid()
     sockets: Sockets = Sockets()

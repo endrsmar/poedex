@@ -300,7 +300,8 @@ class LogWatcher:
                 None,
                 f"no Client.txt at any of {len(probed)} probed paths"
                 if probed
-                else "no Steam installation found; set the log path manually",
+                else "no Steam installation found; run "
+                "'poedex config set gamelog.log_path <path>'",
             )
             return self.state
 
