@@ -17,9 +17,13 @@ import base from './vitest.config'
  *     pnpm run test           # full
  *     pnpm run test:compact   # compact
  *
- * Phase 7 replaces the `compact` implementations with `@decky/ui`-backed ones and
- * inherits this harness. If a contract has to change to make that work, the change
- * shows up here as a failing assertion rather than as a pile of overrides.
+ * **Phase 7 swapped the `compact` elements for `@decky/ui` components and this
+ * harness held.** Not one contract changed, not one hint moved, and no module gained
+ * an `overrides/compact.tsx` — which is the claim §2.5 exists to keep falsifiable.
+ * `@decky/ui` itself is aliased to stand-ins (see the base config); what this run
+ * proves is that the compact primitives delegate to it with the right props and that
+ * every assertion about content still holds. What it cannot prove is anything about
+ * real `@decky/ui` on real hardware — `docs/deck-checklist.md`.
  */
 export default mergeConfig(
   base,
@@ -27,10 +31,11 @@ export default mergeConfig(
     resolve: { conditions: ['poedex-compact'] },
     test: {
       name: 'compact',
-      // The screen and kit tests are profile-agnostic by construction. The
-      // transport, the store and the lint rule have no profile at all, so running
-      // them twice would only slow the loop down.
-      include: ['{ui-kit,modules}/**/*.test.{ts,tsx}'],
+      // `mergeConfig` *concatenates* `include`, so this adds to the base list rather
+      // than replacing it: the compact run is everything the default run does, plus
+      // the Decky shell, with `#profile` flipped. `surfaces/decky` appears here and
+      // only here, because it is the compact surface.
+      include: ['surfaces/decky/**/*.test.{ts,tsx}'],
     },
   }),
 )

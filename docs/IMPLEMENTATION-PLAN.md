@@ -450,15 +450,77 @@ Two deviations from §2.3, both stated where they live:
 
 **Done:** portal to hideout; the web UI updates on its own.
 
-### Phase 7 — Compact profile, Decky transport, panel
-`compact` profile of the UI kit: `@decky/ui`-backed primitives, `Focusable` grid, inline styles.
-`plugin.json` with `debug` on and `root` **off**; `Plugin` class delegating to the method
-registry; `_main()` hosting the runtime; vendored httpx in `py_modules/`. `DeckyTransport`. Decky
-shell with the screen stack. `credentials` LAN pairing screen. Hardware checks: suspend/resume,
-real geometry, hot-reload loop.
+### Phase 7 — Compact profile, Decky transport, panel — **built, and untested on hardware**
 
-**Done:** installs from a Release zip; the same `BagScreen.tsx` renders at 300 px with D-pad
-navigation.
+`compact` profile against `@decky/ui`; `plugin.json` with `debug` on and `root` off; a `Plugin`
+class delegating to the existing method registry; `_main()` hosting the runtime; httpx **and
+pydantic** vendored into `py_modules/`; `DeckyTransport`; the Decky shell with a screen stack;
+the `credentials` LAN pairing screen; `scripts/build_plugin.py` and a 3.4 MB Release zip.
+
+**The phase's exit criterion is not met and cannot be met here.** *"Installs from a Release zip;
+the same `BagScreen.tsx` renders at 300 px with D-pad navigation"* is a claim about a Steam Deck,
+and nobody on this project has one. What is written down instead is
+[`docs/deck-checklist.md`](deck-checklist.md): ten items, each with what to do, what a pass looks
+like, and what the failure looks like — because these fail by looking slightly wrong rather than
+by throwing. **Until that list is ticked this phase is "written", not "working"**, and the
+README says so.
+
+**The compact profile survived the swap with no new overrides and no contract change.** Not one
+line of `contracts/index.ts` moved, no module gained an `overrides/compact.tsx`, and the
+165-test two-profile harness went on passing through `@decky/ui`-backed primitives. `Screen`
+became a 300 px root plus a `ScrollPanel`, `Section` a `PanelSection`, `Action` a `DialogButton`,
+`Stepper` a `Field` with a `DialogButton` either side, `CheckList` a column of
+`Focusable onActivate`, and the grid a CSS grid of `Focusable` with `noFocusRing`. Phase 9 had
+already shaped the two-line check row for exactly this, which is what made it a swap.
+
+**One behaviour did change, and the harness is what found it.** `ItemGrid` and `ItemRow` now
+select on `onGamepadFocus` and take **no `onActivate`**. Wiring both fired `onSelect` twice for
+one interaction — a D-pad landing and then a press — and `StashScreen`'s tab list spends a
+request per selection, so the compact run failed with *"expected 1 call, got 2"*. Focus *is*
+selection at 300 px: SPEC §6.1's whole reason for `onGamepadFocus` is that detail has to fit in
+268 px, so the player reads the bag by sweeping rather than by pressing, and there is nothing
+left for A to do on a row.
+
+**`@decky/ui` is guarded, because a missing component is a white panel.** It locates Steam's
+components by regex over minified code, and `@decky/rollup` externalises the package to the
+global `DFL` — so a client update turns `Focusable` into `undefined`, and `<undefined>` in a
+React tree throws during render inside the QAM. `ui-kit/src/profiles/compact/steam.tsx` is the
+only file that imports it: every component is resolved through a guard that substitutes a
+five-line plain-DOM stand-in and records the miss, and the shell puts the list on screen. The
+stand-ins are deliberately structural and ugly — a fake that looked right would hide the failure
+it exists to expose.
+
+**The vendoring question Phase 2 left open is answered, and the answer is a pin.**
+`pydantic-core` publishes **no abi3 wheel at any version**. The plugin backend is a
+`multiprocessing.Process` fork of Decky Loader, which is frozen against **CPython 3.11.7** —
+*not* SteamOS's own python, which is 3.13 from SteamOS 3.7. All four cases were run against the
+real loader binary in the official container; only the `cp311` wheel imports.
+research-notes §5.1 has the table. So `TARGET_PYTHON = "3.11"` in `scripts/build_plugin.py`, the
+build refuses a mismatched ABI tag, and **it breaks the day Decky reships against another
+CPython** — silently, as `ModuleNotFoundError: pydantic_core`, which is why `plugin/main.py`
+checks the import itself and emits `backend.broken` with the version in it.
+
+Three deviations from the sketch above, all stated where they live:
+
+- **The `credentials` pairing screen is `modules/credentials/ui/`, and it declares both
+  profiles.** §1.2 anticipated a core module with a face; declaring `['compact', 'full']` rather
+  than compact-only is what puts it through the two-profile harness, and a desktop user who
+  would rather not open a terminal for `poedex auth set` wants the same page.
+- **Discovery is shared, and only the glob differs.** Rollup has no `import.meta.glob`, and a
+  hand-written list of module imports in the Decky shell is the "list of features to keep in
+  sync" §3 exists to avoid — a screen missing from it would be missing on the Deck and present
+  on the web. `collectModuleUIs` moved into `@poedex/ui`; `surfaces/decky/module-glob.js` is a
+  fifteen-line plugin that both Rollup and vitest load, so a test cannot see a different set
+  from the bundle.
+- **The panel exposes one RPC door, not twenty.** Decky's `callable(route)(...args)` passes
+  positional arguments to a same-named coroutine, which does not fit a registry of namespaced
+  methods taking keyword arguments. So `Plugin.call(method, params)` hands straight to
+  `transports/dispatch.call_method` — the same function the FastAPI route calls. **Dispatch is
+  not duplicated**, and `tests/test_transport_decky.py` parametrises over the shared
+  `FORBIDDEN_METHODS` rather than restating it.
+
+**Done:** 1309 Python tests and 189 / 201 frontend tests, all offline; `dist/poedex.zip` is
+3.4 MB. **Not done:** every item in `docs/deck-checklist.md`.
 
 ### Phase 8 — `moddb` — **done**
 
@@ -839,6 +901,12 @@ live item requests from the tool; seven MCP reads were spent settling the map-ta
 | Attribution has four states and two of them refuse to name a tier | "T2" when the truth is "probably T2, possibly T3" is a lie the player acts on and cannot check. The evidence stays on the return value; only the *claim* is withheld |
 | A tier ladder is keyed by (group, base, pool) | The same sentence is T4 of 10 on a helmet and T7 of 13 on a body armour, and an essence or influence tier is counted from a different place entirely. A ladder keyed by group alone produces "T1–T5 of 9", which is two numbers off two rulers |
 | Whole-item context narrows candidates but never eliminates them | A hybrid is ruled out by the line the item does not show — a deduction. But if *every* candidate wants a missing line, the likelier explanation is that the caller under-described the item, so the unfiltered answer comes back with a note |
+| A compact grid cell selects on focus and has no `onActivate` | Wiring both fires `onSelect` twice for one interaction, and the stash tab list spends a request per selection. At 300 px focus *is* selection — that is what `onGamepadFocus` is for (SPEC §6.1), and it is why detail fits in 268 px at all |
+| `@decky/ui` is reached through a guard, in one file | It finds Steam's components by regex over minified code and `@decky/rollup` externalises it to a global, so a client update yields `undefined` rather than an import error — and `<undefined>` in the QAM is a white panel with no message in it. The stand-ins are structural and ugly on purpose |
+| `py_modules/` is pinned to CPython 3.11, not to the Deck's python | `pydantic-core` ships no abi3 wheel and the plugin process is a fork of the frozen Decky Loader (3.11.7), while SteamOS 3.7+ is 3.13. Measured against the real loader binary; only the `cp311` wheel imports (research-notes §5.1) |
+| The Decky transport has one RPC method, not one per registry method | `callable(route)` passes positional arguments to a same-named coroutine. One door means `transports/dispatch.py` stays the only dispatcher, so `FORBIDDEN_METHODS` and the redaction are one implementation with two doors rather than two policies to keep in sync |
+| The pairing listener is `asyncio.start_server` with a hand-written reader | SPEC §4.1 records that Decky's stripped Python crashes on some stdlib imports, and FastAPI is deliberately outside the vendorable dependency set. Two routes and a refusal for everything else is the entire surface it needs |
+| Loopback is accepted as a pairing source, though it is not RFC1918 | A loopback peer is already executing code on the machine, so the rule that refusal would enforce has already failed — and refusing it would make the flow untestable without faking a peer address |
 | Mod texts are matched, not stat ids | RePoE's `text` is already rendered with every index handler applied, so the trim step never reimplements the translation renderer. `stat_translations.json` is then needed for exactly one thing: bridging that text to the trade API's opaque ids |
 
 ---
@@ -846,8 +914,18 @@ live item requests from the tool; seven MCP reads were spent settling the map-ta
 ## 7. Open items
 
 **Unresolved from SPEC §11**, none blocking: Cloudflare in Steam's CEF browser (OAuth only), map
-stash substash traversal (stash only), suspend/resume (Phase 7), hideout re-entry log line
-(Phase 6).
+stash substash traversal (stash only), hideout re-entry log line (Phase 6).
+
+**Suspend/resume is implemented and unverified.** `DeckyBackend._watch_the_clock` compares
+`time.monotonic()` against `time.time()` every five seconds, because `CLOCK_MONOTONIC` stops
+during suspend on Linux and the wall clock does not — the two drifting apart is a stronger signal
+than "that sleep returned late", since a stalled loop moves neither. Nothing in Decky Loader
+handles suspend at all, so whether this fires on a real lid close is checklist item 9, and it is
+the most consequential unknown after the CPython pin: if the assumption is wrong, the panel
+quietly serves prices from before the nap.
+
+**The plugin is untested on hardware, comprehensively.** `docs/deck-checklist.md` is the list,
+and it is ordered by how likely each item is to be wrong.
 
 **OAuth scope list** for the application email — worth drafting once crafting and guides are
 specced, since atlas passives are OAuth-only and adding scopes later means queueing with GGG twice.

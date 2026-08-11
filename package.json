@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "pnpm --filter @poedex/web dev",
     "build": "pnpm --filter @poedex/web build",
+    "build:decky": "pnpm --filter @poedex/decky build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

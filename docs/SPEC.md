@@ -596,13 +596,23 @@ quad tabs are 24×24, not 12×12; folder nesting exists but was not observed on 
 | Layer | Choice | Notes |
 |---|---|---|
 | Backend | Python 3.11+ | Decky plugin backends are Python |
-| HTTP | `httpx` | **Vendor into `py_modules/`** — no pip at install time. Pure-Python only; C extensions need the Docker `backend/` path |
+| HTTP | `httpx` | **Vendor into `py_modules/`** — no pip at install time |
 | Frontend | React + TypeScript, Rollup via `@decky/rollup` | `react`/`@decky/ui` are external globals — you share Steam's React 19 instance |
 | UI lib | `@decky/ui` + `@decky/api` | `decky-frontend-lib` and the old `serverAPI` are gone |
 | Tests | `pytest` + recorded fixtures | Pricing must be testable offline |
 
 `plugin.json` must carry `"debug"` (hot reload refuses without it) and **must not** enable
 `root`. `package.json` needs `"type": "module"`.
+
+**"Pure-Python only" was too strong, and Phase 7 measured the real rule.** A compiled extension
+*can* be vendored — `pydantic-core` is, and works — but it is **ABI-pinned to one CPython minor**,
+because `pydantic-core` publishes no `abi3` wheel at any version. The interpreter it must match is
+**the frozen Decky Loader's own CPython 3.11.7**, since a plugin backend is a
+`multiprocessing.Process` fork of the loader — *not* SteamOS's `python3`, which is 3.13 from
+SteamOS 3.7 onward. `scripts/build_plugin.py` targets 3.11 and refuses a mismatched tag;
+research-notes §5.1 has the four cases that were run against the real loader binary. The Docker
+`backend/` path is still the answer for genuinely native code, and it is a different thing: a
+separate native process with no CPython ABI involved.
 
 `@decky/ui` locates Steam components by regex over minified code — a Steam update can make
 `Focusable` come back `undefined` and white-screen the panel. Budget for it as maintenance.
@@ -634,8 +644,8 @@ quad tabs are 24×24, not 12×12; folder nesting exists but was not observed on 
 |---|---|---|---|
 | M1 | Data layer | Client.txt tailer + HTTPS client + header-driven limiter + normalized model. Includes the 60s freshness self-test (§4.3) and the volatile-fields list that gates change-detection hashing. | no |
 | M2 | Tier 0/1 pricing + verdicts | Bag total and four-state verdicts for the test bag, cached. CLI output is fine. | no |
-| M3 | Decky plugin shell | Installs from a Release zip, panel renders the bag grid, D-pad navigates, `emit` push works. | **yes** |
-| M4 | LAN pairing | Credential entered end-to-end with zero characters typed on the Deck. | yes |
+| M3 | Decky plugin shell | Installs from a Release zip, panel renders the bag grid, D-pad navigates, `emit` push works. **Built in Phase 7; the exit criterion is a claim about hardware and is unverified — `docs/deck-checklist.md` items 1-5.** | **yes** |
+| M4 | LAN pairing | Credential entered end-to-end with zero characters typed on the Deck. **Built in Phase 7; unverified end to end — checklist items 6-8.** | yes |
 | M5 | Stash digest | Tab enumeration, remove-only-once caching, per-tab staleness, tier-1 valuation, digest screen. | yes |
 | M6 | Rare pricing | Tier 2 strictness gate + on-demand tier 3 with pending states. | yes |
 | M7 | OAuth | When GGG registration reopens and a client ID lands. | yes |

@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "customConditions": ["poedex-compact"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    "rootDir": "../..",
+    "outDir": "dist",
+    "allowJs": false
+  },
+  "//": [
+    "`include` reaches across the workspace on purpose. @rollup/plugin-typescript",
+    "only transforms files its tsconfig selects, and this bundle pulls TypeScript",
+    "straight out of ui-kit/, frontend/core/ and modules/*/ui — the workspace",
+    "packages resolve to source, not to a build, which is what lets `#profile`",
+    "pick the compact implementation at bundle time (IMPLEMENTATION-PLAN §2.3).",
+    "Without these entries Rollup gets `export type *` as raw text and stops."
+  ],
+  "include": ["src", "../../ui-kit/src", "../../frontend/core/src", "../../modules/*/ui"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "../../**/*.test.ts",
+    "../../**/*.test.tsx",
+    "../../ui-kit/src/testing"
+  ]
+}

@@ -168,7 +168,19 @@ async def test_the_real_credentials_module_exposes_no_way_to_read_the_value():
 
     names = set(CredentialsModule().methods())
     assert "session_id" in dir(CredentialsModule)  # the accessor exists in Python...
-    assert names == {"status", "set", "clear", "mark_ok", "mark_rejected"}  # ...not here
+    assert names == {  # ...not here
+        "status",
+        "set",
+        "clear",
+        "mark_ok",
+        "mark_rejected",
+        # Phase 7's LAN pairing (SPEC §4.1). Three methods and deliberately not a
+        # fourth: the credential arrives over the pairing socket from the *other*
+        # machine, so none of these carries a value in and none can read one back.
+        "pair_start",
+        "pair_status",
+        "pair_cancel",
+    }
 
 
 async def test_forbidden_names_never_appear_in_the_exposed_list(started: Registry):

@@ -14,7 +14,9 @@ loot appraisal: "is any of this worth a stash trip, or is it all vendor trash?"
 
 ## Project state
 
-**Phases 1, 2, 3, 4, 4b, 5, 6, 8, 9, 9b, 9c and 10 done.** `runtime/` (registry, context, events, storage,
+**Phases 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 9b, 9c and 10 done** — with **Phase 7 built and never run
+on a Steam Deck**, which is a different kind of done and is tracked as such in
+[`docs/deck-checklist.md`](docs/deck-checklist.md). `runtime/` (registry, context, events, storage,
 settings, methods, redacting log); core modules `credentials`, `net` (header-driven limiter +
 httpx), `poeapi` (endpoints, normalization, cache), `gamelog` (read-only Client.txt tail),
 `moddb` (a trimmed mod database: real tiers per base, affix counts, influence pools);
@@ -27,10 +29,14 @@ on 127.0.0.1 + SSE + the built SPA), `surfaces/web/` and `modules/appraisal/ui/`
 enforced in both languages: the Python AST tests, and an ESLint rule over `modules/*/ui`.
 **Phase 10** added the stash: tab enumeration with per-tab layouts and staleness, the remove-only
 cache rule, a resumable user-initiated crawl, the strict gate over a tab, `poedex stash`, and a
-`full`-only stash screen. Next action is **Phase 7** (compact profile against `@decky/ui`, Decky
-transport, panel).
+`full`-only stash screen. **Phase 7** added the Deck: the `compact` profile against `@decky/ui`
+behind a guard, `transports/decky/` + `plugin/`, `DeckyTransport`, the QAM panel with a screen
+stack, LAN pairing in `modules/credentials/`, and `scripts/build_plugin.py` producing a 3.4 MB
+Release zip. **Next action is to run `docs/deck-checklist.md` on hardware** — ten items, ten
+minutes, and nothing above the line has been checked against a real Deck.
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
+    python scripts/build_plugin.py   # dist/poedex.zip — the Decky plugin, ~3.4 MB
     poedex stash      # the tab list: freshness, contents, value. Zero item requests
     poedex stash tab N   # one tab, judged at stash strictness. One request, ~1s
     poedex price UID  # one item's mods with real tiers, then the query you chose
@@ -60,8 +66,13 @@ is drawn, not after.
 
 **Nothing here has run against the live API, a real Client.txt, or a Deck.** Phase 4's
 validation checkpoint was therefore answered against a fixture bag somebody wrote, which is a
-much weaker test than it sounds — see the phase note in the plan. Three things need a human and
-would close most of the open risk:
+much weaker test than it sounds — see the phase note in the plan. **Phase 7 built the whole Deck
+surface without one either**, so the geometry, the D-pad, suspend/resume and the pairing flow are
+written and unverified. Four things need a human and would close most of the open risk:
+
+- **`docs/deck-checklist.md`, on a Deck.** Ten items, ten minutes, ordered by how likely each is
+  to be wrong. Every one of them fails by looking slightly off rather than by throwing, which is
+  why each item says what the failure looks like.
 
 - `poedex appraise` against a real backpack after a real map. Until then nobody knows whether
   the verdicts are surprising or obvious, and that is the question Phase 4 was supposed to settle.
@@ -237,6 +248,33 @@ sustained rate-limit violations.
   still wrong. Which way a mod runs is `ModMatch.higher_is_better`, read off the mod's own
   reachable range, and `moddb`'s ranges are flipped into the units the item displays on load.
 - **The QAM is 300 CSS px** (268 inside a `PanelSection`). It is a verdict surface, not a browser.
+  `ItemGrid` backs out of the inset with `margin: 0 -16px` — 300 minus 268 is 32, sixteen a side —
+  which is also how a 22 px cell becomes 24. `PANEL_INSET` is that number and checklist item 3 is
+  where it gets confirmed.
+- **A compact grid cell selects on *focus*, and has no `onActivate`.** Wiring both fires
+  `onSelect` twice for one interaction, and the stash tab list spends a request per selection.
+  Focus is selection here; that is what makes detail fit in 268 px without spending a press.
+- **`@decky/ui` is imported in exactly one file, behind a guard.** It finds Steam's components by
+  regex over minified code and `@decky/rollup` externalises it to the global `DFL`, so a Steam
+  update makes a component `undefined` rather than an import error — and `<undefined>` in the QAM
+  is a **white panel with no message**. `ui-kit/src/profiles/compact/steam.tsx` substitutes
+  five-line plain-DOM stand-ins and names what was missing; the shell puts that on screen. Do not
+  make the stand-ins prettier: a fake that looked right would hide the failure it exists to expose.
+- **The plugin's Python is Decky Loader's 3.11, not the Deck's.** A plugin backend is a
+  `multiprocessing.Process` fork of the loader, which is frozen against CPython 3.11.7; SteamOS
+  ships 3.13 from 3.7 onward and the loader splices its `site-packages` onto the path anyway.
+  `pydantic-core` publishes **no abi3 wheel**, so `py_modules/` is ABI-pinned and
+  `scripts/build_plugin.py` refuses a mismatched tag. Measured against the real loader binary —
+  research-notes §5.1. When Decky moves, `TARGET_PYTHON` is the whole fix, and the symptom is a
+  plugin that starts and does nothing.
+- **The Decky transport has one RPC door.** `Plugin.call(method, params)` hands to
+  `transports/dispatch.call_method`, the same function the FastAPI route calls. Dispatch is never
+  duplicated: `FORBIDDEN_METHODS` and the redaction are one implementation with two doors.
+- **The pairing socket exists only during a pairing window**, refuses non-RFC1918 sources before
+  reading a body, caps wrong codes at three, times out in three minutes, and closes the instant a
+  credential arrives. It is a full-account credential intake on a network and is built like one.
+  There is no `pair_submit` method — the value arrives over that socket from the *other* machine,
+  never over the RPC channel a CEF console can reach.
 - **A module's UI writes no CSS and imports no Decky API.** It composes `@poedex/ui` primitives
   and declares density with per-profile hints (`limit={{compact: 5, full: null}}`). The rule is
   enforced by `eslint-plugin-poedex`, whose own test proves it fails on each violation.
@@ -291,8 +329,12 @@ sustained rate-limit violations.
 
 ## Conventions
 
-- Backend is Python 3.11+ (Decky plugin backends are Python). Vendor pure-Python deps into
-  `py_modules/` — there is no pip at install time.
+- Backend is Python 3.11+ (Decky plugin backends are Python). Vendor deps into `py_modules/` —
+  there is no pip at install time — with `python scripts/build_plugin.py`, which targets
+  **CPython 3.11 / manylinux_2_17_x86_64** because that is what the frozen loader runs.
+  `pydantic-core` is compiled and has no abi3 wheel, so the pin is real; `fastapi`/`uvicorn` stay
+  out, because the Decky transport uses Decky's RPC and the pairing listener is
+  `asyncio.start_server`.
 - The normalized item model (SPEC §4.5) is the boundary. Pricing consumes normalized items,
   never raw API JSON. Everything crossing to the frontend is JSON-serializable.
 - Pricing logic must be testable offline against recorded fixtures. No tests that hit live APIs.

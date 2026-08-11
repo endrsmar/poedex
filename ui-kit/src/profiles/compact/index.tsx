@@ -1,36 +1,47 @@
 /**
  * The `compact` profile: 300 CSS px, gamepad, `@decky/ui`, inline styles only.
  *
- * **Phase 7 owns this file.** Phase 5's job was to make sure the contracts in
- * `../../contracts` can be honoured here at all, and the way to find that out is to
- * write the implementation rather than to promise one. So every primitive is
- * present with the contract's signature and renders something sane; what is
- * *deferred* is the `@decky/ui` binding and the hardware work:
+ * **Phase 7 swapped the elements.** Phase 5 built this profile as a *working*
+ * implementation in plain DOM so that `vitest.compact.config.ts` could run the whole
+ * component suite through it — a harness that found five content drops and one forked
+ * vocabulary on its first run, none of which a stubbed signature would have caught.
+ * What Phase 7 changed is the element each primitive renders; what it did not change
+ * is a single contract, a single hint, or a word of the copy.
  *
- * | primitive | Phase 7 replaces the element with |
+ * | primitive | now renders |
  * |---|---|
- * | `Screen`      | `PanelSection` + the QAM footer hint row |
- * | `Section`     | `PanelSection` (`title` is its own prop) |
- * | `ItemGrid`    | a CSS grid of `Focusable` with `noFocusRing` + `focusClassName` |
+ * | `Screen`      | 300 px root, header, `ScrollPanel` body, `PanelSectionRow` hint row |
+ * | `Section`     | `PanelSection` (`title` is its own prop); `ButtonItem` for "show all" |
+ * | `ItemGrid`    | a CSS grid of `Focusable`, `noFocusRing` + `focusClassName` |
  * | `ItemRow`     | `Focusable`, driving `Detail` through `onGamepadFocus` |
- * | `Action`      | `DialogButton` / `ButtonItem` |
- * | `Focus`       | `FocusRing` |
+ * | `Tally`       | `Focusable` per entry when it is a filter, a div when a readout |
+ * | `Action`      | `DialogButton` |
+ * | `CheckList`   | `Focusable onActivate` per row — A ticks the box |
+ * | `Stepper`     | `Field` with two `DialogButton`s either side of the value |
+ * | `Focus`       | `Focusable` with `flow-children` |
  * | `StaleBanner` | `PanelSectionRow` |
  *
- * Everything else — the density hints, the truncation rule, the wording, the
- * countdown — is real and is what makes this a check on the contracts.
+ * Every one of those comes from `./steam`, which resolves each component through a
+ * guard: `@decky/ui` locates Steam's components by regex over minified code, so a
+ * client update can make one come back `undefined`, and rendering `<undefined>` is a
+ * **white panel**. The guard substitutes a plain-DOM stand-in and names the miss.
+ * See `steam.tsx`; the degradation is the point of it.
  *
  * Rules this file follows, because they are the constraints `compact` actually has:
  *
- * * **Inline styles only.** No stylesheet import, no `className`. Steam's UI is one
- *   document and a plugin cannot ship global CSS into it.
+ * * **Inline styles only.** No stylesheet import, no `className` of our own. Steam's
+ *   UI is one document and a plugin cannot ship global CSS into it.
  * * **300 px, hard.** Nothing may set a width that assumes more. Where `full` shows
  *   a column, this shows a line; where `full` shows a rail, this shows a strip.
  * * **Nothing hover-only.** There is no cursor. A title attribute is not a feature.
+ * * **Focus is visible from an inline style, not from a class.** `noFocusRing` is
+ *   passed because Steam's default ring merges adjacent 22 px cells (SPEC §6.1), and
+ *   the replacement is drawn from `onGamepadFocus` state so it exists whether or not
+ *   any stylesheet reached the document.
  */
 
-import { Children, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { Children, useCallback, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type {
   ActionComponent,
   CheckField,
@@ -61,10 +72,22 @@ import { useCountdown } from '../../countdown'
 import { formatCountdown, formatPriceCell, formatQuantity, hasPrice } from '../../format'
 import { REFRESH_LABEL, hiddenLabel, syncMessage } from '../../sync'
 import { PROVENANCE_LABEL, PROVENANCE_SHORT, VERDICT_GLYPH, VERDICT_LABEL } from '../../verdict'
+import {
+  ButtonItem,
+  DialogButton,
+  Field,
+  FOCUS_CLASS,
+  Focusable,
+  PanelSection,
+  PanelSectionRow,
+  ScrollPanel,
+} from './steam'
 
 const P = 'compact' as const
 
 export const PROFILE = COMPACT_PROFILE
+
+export { MISSING_STEAM_COMPONENTS, steamComponentWarning } from './steam'
 
 /** SteamOS gaming mode has no light theme, so these are literals, not tokens. */
 const C = {
@@ -119,6 +142,44 @@ const tnum: CSSProperties = { fontFamily: 'monospace', fontVariantNumeric: 'tabu
 
 const GAPS = { none: 0, xs: 2, sm: 4, md: 8, lg: 12 } as const
 
+/**
+ * Half the width a `PanelSection` costs, and the derivation is the whole point.
+ *
+ * SPEC §6.1 measured the QAM column at **300 CSS px** and **268 inside a
+ * `PanelSection`**. The difference is 32 px of inset, 16 a side, so a negative margin
+ * of exactly that much on a grid restores the full column — which is the same
+ * measurement's other half: cells go from 22 px to 24 px. It is applied to `ItemGrid`
+ * and to nothing else, because the grid is the one thing on this surface that is a
+ * *map* (SPEC §6.3) and a 2 px cell gain is a 9% target gain on every slot.
+ *
+ * **Unverified on hardware.** If `PanelSection`'s inset is not 16 px a side the grid
+ * will sit proud of its section or short of it; `docs/deck-checklist.md` item 3 is
+ * how that gets found, and the fix is this one number.
+ */
+const PANEL_INSET = 16
+
+/** Steam's focus ring is suppressed; this is what replaces it. */
+const focusOutline = (focused: boolean, colour = C.accent): CSSProperties =>
+  focused ? { outline: `2px solid ${colour}`, outlineOffset: -1 } : {}
+
+/**
+ * Focus state for one cell or row.
+ *
+ * `onGamepadFocus` is how detail fits in 268 px (SPEC §6.1): the D-pad moving onto a
+ * cell is what fills the line underneath the grid, so no press is spent on selection
+ * and the player reads the bag by sweeping it. The same handlers drive the inline
+ * focus ring, so the two never disagree about what is focused.
+ */
+function useGamepadFocus(onFocused?: () => void) {
+  const [focused, setFocused] = useState(false)
+  const onGamepadFocus = useCallback(() => {
+    setFocused(true)
+    onFocused?.()
+  }, [onFocused])
+  const onGamepadBlur = useCallback(() => setFocused(false), [])
+  return { focused, onGamepadFocus, onGamepadBlur }
+}
+
 // ---------------------------------------------------------------- layout ----
 
 export const Screen: ScreenComponent = ({
@@ -170,24 +231,30 @@ export const Screen: ScreenComponent = ({
         </span>
       ) : null}
     </div>
+    {/* The banner is deliberately outside the ScrollPanel: a sync state that scrolls
+        away is a sync state that is not doing its job. */}
     {banner}
-    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 9 }}>{children}</div>
-    {/* At 300 px the `aside` is a strip below the body, not a rail beside it. Same
-        JSX, different layout — the reason `Screen` takes it as a prop at all. */}
-    {aside ? <div style={{ padding: '0 10px 10px' }}>{aside}</div> : null}
+    <ScrollPanel>
+      <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 9 }}>{children}</div>
+      {/* At 300 px the `aside` is a strip below the body, not a rail beside it. Same
+          JSX, different layout — the reason `Screen` takes it as a prop at all. */}
+      {aside ? <div style={{ padding: '0 10px 10px' }}>{aside}</div> : null}
+    </ScrollPanel>
     {actions ? (
-      <div
-        style={{
-          borderTop: `1px solid ${C.line}`,
-          padding: '6px 10px',
-          display: 'flex',
-          gap: 10,
-          fontSize: 9.5,
-          color: C.ink2,
-        }}
-      >
-        {actions}
-      </div>
+      <PanelSectionRow>
+        <div
+          style={{
+            borderTop: `1px solid ${C.line}`,
+            padding: '6px 10px',
+            display: 'flex',
+            gap: 10,
+            fontSize: 9.5,
+            color: C.ink2,
+          }}
+        >
+          {actions}
+        </div>
+      </PanelSectionRow>
     ) : null}
   </div>
 )
@@ -209,32 +276,63 @@ export const Section: SectionComponent = ({
   const cap = resolveHint(limit, P, null)
   const shown = cap === null || cap >= all.length ? all : all.slice(0, Math.max(0, cap))
   const hidden = all.length - shown.length
+  const footer = hidden > 0 ? hiddenLabel(hidden, limitNoun, Boolean(onShowAll)) : null
   return (
-    <div role="group" aria-label={title} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      {title || meta ? (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span
-            style={{ ...label, cursor: canCollapse ? 'pointer' : undefined }}
-            onClick={canCollapse ? () => setCollapsed((value) => !value) : undefined}
-          >
-            {canCollapse ? (collapsed ? '▶ ' : '▼ ') : ''}
-            {title}
-          </span>
-          {meta ? <span style={label}>{meta}</span> : null}
-        </div>
-      ) : null}
-      {/* `description` is dropped at 300 px unless there is nothing else: a
-          sentence costs three lines here and the title has already said it. */}
-      {description && !collapsed && all.length === 0 ? (
-        <span style={{ fontSize: 10, color: C.ink2 }}>{description}</span>
-      ) : null}
-      {collapsed ? null : shown}
-      {!collapsed && hidden > 0 ? (
-        <span style={{ ...label, cursor: onShowAll ? 'pointer' : undefined }} onClick={onShowAll}>
-          {hiddenLabel(hidden, limitNoun, Boolean(onShowAll))}
-        </span>
-      ) : null}
-    </div>
+    // `PanelSection` owns the title chrome — that is what `title` is for — but this
+    // profile draws its own, because the kit's title line carries `meta` on the right
+    // (a count, a subtotal) and Steam's does not have a slot for it. The prop is still
+    // passed so the section is labelled for anything reading the tree.
+    <PanelSection title={title}>
+      <div
+        role="group"
+        aria-label={title}
+        style={{ display: 'flex', flexDirection: 'column', gap: 5 }}
+      >
+        {title || meta ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            {canCollapse ? (
+              <DialogButton
+                noFocusRing
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsed((value) => !value)}
+                style={{
+                  ...label,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  textAlign: 'left',
+                }}
+              >
+                {collapsed ? '▶ ' : '▼ '}
+                {title}
+              </DialogButton>
+            ) : (
+              <span style={label}>{title}</span>
+            )}
+            {meta ? <span style={label}>{meta}</span> : null}
+          </div>
+        ) : null}
+        {/* `description` is dropped at 300 px unless there is nothing else: a
+            sentence costs three lines here and the title has already said it. */}
+        {description && !collapsed && all.length === 0 ? (
+          <span style={{ fontSize: 10, color: C.ink2 }}>{description}</span>
+        ) : null}
+        {collapsed ? null : shown}
+        {!collapsed && footer ? (
+          onShowAll ? (
+            // A `ButtonItem` rather than a `DialogButton`: this is a full-width row
+            // press at the end of a list, which is the shape `ButtonItem` is for, and
+            // at 300 px a row-sized target is the difference between one D-pad stop
+            // and three.
+            <ButtonItem layout="below" bottomSeparator="none" onClick={onShowAll}>
+              <span style={label}>{footer}</span>
+            </ButtonItem>
+          ) : (
+            <span style={label}>{footer}</span>
+          )
+        ) : null}
+      </div>
+    </PanelSection>
   )
 }
 
@@ -268,14 +366,23 @@ export const Row: RowComponent = ({
 )
 
 export const Focus: FocusComponent = ({ id, label: name, onFocusChange, children }) => (
-  // Phase 7: `<FocusRing>` from @decky/ui.
-  <div
+  // `flow-children="column"` tells Steam's navigation that this region reads
+  // top-to-bottom; the geometric resolver still does the work inside it.
+  <Focusable
+    flow-children="column"
     data-focus-region={id}
     aria-label={name}
-    onFocus={(event) => onFocusChange?.((event.target as HTMLElement).dataset.uid ?? null)}
+    onGamepadFocus={(event) =>
+      onFocusChange?.(
+        ((event as { target?: HTMLElement } | undefined)?.target?.dataset?.uid ?? null) as
+          | string
+          | null,
+      )
+    }
+    onGamepadBlur={() => onFocusChange?.(null)}
   >
     {children}
-  </div>
+  </Focusable>
 )
 
 // ------------------------------------------------------------------ data ----
@@ -299,26 +406,60 @@ export const Stat: StatComponent = ({ label: name, value, unit, prefix, secondar
   )
 }
 
+function TallyEntryCell({
+  entry,
+  selected,
+  onSelect,
+}: {
+  entry: { id: string; label: string; count: number; verdict?: string; muted?: boolean }
+  selected?: string | null
+  onSelect?: (id: string) => void
+}) {
+  const { focused, onGamepadFocus, onGamepadBlur } = useGamepadFocus()
+  const style: CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 3,
+    padding: '4px 5px',
+    background: selected === entry.id ? C.panel3 : C.sunken,
+    borderLeft: `3px solid ${VERDICT_COLOUR[(entry.verdict ?? 'trash') as keyof typeof VERDICT_COLOUR]}`,
+    opacity: entry.muted ?? entry.count === 0 ? 0.55 : 1,
+    ...focusOutline(focused),
+  }
+  const body = (
+    <>
+      <div style={{ ...tnum, fontSize: 14, fontWeight: 700, lineHeight: 1.1 }}>{entry.count}</div>
+      <div style={{ ...label, fontSize: 7.5 }}>{entry.label}</div>
+    </>
+  )
+  // A readout is not a focus stop. Making every tally a `Focusable` would put four
+  // extra D-pad stops between the total and the grid on a screen that is mostly grid.
+  if (!onSelect) {
+    return (
+      <div data-uid={entry.id} style={style}>
+        {body}
+      </div>
+    )
+  }
+  return (
+    <Focusable
+      noFocusRing
+      focusClassName={FOCUS_CLASS}
+      data-uid={entry.id}
+      style={style}
+      onActivate={() => onSelect(entry.id)}
+      onGamepadFocus={onGamepadFocus}
+      onGamepadBlur={onGamepadBlur}
+    >
+      {body}
+    </Focusable>
+  )
+}
+
 export const Tally: TallyComponent = ({ entries, onSelect, selected }) => (
   <div role="group" aria-label="verdict tally" style={{ display: 'flex', gap: 4 }}>
     {entries.map((entry) => (
-      <div
-        key={entry.id}
-        data-uid={entry.id}
-        onClick={onSelect ? () => onSelect(entry.id) : undefined}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          borderRadius: 3,
-          padding: '4px 5px',
-          background: selected === entry.id ? C.panel3 : C.sunken,
-          borderLeft: `3px solid ${VERDICT_COLOUR[entry.verdict ?? 'trash']}`,
-          opacity: entry.muted ?? entry.count === 0 ? 0.55 : 1,
-        }}
-      >
-        <div style={{ ...tnum, fontSize: 14, fontWeight: 700, lineHeight: 1.1 }}>{entry.count}</div>
-        <div style={{ ...label, fontSize: 7.5 }}>{entry.label}</div>
-      </div>
+      <TallyEntryCell key={entry.id} entry={entry} selected={selected} onSelect={onSelect} />
     ))}
   </div>
 )
@@ -341,6 +482,69 @@ export const VerdictPill: VerdictPillComponent = ({ verdict, label: name, count,
   </span>
 )
 
+function GridCell({
+  cell,
+  selected,
+  onSelect,
+}: {
+  cell: {
+    uid: string
+    glyph: string
+    label: string
+    verdict: keyof typeof VERDICT_COLOUR
+    rarity: string
+    x: number
+    y: number
+    w?: number
+    h?: number
+  }
+  selected?: string | null
+  onSelect?: (uid: string) => void
+}) {
+  const { focused, onGamepadFocus, onGamepadBlur } = useGamepadFocus(
+    onSelect ? () => onSelect(cell.uid) : undefined,
+  )
+  return (
+    <Focusable
+      // The default ring is thick enough to merge adjacent 22 px cells, which is
+      // exactly the thing this grid exists to distinguish (SPEC §6.1).
+      noFocusRing
+      focusClassName={FOCUS_CLASS}
+      data-uid={cell.uid}
+      role="gridcell"
+      aria-label={`${cell.label}, ${VERDICT_LABEL[cell.verdict]}`}
+      // **Focus is selection here, and there is no `onActivate`.** SPEC §6.1's whole
+      // reason for `onGamepadFocus` is that detail has to fit in 268 px: the D-pad
+      // moving onto a cell fills the line underneath it, so the player reads the bag
+      // by sweeping rather than by pressing. Wiring A to the same thing would fire
+      // `onSelect` twice for one interaction — focus, then activate — and a module
+      // that spends a request per selection (the stash tab list does) would spend two.
+      onGamepadFocus={onGamepadFocus}
+      onGamepadBlur={onGamepadBlur}
+      style={{
+        gridColumn: `${cell.x + 1} / span ${cell.w ?? 1}`,
+        gridRow: `${cell.y + 1} / span ${cell.h ?? 1}`,
+        aspectRatio: '1',
+        borderRadius: 2,
+        background: '#182029',
+        border: `1px solid ${VERDICT_COLOUR[cell.verdict]}`,
+        boxShadow: `inset 3px 0 0 ${VERDICT_COLOUR[cell.verdict]}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: cell.verdict === 'trash' ? 0.55 : 1,
+        fontFamily: 'monospace',
+        fontWeight: 700,
+        fontSize: 10,
+        color: RARITY_COLOUR[cell.rarity] ?? C.ink,
+        ...focusOutline(focused || selected === cell.uid),
+      }}
+    >
+      {cell.glyph.slice(0, 1)}
+    </Focusable>
+  )
+}
+
 export const ItemGrid: ItemGridComponent = ({
   cells,
   cols,
@@ -356,8 +560,9 @@ export const ItemGrid: ItemGridComponent = ({
   if (cells.length === 0) {
     return <div style={{ ...label, padding: 12, textAlign: 'center' }}>{emptyLabel}</div>
   }
-  // Empty slots are simply absent, so the D-pad skips them (SPEC §6.1). At 300 px
-  // a 12-wide grid gives 22 px cells, which is the measured figure.
+  // Empty slots are simply absent, so the D-pad skips them (SPEC §6.1), and Steam's
+  // focus system resolves direction geometrically against the live rects — so a plain
+  // CSS grid of `Focusable` navigates in 2D with no handler here at all.
   return (
     <div
       role="grid"
@@ -371,38 +576,14 @@ export const ItemGrid: ItemGridComponent = ({
         gridTemplateRows: `repeat(${rowCount}, 1fr)`,
         gap: 2,
         opacity: dimmed ? 0.45 : 1,
+        // Back out of the `PanelSection` inset: 300 px of column instead of 268, and
+        // 24 px cells instead of 22. See PANEL_INSET.
+        marginLeft: -PANEL_INSET,
+        marginRight: -PANEL_INSET,
       }}
     >
       {cells.map((cell) => (
-        // Phase 7: `<Focusable onGamepadFocus={() => onSelect?.(cell.uid)}>`.
-        <div
-          key={cell.uid}
-          data-uid={cell.uid}
-          role="gridcell"
-          aria-label={`${cell.label}, ${VERDICT_LABEL[cell.verdict]}`}
-          onClick={onSelect ? () => onSelect(cell.uid) : undefined}
-          style={{
-            gridColumn: `${cell.x + 1} / span ${cell.w ?? 1}`,
-            gridRow: `${cell.y + 1} / span ${cell.h ?? 1}`,
-            aspectRatio: '1',
-            borderRadius: 2,
-            background: '#182029',
-            border: `1px solid ${VERDICT_COLOUR[cell.verdict]}`,
-            boxShadow: `inset 3px 0 0 ${VERDICT_COLOUR[cell.verdict]}`,
-            outline: selected === cell.uid ? `2px solid ${C.accent}` : undefined,
-            outlineOffset: -1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: cell.verdict === 'trash' ? 0.55 : 1,
-            fontFamily: 'monospace',
-            fontWeight: 700,
-            fontSize: 10,
-            color: RARITY_COLOUR[cell.rarity] ?? C.ink,
-          }}
-        >
-          {cell.glyph.slice(0, 1)}
-        </div>
+        <GridCell key={cell.uid} cell={cell} selected={selected} onSelect={onSelect} />
       ))}
     </div>
   )
@@ -411,6 +592,9 @@ export const ItemGrid: ItemGridComponent = ({
 const COMPACT_ROW_FIELDS: ItemRowField[] = ['subtitle', 'quantity', 'price']
 
 export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fields }) => {
+  const { focused, onGamepadFocus, onGamepadBlur } = useGamepadFocus(
+    onSelect ? () => onSelect(item.uid) : undefined,
+  )
   const shown = new Set(resolveHint(fields, P, COMPACT_ROW_FIELDS))
   const price = item.price
   const priceText = formatPriceCell(price, 1)
@@ -423,10 +607,13 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
     .filter(Boolean)
     .join(' · ')
   return (
-    // Phase 7: `<Focusable onGamepadFocus={...} onActivate={...}>`.
-    <div
+    <Focusable
+      noFocusRing
+      focusClassName={FOCUS_CLASS}
       data-uid={item.uid}
-      onClick={onSelect ? () => onSelect(item.uid) : undefined}
+      // Focus is selection, and there is no `onActivate` — see `GridCell`.
+      onGamepadFocus={onGamepadFocus}
+      onGamepadBlur={onGamepadBlur}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -436,6 +623,7 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
         background: selected ? C.panel3 : C.sunken,
         border: `1px solid ${selected ? C.accent : 'transparent'}`,
         opacity: item.verdict === 'trash' ? 0.75 : 1,
+        ...focusOutline(focused),
       }}
     >
       <span
@@ -516,7 +704,7 @@ export const ItemRow: ItemRowComponent = ({ item, selected = false, onSelect, fi
           ) : null}
         </span>
       ) : null}
-    </div>
+    </Focusable>
   )
 }
 
@@ -565,21 +753,26 @@ export const Action: ActionComponent = ({
   const remaining = useCountdown(countdown)
   const blocked = disabled || busy || remaining !== null
   return (
-    // Phase 7: `<DialogButton>`. The gamepad glyph is the QAM's own affordance.
-    <span
-      role="button"
-      aria-disabled={blocked}
+    <DialogButton
+      disabled={blocked}
       aria-busy={busy}
       onClick={blocked ? undefined : onPress}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
+        width: 'auto',
+        minWidth: 0,
+        padding: '2px 6px',
         fontSize: 10,
         color: kind === 'primary' ? '#f2f8fc' : C.ink,
+        background: kind === 'quiet' ? 'transparent' : undefined,
         opacity: blocked ? 0.5 : 1,
       }}
     >
+      {/* The gamepad glyph is the QAM's own affordance: the footer legend says what
+          A and Y do, and a control that names its button is one the player can find
+          without moving focus onto it first. */}
       {hint ? (
         <span
           style={{
@@ -600,7 +793,7 @@ export const Action: ActionComponent = ({
       ) : null}
       {name}
       {remaining !== null ? <span style={tnum}> {formatCountdown(remaining)}</span> : null}
-    </span>
+    </DialogButton>
   )
 }
 
@@ -718,57 +911,58 @@ export const StaleBanner: StaleBannerComponent = ({
   const remaining = useCountdown(status.retryAfter)
   const message = syncMessage(status, remaining, labels)
   return (
-    <div
-      role="status"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '5px 10px',
-        borderBottom: `1px solid ${C.line}`,
-        fontSize: 9.5,
-        color: C.ink2,
-      }}
-    >
-      <span
+    <PanelSectionRow>
+      <div
+        role="status"
         style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          flex: 'none',
-          background:
-            status.state === 'error'
-              ? C.unpriceable
-              : status.state === 'fresh'
-                ? C.keep
-                : status.state === 'syncing'
-                  ? C.accent
-                  : C.check,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 10px',
+          borderBottom: `1px solid ${C.line}`,
+          fontSize: 9.5,
+          color: C.ink2,
         }}
-      />
-      <span
-        style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
       >
-        {message}
-        {/* The reason is the most useful thing on a failed sync and is the first
-            thing a 300 px layout is tempted to drop. It is truncated, not lost. */}
-        {status.detail ? <span style={{ color: C.ink3 }}> — {status.detail}</span> : null}
-      </span>
-      {onRefresh ? (
-        <span style={{ marginLeft: 'auto' }}>
-          <Action
-            label={refreshLabel}
-            hint="Y"
-            onPress={onRefresh}
-            busy={status.state === 'syncing'}
-            countdown={status.state === 'restricted' ? status.retryAfter : null}
-          />
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            flex: 'none',
+            background:
+              status.state === 'error'
+                ? C.unpriceable
+                : status.state === 'fresh'
+                  ? C.keep
+                  : status.state === 'syncing'
+                    ? C.accent
+                    : C.check,
+          }}
+        />
+        <span
+          style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {message}
+          {/* The reason is the most useful thing on a failed sync and is the first
+              thing a 300 px layout is tempted to drop. It is truncated, not lost. */}
+          {status.detail ? <span style={{ color: C.ink3 }}> — {status.detail}</span> : null}
         </span>
-      ) : null}
-    </div>
+        {onRefresh ? (
+          <span style={{ marginLeft: 'auto' }}>
+            <Action
+              label={refreshLabel}
+              hint="Y"
+              onPress={onRefresh}
+              busy={status.state === 'syncing'}
+              countdown={status.state === 'restricted' ? status.retryAfter : null}
+            />
+          </span>
+        ) : null}
+      </div>
+    </PanelSectionRow>
   )
 }
-
 
 /**
  * The checkbox list at 300 px — **the design problem of Phase 9.**
@@ -778,6 +972,11 @@ export const StaleBanner: StaleBannerComponent = ({
  * being a row: a `compact` option is **two lines**, the mod text on the first and
  * the tier under it, and the whole thing is a 30 px focus target rather than a 14 px
  * checkbox somebody has to land on.
+ *
+ * Phase 7's swap is exactly one element: the row is now `<Focusable onActivate>`, so
+ * **A ticks the box** and the 30 px target is what the D-pad lands on. The two-line
+ * layout was already shaped for it, which is what made this a swap rather than a
+ * redesign.
  *
  * Three things this deliberately does not do:
  *
@@ -791,11 +990,109 @@ export const StaleBanner: StaleBannerComponent = ({
  * * **It does not hide a disabled row.** A mod with no trade filter is still on the
  *   item; it is drawn dimmed with an em-dash box, so the list still agrees with the
  *   item.
- *
- * Phase 7 replaces the outer element with `<Focusable onActivate={...}>` and gets
- * A-to-tick for free; the two-line layout and the 30 px target are what make that
- * swap a swap rather than a redesign.
  */
+function CheckRow({
+  option,
+  on,
+  shown,
+  onToggle,
+}: {
+  option: {
+    id: string
+    label: string
+    badge?: string
+    meta?: string
+    tone?: string
+    disabled?: boolean
+    disabledReason?: string
+  }
+  on: boolean
+  shown: Set<CheckField>
+  onToggle: (id: string) => void
+}) {
+  const { focused, onGamepadFocus, onGamepadBlur } = useGamepadFocus()
+  const body: ReactNode = (
+    <>
+      <span
+        aria-hidden="true"
+        style={{
+          flex: 'none',
+          width: 13,
+          height: 13,
+          marginTop: 1,
+          borderRadius: 3,
+          border: `1px solid ${on ? C.accent : C.line}`,
+          background: on ? C.accent : 'transparent',
+          color: C.panel,
+          fontSize: 9,
+          lineHeight: '12px',
+          textAlign: 'center',
+        }}
+      >
+        {option.disabled ? '–' : on ? '✓' : ''}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {/* Wraps. A mod line the player cannot read off against the game's
+            own tooltip is a mod line they cannot tick with any confidence. */}
+        <span style={{ display: 'block', fontSize: 10.5, color: C.ink }}>{option.label}</span>
+        {/* The tier goes *under* the text, not beside it: at 268 px a
+            right-hand column costs the mod line its last eight characters,
+            and the mod line is the thing being identified. */}
+        {shown.has('badge') && option.badge ? (
+          <span
+            style={{
+              ...tnum,
+              display: 'inline-block',
+              fontSize: 8.5,
+              color: BADGE_COLOUR[option.tone ?? 'neutral'] ?? C.ink2,
+            }}
+          >
+            {option.badge}
+          </span>
+        ) : null}
+        {shown.has('meta') && option.meta ? (
+          <span style={{ fontSize: 8.5, color: C.ink3 }}>
+            {shown.has('badge') && option.badge ? ' · ' : ''}
+            {option.meta}
+          </span>
+        ) : null}
+      </span>
+    </>
+  )
+  return (
+    <Focusable
+      noFocusRing
+      focusClassName={FOCUS_CLASS}
+      data-check-id={option.id}
+      role="checkbox"
+      aria-checked={on}
+      aria-disabled={option.disabled ? true : undefined}
+      aria-label={
+        option.disabled && option.disabledReason
+          ? `${option.label} — ${option.disabledReason}`
+          : option.label
+      }
+      onActivate={option.disabled ? undefined : () => onToggle(option.id)}
+      onGamepadFocus={onGamepadFocus}
+      onGamepadBlur={onGamepadBlur}
+      style={{
+        display: 'flex',
+        gap: 6,
+        alignItems: 'flex-start',
+        padding: '5px 6px',
+        minHeight: 30,
+        borderRadius: 4,
+        background: on ? C.panel3 : C.sunken,
+        border: `1px solid ${on ? C.accent : 'transparent'}`,
+        opacity: option.disabled ? 0.5 : 1,
+        ...focusOutline(focused),
+      }}
+    >
+      {body}
+    </Focusable>
+  )
+}
+
 export const CheckList: CheckListComponent = ({
   options,
   selected,
@@ -810,88 +1107,16 @@ export const CheckList: CheckListComponent = ({
     return <div style={{ ...label, padding: 4 }}>{emptyLabel}</div>
   }
   return (
-    <div
-      role="group"
-      aria-label={name}
-      style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
-    >
-      {options.map((option) => {
-        const on = ticked.has(option.id)
-        return (
-          // Phase 7: `<Focusable onActivate={() => onToggle(option.id)}>`.
-          <div
-            key={option.id}
-            data-check-id={option.id}
-            role="checkbox"
-            aria-checked={on}
-            aria-disabled={option.disabled ? true : undefined}
-            aria-label={
-              option.disabled && option.disabledReason
-                ? `${option.label} — ${option.disabledReason}`
-                : option.label
-            }
-            onClick={option.disabled ? undefined : () => onToggle(option.id)}
-            style={{
-              display: 'flex',
-              gap: 6,
-              alignItems: 'flex-start',
-              padding: '5px 6px',
-              minHeight: 30,
-              borderRadius: 4,
-              background: on ? C.panel3 : C.sunken,
-              border: `1px solid ${on ? C.accent : 'transparent'}`,
-              opacity: option.disabled ? 0.5 : 1,
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                flex: 'none',
-                width: 13,
-                height: 13,
-                marginTop: 1,
-                borderRadius: 3,
-                border: `1px solid ${on ? C.accent : C.line}`,
-                background: on ? C.accent : 'transparent',
-                color: C.panel,
-                fontSize: 9,
-                lineHeight: '12px',
-                textAlign: 'center',
-              }}
-            >
-              {option.disabled ? '–' : on ? '✓' : ''}
-            </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              {/* Wraps. A mod line the player cannot read off against the game's
-                  own tooltip is a mod line they cannot tick with any confidence. */}
-              <span style={{ display: 'block', fontSize: 10.5, color: C.ink }}>
-                {option.label}
-              </span>
-              {/* The tier goes *under* the text, not beside it: at 268 px a
-                  right-hand column costs the mod line its last eight characters,
-                  and the mod line is the thing being identified. */}
-              {shown.has('badge') && option.badge ? (
-                <span
-                  style={{
-                    ...tnum,
-                    display: 'inline-block',
-                    fontSize: 8.5,
-                    color: BADGE_COLOUR[option.tone ?? 'neutral'] ?? C.ink2,
-                  }}
-                >
-                  {option.badge}
-                </span>
-              ) : null}
-              {shown.has('meta') && option.meta ? (
-                <span style={{ fontSize: 8.5, color: C.ink3 }}>
-                  {shown.has('badge') && option.badge ? ' · ' : ''}
-                  {option.meta}
-                </span>
-              ) : null}
-            </span>
-          </div>
-        )
-      })}
+    <div role="group" aria-label={name} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {options.map((option) => (
+        <CheckRow
+          key={option.id}
+          option={option}
+          on={ticked.has(option.id)}
+          shown={shown}
+          onToggle={onToggle}
+        />
+      ))}
     </div>
   )
 }
@@ -908,8 +1133,10 @@ const BADGE_COLOUR: Record<string, string> = {
 /**
  * A small integer with an off state, on one 300 px line.
  *
- * The two steps sit either side of the value so Steam's geometric focus resolves
- * left/right onto them without anyone writing a key handler (SPEC §6.1).
+ * `Field` is the right Steam component for this: label on the left, control on the
+ * right, one row. The two steps sit either side of the value so Steam's geometric
+ * focus resolves left/right onto them without anyone writing a key handler
+ * (SPEC §6.1).
  */
 export const Stepper: StepperComponent = ({
   label: name,
@@ -934,18 +1161,19 @@ export const Stepper: StepperComponent = ({
     onChange(Math.min(max, next))
   }
   const button = (glyph: string, delta: number, disabled: boolean, aria: string) => (
-    // Phase 7: `<Focusable onActivate={...}>`.
-    <span
-      role="button"
+    <DialogButton
+      noFocusRing
+      disabled={disabled}
       aria-label={aria}
-      aria-disabled={disabled}
       onClick={disabled ? undefined : () => step(delta)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         width: 20,
+        minWidth: 20,
         height: 20,
+        padding: 0,
         borderRadius: 3,
         border: `1px solid ${C.line}`,
         background: C.panel3,
@@ -955,18 +1183,25 @@ export const Stepper: StepperComponent = ({
       }}
     >
       {glyph}
-    </span>
+    </DialogButton>
   )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ ...label, flex: 1, minWidth: 0 }}>{name}</span>
-        {button('−', -1, value === null, `fewer ${name}`)}
-        <span style={{ ...tnum, fontSize: 10, minWidth: 34, textAlign: 'center' }}>
-          {value === null ? offLabel : `≥ ${value}`}
+      <Field
+        label={<span style={label}>{name}</span>}
+        padding="compact"
+        bottomSeparator="none"
+        childrenLayout="inline"
+        childrenContainerWidth="min"
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {button('−', -1, value === null, `fewer ${name}`)}
+          <span style={{ ...tnum, fontSize: 10, minWidth: 34, textAlign: 'center' }}>
+            {value === null ? offLabel : `≥ ${value}`}
+          </span>
+          {button('+', 1, value !== null && value >= max, `more ${name}`)}
         </span>
-        {button('+', 1, value !== null && value >= max, `more ${name}`)}
-      </div>
+      </Field>
       {note ? <span style={{ fontSize: 8.5, color: C.ink3 }}>{note}</span> : null}
     </div>
   )

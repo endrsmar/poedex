@@ -9,7 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./contracts": "./src/contracts/index.ts",
-    "./testing": "./src/testing.tsx"
+    "./steam": "./src/profiles/compact/steam.tsx"
   },
   "imports": {
     "#profile": {
@@ -19,5 +19,8 @@
   },
   "peerDependencies": {
     "react": ">=18"
+  },
+  "devDependencies": {
+    "@decky/ui": "4.12.0"
   }
 }

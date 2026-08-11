@@ -7,12 +7,15 @@ Finish a map, portal to your hideout, press the `…` button. Every inventory sl
 **keep / check / trash** with a value estimate and a bag total. No keyboard, no alt-tab, no
 leaving gaming mode.
 
-> **Status: backend working, web surface working, no Deck panel yet.** The module runtime, the
-> rate-limited API client, the log tailer, the pricing engine and the verdict engine are in
-> place, and `poedex serve` puts the priced bag on `http://127.0.0.1:7331` with verdicts, price
-> provenance, an honest total and a working refresh. The Decky panel is next: the UI kit already
-> has two surface profiles, and the same `BagScreen.tsx` is what will render at 300 px. Nothing
-> has run on a Deck, or against the live API. See [`docs/SPEC.md`](docs/SPEC.md) for the design,
+> **Status: backend working, web surface working, Decky plugin built and never run on a Deck.**
+> The module runtime, the rate-limited API client, the log tailer, the pricing engine and the
+> verdict engine are in place; `poedex serve` puts the priced bag on `http://127.0.0.1:7331`; and
+> `scripts/build_plugin.py` now produces an installable Decky zip in which the same
+> `BagScreen.tsx` renders at 300 px through `@decky/ui`. **Nobody on this project has a Steam
+> Deck**, so the panel's geometry, its D-pad navigation, suspend/resume and the LAN pairing flow
+> are written and unverified — [`docs/deck-checklist.md`](docs/deck-checklist.md) is the
+> ten-minute list that closes them, and it is the first thing to run with hardware in hand. See
+> [`docs/SPEC.md`](docs/SPEC.md) for the design,
 > [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) for the phases, and
 > [`docs/research-notes.md`](docs/research-notes.md) for the evidence behind them.
 
@@ -69,6 +72,7 @@ Three measured facts shape everything:
 | [`docs/SPEC.md`](docs/SPEC.md) | Architecture, auth, pricing tiers, data model, milestones |
 | [`docs/research-notes.md`](docs/research-notes.md) | Measurements, sources, and why alternatives were rejected |
 | [`docs/ui-mockups.html`](docs/ui-mockups.html) | Visual mockups |
+| [`docs/deck-checklist.md`](docs/deck-checklist.md) | The ten things that need a Steam Deck, what a pass looks like, and what each failure means |
 | [`CLAUDE.md`](CLAUDE.md) | Orientation for contributors and coding agents |
 
 ## Repository layout
@@ -79,7 +83,10 @@ modules/<id>/       one directory per module: backend/ (Python) + ui/ (TypeScrip
 ui-kit/             @poedex/ui — primitives, one implementation per surface profile
 frontend/core/      @poedex/core — transports and stores. Framework-agnostic, no React
 transports/http/    FastAPI on 127.0.0.1, SSE, and the built SPA
+transports/decky/   the plugin backend: the registry, decky.emit, a shutdown on a deadline
 surfaces/web/       the browser shell; discovers module UIs and mounts them
+surfaces/decky/     the QAM panel: a screen stack, B to go back
+plugin/             plugin.json + the Plugin class Decky loads. Assembled by scripts/build_plugin.py
 ```
 
 A module is a vertical slice: its backend logic **and its own screens** live in one directory.
@@ -95,16 +102,52 @@ and `eslint-plugin-poedex` checks what a module's UI may import.
 | M1 | Data layer: log tailer, HTTPS client, rate limiter, item model | no |
 | M2 | Bulk pricing and the keep/check/trash/unpriceable verdict engine | no |
 | M2b | Web surface on localhost: the bag screen, the UI kit, the HTTP transport | no |
-| M3 | Decky plugin shell: bag grid, D-pad navigation, push updates | yes |
-| M4 | LAN pairing — credential entry with zero characters typed on the Deck | yes |
+| M3 | Decky plugin shell: bag grid, D-pad navigation, push updates — **built, unverified on hardware** | yes |
+| M4 | LAN pairing — credential entry with zero characters typed on the Deck — **built, unverified end to end** | yes |
 | M5 | Stash digest: what's it worth, what should I sell | yes |
 | M6 | Rare pricing: highlight the interesting ones, then an on-demand trade query the player composes | yes |
 | M7 | OAuth, once GGG reopens developer registration | yes |
 
-## Installation
+## Installing the Decky plugin
 
-Sideload from a GitHub Release using Decky's install-from-URL. This project is not distributed
-through the Decky plugin store, which does not accept AI-assisted plugins.
+**Sideload from a GitHub Release using Decky's install-from-URL.** This project is deliberately
+not distributed through the Decky plugin store, which does not accept AI-assisted plugins — it
+requires an attestation that generative AI was not used to write a majority of the submission,
+and that is not true here. Install-from-URL is a first-class, permanent path, so this costs
+nothing but the store listing.
+
+On the Deck: **Decky → the plug icon → Settings → Other → Install plugin from URL**, and paste
+the `.zip` URL from the [Releases](../../releases) page. Then work through
+[`docs/deck-checklist.md`](docs/deck-checklist.md).
+
+### Building the zip
+
+```bash
+cd surfaces/decky && pnpm install && pnpm run build && cd ../..
+python3 scripts/build_plugin.py                  # dist/poedex/ and dist/poedex.zip (~3.4 MB)
+```
+
+Two things about that build are worth knowing before it surprises you:
+
+- **It needs network access, once.** `py_modules/` is filled by `pip download`, because a Decky
+  plugin installs from a zip with no pip at the far end.
+- **It targets CPython 3.11, and that is not the Deck's Python.** A plugin backend is a fork of
+  the Decky Loader process, which is frozen against 3.11.7; SteamOS itself ships 3.13 from 3.7
+  onward. `pydantic-core` is a compiled Rust extension and publishes **no `abi3` wheel**, so its
+  `.so` is pinned to one CPython minor and the build refuses to ship the wrong one. If Decky
+  Loader ever reships against another version, change `TARGET_PYTHON` in
+  `scripts/build_plugin.py` — that is the whole fix, and item 2 of the checklist is how you find
+  out you need it.
+
+### Developing against hardware
+
+```bash
+python3 scripts/build_plugin.py --no-zip --no-vendor
+rsync -a --delete dist/poedex/ deck@<ip>:~/homebrew/plugins/PoEDex/
+```
+
+`plugin.json` keeps Decky's `debug` flag, so the plugin reloads when the directory changes. It
+never carries `root`: plugins run as `deck`, and every path this tool reads is readable that way.
 
 ## Path of Exile 2
 

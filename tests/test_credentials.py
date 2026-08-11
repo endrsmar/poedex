@@ -287,9 +287,18 @@ async def test_session_id_is_not_exposed_over_the_method_registry(
         "credentials.clear",
         "credentials.mark_ok",
         "credentials.mark_rejected",
+        "credentials.pair_cancel",
+        "credentials.pair_start",
+        "credentials.pair_status",
         "credentials.set",
         "credentials.status",
     ]
+    # Phase 7 added three pairing methods and deliberately not a fourth. There is no
+    # `pair_submit`: the credential arrives over the pairing socket from the other
+    # machine, never over the RPC channel a CEF console can reach.
+    assert not any(
+        name.endswith(("submit", "reveal", "value")) for name in registry.methods.names()
+    )
 
 
 async def test_the_set_method_is_reachable_by_its_namespaced_name(
