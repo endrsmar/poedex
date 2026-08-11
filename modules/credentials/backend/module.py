@@ -19,9 +19,18 @@ from typing import Any, ClassVar
 
 from modules.credentials.backend.api import (
     CREDENTIAL_CHANGED,
+    PAIRING_CHANGED,
     CredentialsApi,
     CredentialState,
     CredentialStatus,
+)
+from modules.credentials.backend.pairing import (
+    DEFAULT_PORT as DEFAULT_PAIRING_PORT,
+)
+from modules.credentials.backend.pairing import (
+    DEFAULT_TIMEOUT_SECONDS,
+    PairingServer,
+    PairingStatus,
 )
 from modules.credentials.backend.store import (
     SessionRecord,
@@ -46,6 +55,7 @@ class CredentialsModule:
         # An injectable store keeps the tests off the real ``~/.config``.
         self._store = store or SessionStore()
         self._ctx: ModuleContext | None = None
+        self._pairing: PairingServer | None = None
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -60,6 +70,10 @@ class CredentialsModule:
         )
 
     async def stop(self) -> None:
+        # Before anything else. A stop that leaves a credential-intake socket bound
+        # is the worst thing this module could do on the way out, and `_unload` on
+        # the Deck has five seconds before SIGKILL (SPEC §6.2).
+        await self.pair_cancel()
         self._ctx = None
 
     def methods(self) -> dict[str, Callable[..., Any]]:
@@ -69,6 +83,13 @@ class CredentialsModule:
             "clear": self.clear_json,
             "mark_ok": self.mark_ok_json,
             "mark_rejected": self.mark_rejected_json,
+            # SPEC §4.1. `pair_submit` is deliberately absent: the value arrives over
+            # the pairing socket from the *other* machine, never over the RPC channel
+            # a panel can reach, so there is no method a CEF console could call with a
+            # credential in it and none that could read one back.
+            "pair_start": self.pair_start,
+            "pair_status": self.pair_status,
+            "pair_cancel": self.pair_cancel,
         }
 
     def settings_schema(self) -> dict[str, Any]:
@@ -82,6 +103,29 @@ class CredentialsModule:
                 "description": (
                     "Days since the API last accepted the session before it is "
                     "flagged as stale. Advisory only."
+                ),
+            },
+            "pairing_port": {
+                "type": "int",
+                "default": DEFAULT_PAIRING_PORT,
+                "min": 1024,
+                "max": 65535,
+                "label": "Pairing port",
+                "description": (
+                    "TCP port the pairing page listens on, and only while a pairing "
+                    "window is open. It is bound on every interface so the PC on your "
+                    "LAN can reach it, and closed the moment a credential arrives."
+                ),
+            },
+            "pairing_timeout_seconds": {
+                "type": "int",
+                "default": int(DEFAULT_TIMEOUT_SECONDS),
+                "min": 30,
+                "max": 900,
+                "label": "Pairing window",
+                "description": (
+                    "How long the pairing page stays reachable before it closes "
+                    "itself. Shorter is safer; you need long enough to walk to the PC."
                 ),
             },
         }
@@ -162,6 +206,57 @@ class CredentialsModule:
 
     async def mark_rejected_json(self, note: str | None = None) -> dict[str, Any]:
         return (await self.mark_rejected(note)).to_json()
+
+    # -- LAN pairing (SPEC §4.1) -----------------------------------------------
+
+    async def pair_start(self) -> dict[str, Any]:
+        """Open a pairing window and return the code and URL to put on screen.
+
+        Idempotent in the useful direction: calling it again mints a fresh code and
+        restarts the clock, which is what a player who walked away and came back
+        actually wants, and it means a stale code can never be paired with.
+        """
+        server = PairingServer(
+            self._pair_store,
+            port=self._setting("pairing_port", DEFAULT_PAIRING_PORT),
+            timeout=float(self._setting("pairing_timeout_seconds", int(DEFAULT_TIMEOUT_SECONDS))),
+            on_change=self._pairing_changed,
+        )
+        if self._pairing is not None:
+            await self._pairing.close()
+        self._pairing = server
+        return (await server.open()).to_json()
+
+    async def pair_status(self) -> dict[str, Any]:
+        if self._pairing is None:
+            return PairingStatus(state="idle").to_json()
+        return self._pairing.status().to_json()
+
+    async def pair_cancel(self) -> dict[str, Any]:
+        if self._pairing is None:
+            return PairingStatus(state="idle").to_json()
+        status = await self._pairing.close()
+        self._pairing = None
+        return status.to_json()
+
+    async def _pair_store(self, value: str) -> CredentialStatus:
+        """What the pairing socket calls once a code checks out.
+
+        Routed through :meth:`set` rather than touching the store directly, so the
+        ``0600`` write, the redaction and the ``credential_changed`` event are the
+        same ones ``poedex auth set`` gets. A second path to disk for a credential is
+        a second path to get wrong.
+        """
+        return await self.set(value)
+
+    async def _pairing_changed(self, status: PairingStatus) -> None:
+        if self._ctx is not None:
+            await self._ctx.events.emit(PAIRING_CHANGED, status.to_json(), source=self.id)
+
+    def _setting(self, key: str, default: int) -> int:
+        if self._ctx is None:
+            return default
+        return int(self._ctx.settings.get(key, default))
 
     # -- internals -------------------------------------------------------------
 

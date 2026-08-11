@@ -24,6 +24,15 @@ from runtime.errors import PoedexError
 CREDENTIAL_CHANGED = "credential_changed"
 """Event topic emitted whenever the stored credential or its state changes."""
 
+PAIRING_CHANGED = "pairing_changed"
+"""Event topic for the LAN pairing window opening, closing or being refused.
+
+Separate from :data:`CREDENTIAL_CHANGED` because a window that expired unpaired
+changed nothing about the credential, and a panel redrawing its verdict list every
+time a code timed out would be redrawing on a non-event. The payload is
+``PairingStatus.to_json()``, which carries a code and a URL and — like everything
+else crossing this boundary — never the credential."""
+
 
 class CredentialError(PoedexError):
     """A credential problem. The message never contains the credential.

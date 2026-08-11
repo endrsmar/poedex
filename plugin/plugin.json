@@ -1,0 +1,15 @@
+{
+  "name": "PoEDex",
+  "author": "endrsmar",
+  "flags": [
+    "debug"
+  ],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "game",
+      "utility"
+    ],
+    "description": "Is any of this worth a stash trip, or is it all vendor trash? Prices your Path of Exile backpack and stash from poe.ninja, highlights the rares worth asking about, and never touches the game client."
+  }
+}

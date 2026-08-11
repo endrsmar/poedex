@@ -53,6 +53,34 @@ export interface PriceCheckArgs {
   tab_index?: number | null
 }
 
+/**
+ * `CredentialStatus.to_json()`. Hand-written rather than generated because
+ * `transports/wire.py` declares the *appraisal* payloads and this one predates it;
+ * every field here is metadata and **none of them is the credential**, which is the
+ * property that matters and is asserted in `tests/test_credentials.py`.
+ */
+export interface CredentialStatusPayload {
+  state: 'never_set' | 'set' | 'ok' | 'rejected'
+  account: string | null
+  added_at: string | null
+  last_ok_at: string | null
+  rejected_at: string | null
+  stale: boolean
+  note: string | null
+  usable: boolean
+}
+
+/** `PairingStatus.to_json()` — a code and a URL, never a credential. */
+export interface PairingStatusPayload {
+  state: 'idle' | 'waiting' | 'paired' | 'expired' | 'cancelled' | 'refused'
+  code: string | null
+  port: number | null
+  urls: string[]
+  expires_in: number | null
+  attempts_left: number | null
+  detail: string | null
+}
+
 export function createClient(transport: Transport) {
   return {
     transport,
@@ -162,8 +190,24 @@ export function createClient(transport: Transport) {
 
     credentials: {
       /** State and metadata. Never the value — see this file's docstring. */
-      status(): Promise<Record<string, unknown>> {
-        return transport.call('credentials.status')
+      status(): Promise<CredentialStatusPayload> {
+        return transport.call<CredentialStatusPayload>('credentials.status')
+      },
+      /**
+       * Open a LAN pairing window (SPEC §4.1) and get the code and URL to show.
+       *
+       * There is no `submit` beside these three, and the omission is the design: the
+       * credential arrives over the pairing socket from the *other* machine, so no
+       * method on this client can carry one in and none can read one back.
+       */
+      pairStart(): Promise<PairingStatusPayload> {
+        return transport.call<PairingStatusPayload>('credentials.pair_start')
+      },
+      pairStatus(): Promise<PairingStatusPayload> {
+        return transport.call<PairingStatusPayload>('credentials.pair_status')
+      },
+      pairCancel(): Promise<PairingStatusPayload> {
+        return transport.call<PairingStatusPayload>('credentials.pair_cancel')
       },
     },
   }

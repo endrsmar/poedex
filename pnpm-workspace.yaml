@@ -2,6 +2,7 @@ packages:
   - ui-kit
   - frontend/core
   - surfaces/web
+  - surfaces/decky
   - modules/*/ui
   - tools/eslint-plugin-poedex
 allowBuilds:

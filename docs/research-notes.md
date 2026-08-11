@@ -204,6 +204,76 @@ at install time.
 **Unverified:** nothing in the loader handles suspend/resume, so `asyncio.sleep` probably
 overshoots across sleep. Needs monotonic-clock deltas and a hardware test.
 
+### 5.1 What interpreter a plugin backend actually runs — measured (Phase 7)
+
+Read from the loader's source at `v3.2.6` and then **executed**: the released
+`PluginLoader` binary was run inside `ghcr.io/steamdeckhomebrew/holo-base` with a probe plugin.
+This settles the pydantic question Phase 2 flagged and left open.
+
+**A plugin is a `multiprocessing.Process` fork of the loader**, not a subprocess and not
+`sys.executable`. `backend/decky_loader/plugin/plugin.py`:
+
+```python
+self.proc = Process(target=self.sandboxed_plugin.initialize, args=[self._socket])
+```
+
+No `set_start_method` call exists anywhere in `backend/`, so Linux's default `fork` applies and
+the child is running **the loader's embedded interpreter**. The probe reported
+`sys.executable = /tmp/PL`, `sys.frozen = True`, `_MEIPASS = /tmp/_MEItQMTrq`.
+
+**That interpreter is CPython 3.11.7.** `.github/workflows/build.yml` pins
+`python-version: "3.11.7"`; `strings` on the released binary shows 63
+`*.cpython-311-x86_64-linux-gnu.so` entries and `libpython3.11`, and **zero** references to 3.13.
+
+**SteamOS's own python has diverged from it.** From the package mirror: SteamOS 3.5 → 3.11.3,
+3.6 → 3.11.7, **3.7 → 3.13.1**, 3.8 → 3.13.5. The 3.11.7 pin matched SteamOS 3.6 exactly and the
+loader did not follow. Worse, `main.py` splices the *system* interpreter's paths into the frozen
+one (`sys.path.extend(get_system_pythonpaths())`, marked `# TODO make this less insane`), so a
+plugin's `sys.path` literally contains `/usr/lib/python3.13/site-packages` while running 3.11 —
+pure-Python packages there import, compiled ones cannot.
+
+**`py_modules` is *appended*, and that is a real bug for us.**
+`backend/decky_loader/plugin/sandboxed_plugin.py`:
+
+```python
+sys.path.append(path.join(environ["DECKY_PLUGIN_DIR"], "py_modules"))
+```
+
+Last, behind PyInstaller's `_MEIPASS` entries — and the frozen loader bundles `setuptools`, whose
+`_vendor/typing_extensions.py` therefore shadows the vendored one. With a fully correct cp311
+pydantic stack in place the import still failed:
+`ImportError: cannot import name 'Sentinel' from 'typing_extensions'`, pointing inside the
+loader's own temp directory. `plugin/main.py` prepends `py_modules` and drops the stale module
+from `sys.modules` before any third-party import; that is what those five lines above the imports
+are for.
+
+**`pydantic-core` publishes no abi3 wheel, at any version.** Checked against PyPI for 2.16.3,
+2.27.2, 2.33.2 and 2.48.0: every CPython wheel is tagged for one minor version (`cp310`…`cp315`),
+plus graalpy and pypy. `EXTENSION_SUFFIXES` inside a live plugin process is
+`['.cpython-311-x86_64-linux-gnu.so', '.abi3.so', '.so']`, and the three failure modes were run:
+
+| vendored | result |
+|---|---|
+| `cp313` build (what `pip` on SteamOS 3.7 produces) | `find_spec -> None` — the suffix is not recognised, so it fails **silently at discovery** |
+| the same `.so` renamed `cpython-311` | `ImportError: undefined symbol: PyDict_GetItemRef` (3.13-only C API) |
+| the same `.so` renamed to plain `.so` | same `ImportError` |
+| **the `cp311` wheel** | **works** — `pydantic v2.13.4 OK`, `model_dump_json()` round-trips |
+
+So vendoring pydantic is viable and the target is CPython 3.11 / `manylinux_2_17_x86_64`, pinned
+in `scripts/build_plugin.py`. **It breaks when Decky Loader reships against another CPython**, and
+the Deck-side symptom is `ModuleNotFoundError: pydantic_core` — which reads as "you forgot to
+vendor it" rather than "you vendored the wrong one", so the build refuses a mismatched tag and
+`plugin/main.py` reports the interpreter version rather than dying in a log file.
+
+**Nobody else in the store does this.** All 110 plugins in the live store were downloaded and
+scanned: 43 have a `py_modules/`, and **exactly one** compiled extension exists across all of
+them (`HueSync/py_modules/portio.so`, untagged and linking only `libc`, which survives version
+drift only because it touches a handful of ancient symbols). Zero vendor `pydantic`,
+`cryptography`, `numpy` or similar. The supported route for native code is the documented
+Docker-built `bin/` backend — a separate native process, no CPython ABI involved — which 31 of
+the 110 use. That is the fallback if the 3.11 pin ever becomes untenable, and it would mean
+moving the whole Python backend out of process.
+
 ---
 
 ## 6. Auth
