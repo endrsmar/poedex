@@ -312,10 +312,22 @@ all 404 (research-notes §9.6). So:
 3. probe every candidate once and record which served ≥1 line, per league, for a day;
 4. fall back to the static list if any of that fails, and say so on screen.
 
-Six types are never fetched, with reasons in code: `SkillGem` (4.0 MB), `ImbuedGem` (2.4 MB),
-`BaseType` (9.4 MB, priced per ilvl and influence), `ValdoMap`, `ClusterJewel` and
+Six types stay off the refresh cycle, with reasons in code: `SkillGem` (4.0 MB), `ImbuedGem`
+(2.4 MB), `BaseType` (9.4 MB, priced per ilvl and influence), `ValdoMap`, `ClusterJewel` and
 `ForbiddenJewel` (keyed by a variant the line chooser does not score). An unpriced item is
 honest; an item priced as the wrong variant is not.
+
+**`SkillGem` is the one that is now fetched — lazily, and matched exactly.** It sits in
+`ON_DEMAND` rather than being excluded outright: the first time a bag or tab actually holds an
+item with `category == "gem"`, the table is fetched once, cached, and thereafter kept fresh on
+the cycle by conditional `GET`. A league that never shows a gem never pays the 4.0 MB. Matching
+is on all three axes poe.ninja keys its variant on — level, quality, corrupted — parsed from the
+`variant` string (`"20"`, `"20/20"`, `"21c"`, `"21/23c"`; measured 2026-08-11 over 7,519 rows and
+27 distinct variants, with no other shape) and cross-checked against the row's own `gemLevel` and
+`corrupted`. **A row that contradicts itself is dropped, and a variant with no row is
+`unpriceable`** — the grid is sparse, since poe.ninja publishes qualities 0, 20 and 23 and
+nothing between, so the nearest row to a level 19 / 12% gem is always some other gem's price.
+Transfigured gems are their own names in game and on poe.ninja, so they need no fourth axis.
 
 Cost, measured 2026-08-10: one discovery pass is 39 requests / 3.4 MB for Allflame and 4.0 MB for
 Standard, against 16 requests / 3.0 MB for the old hardcoded prefetch. Steady state is the served

@@ -100,6 +100,7 @@ from modules.prices.backend.ninja import (
     CATALOGUE,
     DEFAULT_TTL,
     NEVER_PREFETCH,
+    ON_DEMAND,
     PREFETCH,
     NinjaCategory,
     NinjaClient,
@@ -107,7 +108,7 @@ from modules.prices.backend.ninja import (
     TableStore,
 )
 from modules.prices.backend.trade import MAX_FETCH_IDS, TradeClient
-from modules.prices.backend.valuation import PriceIndex, exchangeable
+from modules.prices.backend.valuation import GEM_TABLES, PriceIndex, exchangeable
 from runtime.context import ModuleContext
 from runtime.errors import ModuleNotStartedError
 from runtime.log import get_logger
@@ -402,8 +403,9 @@ class PricesModule:
             return LeagueChoice(bag_league.strip(), LeagueSource.CHARACTER)
         raise LeagueUnknownError(
             "cannot tell which league to price against: these items carry no league "
-            "and no override is set. Pass --league, or set the prices.league "
-            "setting. Refusing rather than assuming Standard — a Divine Orb was "
+            "and no override is set. Pass --league, or run "
+            "'poedex config set prices.league <league>'. "
+            "Refusing rather than assuming Standard — a Divine Orb was "
             "897.7c there and 209.0c in Allflame on the same day."
         )
 
@@ -447,6 +449,7 @@ class PricesModule:
         exchange: bool | None = None,
     ) -> BagValuation:
         choice = self.league_choice(league, explicit=override)
+        await self.ensure_gem_table(items, league=choice.league)
         index = self.index(choice.league)
         spent = 0
         if self._use_exchange(exchange):
@@ -457,6 +460,42 @@ class PricesModule:
             league_source=choice.source,
             exchange_requests=spent,
         )
+
+    async def ensure_gem_table(
+        self, items: Sequence[NormalizedItem], *, league: str | None = None
+    ) -> bool:
+        """Load the skill gem table — but only if one of ``items`` is a gem.
+
+        This is the whole reason gems can be priced without putting 4 MB on every
+        startup. The table is 7 519 rows of level/quality/corruption variants; most
+        bags contain no gem at all, and prefetching it for every league to answer a
+        question nobody asked is what kept it out of the refresh cycle.
+
+        Returns whether the table is available afterwards. A failure is not raised:
+        poe.ninja being down means every gem in the bag reports `unpriceable` with a
+        reason that says the table is missing, which is the same shape of answer as
+        before and strictly more informative than a valuation that throws.
+        """
+        if not any(item.category == "gem" for item in items):
+            return False
+        target = (league or "").strip() or self._tables_league
+        if target is None or target != self._tables_league:
+            # Another league's tables are about to be reported empty anyway; fetching
+            # 4 MB into a mismatch would spend bandwidth to produce nothing.
+            return False
+        available = False
+        for key in GEM_TABLES:
+            category = CATALOGUE.get(key)
+            if category is None:  # pragma: no cover - GEM_TABLES is checked in tests
+                continue
+            table = self._tables.get(key)
+            if table is None or self._is_expired(table):
+                if self._ninja is None:
+                    continue
+                await self._refresh_one(category, target)
+                table = self._tables.get(key)
+            available = available or table is not None
+        return available
 
     def _use_exchange(self, explicit: bool | None) -> bool:
         if explicit is not None:
@@ -967,8 +1006,23 @@ class PricesModule:
         if record is not None and record.fresh(self.now(), self._discovery_ttl()):
             categories = record.categories()
             if categories:
-                return categories
-        return self._static_wanted()
+                return self._with_on_demand(categories)
+        return self._with_on_demand(self._static_wanted())
+
+    def _with_on_demand(self, categories: list[NinjaCategory]) -> list[NinjaCategory]:
+        """Add the on-demand tables **we already hold**, and only those.
+
+        An on-demand table is kept out of the cycle until something needs it; once it
+        has been fetched, leaving it out of the cycle would be the other mistake —
+        4 MB of gem prices going stale on disk while every other table is current.
+        Refreshing it is a conditional GET, so the second fetch is a 304 and free.
+        """
+        held = [
+            CATALOGUE[key]
+            for key in ON_DEMAND
+            if key in self._tables and not any(c.key == key for c in categories)
+        ]
+        return [*categories, *held]
 
     def _static_wanted(self) -> list[NinjaCategory]:
         configured = self._setting("prefetch_categories", list(PREFETCH))
@@ -982,7 +1036,7 @@ class PricesModule:
         if self._tables_league is None:
             raise LeagueUnknownError(
                 "no league has been established: call ensure_tables(league) first, "
-                "or set the prices.league setting"
+                "or run 'poedex config set prices.league <league>'"
             )
         return self._tables_league
 
@@ -1013,10 +1067,14 @@ class PricesModule:
         stale prices with an honest timestamp beat an empty panel."""
         store = self._require_store()
         league = self._league_or_raise()
-        for category in self._wanted():
-            table = store.load(league, category.key)
+        # On-demand keys are read first, and unconditionally: `_wanted` only offers
+        # the ones already held, and nothing is held yet. A gem table this league
+        # fetched last session is 4 MB we do not spend again to answer the same
+        # question — and it costs nothing to find out.
+        for key in (*ON_DEMAND, *(category.key for category in self._wanted())):
+            table = store.load(league, key)
             if table is not None:
-                self._tables[category.key] = table
+                self._tables[key] = table
 
     async def _settle_prefetch(self) -> None:
         """Wait for the start-time prefetch, if one is still running."""

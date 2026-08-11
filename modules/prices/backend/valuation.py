@@ -41,10 +41,23 @@ counts — and ``Map (Tier 16)`` thirteen times, once per map series. Scoring
 corruption mismatch, and otherwise breaks the tie on **listing count**: the most
 liquid line is the current one, which is what makes the map series resolve to this
 league's without anything here knowing what a map series is.
+
+## Gems, where scoring is exactly the wrong tool
+
+Everything above is a *preference*: a near miss costs a little accuracy. Skill gems
+are the case where that trade is unacceptable and the two paths are kept apart
+because of it. A level 21 / 20% Cyclone is worth orders of magnitude more than the
+level 1 that shares its name, poe.ninja's grid of variants is sparse, and the
+best-scoring row for a gem it does not list is always some other gem's price.
+
+So :func:`gem_line` matches ``(level, quality, corrupted)`` exactly or returns
+nothing, and never falls through to another table. "Unpriceable" is the correct
+answer for a level 19 / 12% gem, and it is the answer this file gives.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -87,6 +100,15 @@ _UNIQUE_TABLES: dict[str, tuple[str, ...]] = {
     "relic": ("unique_relic",),
 }
 
+GEM_TABLES: tuple[str, ...] = ("skill_gem",)
+"""The only table a gem is ever looked up in, and it is exclusive rather than
+preferred.
+
+Every other category falls through to "then try every other loaded table", which is
+harmless when names are unique across tables. For a gem it would not be: a name-only
+hit in some other overview is exactly the confident wrong answer that kept gems
+unpriced, so :meth:`PriceIndex.market_line` refuses the fallback for them."""
+
 _CURRENCY_TABLES: tuple[str, ...] = (
     "currency",
     "fragment",
@@ -110,6 +132,7 @@ _CATEGORY_TABLES: dict[str, tuple[str, ...]] = {
     "card": ("card",),
     "map": ("map", "unique_map", "blighted_map"),
     "jewel": ("cluster_jewel", "unique_jewel"),
+    "gem": GEM_TABLES,
 }
 
 
@@ -162,6 +185,12 @@ def price_key(item: NormalizedItem) -> tuple:
         item.corrupted,
         item.sockets.links,
         item.map_tier,
+        # Two gems of the same name and different level are two different prices, so
+        # they must not share a lookup. Without this, a tab holding a level 1 and a
+        # level 21 Cyclone would value the second as the first — which is exactly the
+        # failure the gem work exists to prevent, arriving through the cache instead
+        # of through the match.
+        (item.gem.level, item.gem.quality) if item.gem is not None else None,
         item.note,
     )
 
@@ -188,6 +217,96 @@ def choose_line(lines: Sequence[PriceLine], item: NormalizedItem) -> PriceLine |
         if best_score is None or candidate > best_score:
             best, best_score = line, candidate
     return best
+
+
+# -- gems -----------------------------------------------------------------------
+#
+# A gem is the one thing in a bag whose name does not identify it. poe.ninja prices
+# skill gems per *variant*, and the variant is three facts: level, quality, and
+# whether it is corrupted. Measured against Allflame's `SkillGem` table on
+# 2026-08-11 — 7 519 rows, 27 distinct variants — the grammar is exactly:
+#
+#     "20"        level 20, quality 0,  not corrupted
+#     "20/20"     level 20, quality 20, not corrupted
+#     "21c"       level 21, quality 0,  corrupted
+#     "21/23c"    level 21, quality 23, corrupted
+#
+# and nothing else appears. Two invariants held across every row and both are checked
+# rather than trusted: the trailing ``c`` agrees with the row's own ``corrupted``
+# flag (0 disagreements), and the leading number agrees with ``gemLevel``
+# (0 disagreements).
+#
+# The table is a **sparse grid**, and that is the whole reason matching has to be
+# exact rather than nearest. Cyclone has eleven rows — 1, 1/20, 1/23c, 20, 20c,
+# 20/20, 20/20c, 20/23c, 21c, 21/20c, 21/23c — and a level 19 / 12% Cyclone is none
+# of them. The nearest row by any metric is 20/20, which is worth many times more.
+# So a variant with no row is `unpriceable`, and says so.
+
+_GEM_VARIANT = re.compile(r"^(\d+)(?:/(\d+))?(c?)$")
+
+GemVariant = tuple[int, int, bool]
+"""``(level, quality, corrupted)``."""
+
+
+def gem_variant(line: PriceLine) -> GemVariant | None:
+    """A gem row's variant, or ``None`` if the row cannot be trusted to have one.
+
+    ``None`` for anything that is not a parseable gem variant, and — deliberately —
+    for a row whose ``variant`` and ``gemLevel`` disagree. A contradiction between
+    the two fields is not a thing to resolve by preferring one; it means poe.ninja's
+    row does not describe a single gem, and pricing an item against it would be
+    inventing the answer.
+    """
+    if not line.variant:
+        return None
+    match = _GEM_VARIANT.match(line.variant.strip())
+    if match is None:
+        return None
+    level = int(match.group(1))
+    quality = int(match.group(2) or 0)
+    corrupted = bool(match.group(3))
+    if line.gem_level is not None and line.gem_level != level:
+        return None
+    if line.corrupted is not None and bool(line.corrupted) != corrupted:
+        return None
+    return level, quality, corrupted
+
+
+def wanted_variant(item: NormalizedItem) -> GemVariant | None:
+    """The variant *this gem is*, or ``None`` when the item cannot say.
+
+    A gem whose level did not survive the wire has no variant, and therefore no
+    price. That is the honest outcome: the alternative is picking the level-1 row
+    because it sorts first.
+    """
+    if item.gem is None or item.gem.level is None:
+        return None
+    return item.gem.level, item.gem.quality, item.corrupted
+
+
+def gem_line(lines: Sequence[PriceLine], item: NormalizedItem) -> PriceLine | None:
+    """The row for *exactly* this gem, or ``None``.
+
+    No scoring, no nearest match, no tie-break by listing count. Either one row in
+    the table is this level, this quality and this corruption state, or the gem is
+    unpriceable. Two rows claiming the same variant is also ``None`` — poe.ninja has
+    never produced one, and if it did, choosing between them would be a guess.
+    """
+    want = wanted_variant(item)
+    if want is None:
+        return None
+    matched = [line for line in lines if gem_variant(line) == want]
+    return matched[0] if len(matched) == 1 else None
+
+
+def describe_variant(item: NormalizedItem) -> str:
+    """``"level 21, 20% quality, corrupted"`` — for the reason on an unpriced gem."""
+    if item.gem is None or item.gem.level is None:
+        return "no readable gem level"
+    parts = [f"level {item.gem.level}", f"{item.gem.quality}% quality"]
+    if item.corrupted:
+        parts.append("corrupted")
+    return ", ".join(parts)
 
 
 # Categories for which a bulk-exchange rate is a sensible answer. The exchange
@@ -292,6 +411,8 @@ class PriceIndex:
         keys = [key.casefold() for key in lookup_keys(item)]
         if not keys:
             return None
+        if item.category == "gem":
+            return self._gem_line(item, keys)
         preferred = candidate_tables(item)
         rest = [key for key in self.tables if key not in preferred]
         for key in keys:
@@ -302,6 +423,24 @@ class PriceIndex:
                 chosen = choose_line(table.by_name.get(key, ()), item)
                 if chosen is not None:
                     return chosen
+        return None
+
+    def _gem_line(self, item: NormalizedItem, keys: Sequence[str]) -> PriceLine | None:
+        """The gem path: one table, exact variant, no fallback.
+
+        Split out rather than folded into the loop above because every step of that
+        loop is a compromise a gem cannot afford — a second table to try, a scored
+        best-of, a tie broken on liquidity. Here the answer is a row that *is* this
+        gem, or nothing.
+        """
+        for table_key in GEM_TABLES:
+            table = self.tables.get(table_key)
+            if table is None:
+                continue
+            for key in keys:
+                matched = gem_line(table.by_name.get(key, ()), item)
+                if matched is not None:
+                    return matched
         return None
 
     # -- the resolution order --------------------------------------------------
@@ -325,9 +464,27 @@ class PriceIndex:
         the index misses *and* nobody is bulk-selling. Saying which is what keeps
         ``unpriceable`` a statement about our knowledge rather than a shrug.
         """
+        if item.category == "gem":
+            return self._no_gem_price_reason(item)
         if self.exchange_attempted and exchangeable(item):
             return "not in the poe.ninja index, and no bulk-exchange offers for it"
         return "not in the poe.ninja index for this league"
+
+    def _no_gem_price_reason(self, item: NormalizedItem) -> str:
+        """Three different silences, told apart.
+
+        "Unpriceable" was one word for all of them until now, and the three want
+        different actions: refresh, nothing, and read the item again. Naming which is
+        the difference between a tool that is being careful and a tool that is broken.
+        """
+        if not any(key in self.tables for key in GEM_TABLES):
+            return "the poe.ninja skill gem table has not been loaded for this league"
+        if wanted_variant(item) is None:
+            return "no gem level on this item, so no variant to match"
+        return (
+            f"poe.ninja lists no {describe_variant(item)} variant of this gem; "
+            "refusing to price it as a different one"
+        )
 
     # -- the resolution order --------------------------------------------------
 

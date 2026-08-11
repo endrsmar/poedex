@@ -748,12 +748,21 @@ been spent. Still annotated, never disabled.
 - **77 sentences have two ids in GGG's own document** and the live `StatIndex` picks the first.
   Pre-existing, unchanged, and not fixable from the trade document alone.
 - **Bench-craft tier ladders are numbered differently from GGG's `R<n>`.** Not compared here.
-- **`scripts/build_moddb.py` is not deterministic.** Rebuilt from byte-identical sources (same
-  four sha256s) it produced a different artifact: 16 mods with their local-reading flag flipped
-  and 76 `game_stats` keys changed. Found while checking whether the bridge fix below could
-  simply be regenerated; it cannot, because the diff would not be attributable. Almost certainly
-  set iteration in `locality_index` / `line_locality`. Nothing downloads at runtime and the
-  committed artifact is fine — what is broken is the ability to *verify* a rebuild.
+- ~~**`scripts/build_moddb.py` is not deterministic.**~~ **Closed, and the diagnosis was wrong.**
+  The suspects were `locality_index` and `line_locality`; neither is order-sensitive, and
+  `tests/test_moddb_build.py` pins that by rebuilding with `_entry_keys` reversed and getting the
+  same bytes. What a rebuild could not reproduce was the *stamp and the inputs*: `generated_at`
+  is a clock reading, and two of the four sources are fetched live from endpoints that are
+  neither versioned nor immutable. `SOURCE_DATE_EPOCH` pins the first; all four sha256s were
+  already recorded, which is what makes the second attributable rather than mysterious. The proof
+  is two builds in two processes with different hash seeds, byte-compared, from a 304 KiB source
+  sample `--sample-to` writes and the repository commits. **The artifact was then regenerated**
+  and the diff is four sentences — `-# to Total Mana Cost of Skills`, both non-channelling
+  mana-cost lines, and `-# Physical Damage taken from Attack Hits` — each gaining a trade id and
+  a game stat id. That is Phase 9c's `signed_key` reaching the artifact for the first time: the
+  code shipped, the regeneration it needed did not. **Zero mods, zero bases, zero vocabulary
+  changed.** Upstream's three RePoE files are byte-identical to the previous build; GGG's stats
+  document moved and changed nothing.
 
 **Done:** 1092 Python tests and 147×2 frontend tests, all offline. Nine live requests spent on
 investigation — four searches, one fetch-shaped pair, and the build-time stats document.
@@ -857,6 +866,49 @@ live item requests from the tool; seven MCP reads were spent settling the map-ta
 
 ---
 
+### Phase 11 — the last three open defects — **done**
+
+**1. The mod database rebuild is reproducible, and the diagnosis in Phase 9b was wrong.** Closed
+above, in Phase 9b's own list, where the claim was made. Short version: nothing in the build
+depends on set iteration order, `SOURCE_DATE_EPOCH` pins the only clock reading, and
+`tests/test_moddb_build.py` builds twice in two processes with different hash seeds and compares
+bytes. The artifact was regenerated and the diff is four sentences gaining a trade id — Phase 9c's
+`signed_key` reaching the artifact for the first time. Zero mods, zero bases, zero vocabulary
+moved.
+
+**2. Skill gems are priced, on the exact variant or not at all.** The exclusion's reasoning was
+right and is unchanged — *"an unpriced gem is honest; a gem priced as the wrong variant is not"* —
+so what was built is the matching, not a relaxation. `gem_line` matches level, quality and
+corruption exactly, refuses a row whose `variant` and `gemLevel` disagree, refuses two rows
+claiming one variant, and never falls through to another table. `NormalizedItem` gained a `Gem`
+block (level, quality) read off the wire's `Level` / `Quality` properties, and `price_key` carries
+it so a level 1 and a level 21 of one name cannot share a lookup. The 4.0 MB table is `ON_DEMAND`:
+fetched the first time an item with `category == "gem"` is valued, cached, then kept fresh on the
+cycle by conditional `GET`. A league that never shows a gem never pays for it.
+
+**The live tab's seven gems still do not price, and that is the answer rather than a shortfall.**
+Read from the account on 2026-08-11 they are all level 1 at 5–17% quality, and poe.ninja publishes
+three quality values in the entire 7,519-row table: 0, 20 and 23. There is no row for any of
+them. What changed is the sentence — "not in the poe.ninja index for this league" has become
+"poe.ninja lists no level 1, 14% quality variant of this gem; refusing to price it as a different
+one", which is the difference between a tool that has not looked and one that looked and refused.
+The same seven names at a listed variant all resolve, which is what separates the two claims.
+Grammar and live check are in research-notes §10a.
+
+**3. The setting-without-a-command sweep is now a sweep.** The two `prices` messages name
+`poedex config set prices.league <league>`, and re-sweeping found two more nobody had listed:
+`gamelog`'s "no Steam installation found; set the log path manually", which was invisible to the
+old test because it never spells a dotted key and reaches the user two files later through
+`GameLogStatus.detail`, and `poedex gamelog status`'s footer, which named a per-run flag that does
+not persist. The test walks every `.py` in the tree, keys on the **real** settings schemas rather
+than a list of four names, and fails a message that names the command but not that key.
+
+**Done:** 1365 Python tests and 189 / 201 frontend tests, all offline. Twelve live reads spent on
+investigation — one poe.ninja gem table, one GGG stats document, and ten stash reads to find and
+measure the tab.
+
+---
+
 ## 6. Decisions made, flag if you disagree
 
 | Decision | Rationale |
@@ -869,6 +921,9 @@ live item requests from the tool; seven MCP reads were spent settling the map-ta
 | No module versioning yet | Ids only. Add semver if third-party modules ever land |
 | Standard league, 20c threshold, port 7331 | Configurable; 7331 avoids Decky's 1337 |
 | `prices` requires `net` as well as `poeapi` | It fetches two non-account hosts; §4 forbids opening a socket outside `net`, and a passthrough on `PoeApi` would be a hole in the rule that protects the account |
+| A gem with no row for its exact variant is `unpriceable`, not "about this much" | poe.ninja's grid is sparse — three quality values across 7,519 rows — so the nearest row to a level 19 / 12% gem is another gem's price. The measured cost of refusing is seven rows on one tab; the cost of guessing is a number the player acts on |
+| The gem table is lazy rather than prefetched or excluded | 4.0 MB is worth spending when a bag holds a gem and not otherwise. Excluded outright was the old answer and it was 4.0 MB of caution; prefetched would be 4.0 MB per league per refresh for a question most bags never ask |
+| `SOURCE_DATE_EPOCH` rather than dropping `generated_at` | A regenerated artifact has to be able to say how old it is — `DbVersion.describe()` shows it to a player. Pinning it for a test is not the same as not having it |
 | Third-party hosts get a per-hostname bucket in `net` | Structural rather than requested: a feature module cannot accidentally spend GGG's budget, and it needs no configuration call to avoid doing so |
 | Chaos is the only unit inside `prices` | poe.ninja's item overviews are denominated in exchange chaos (measured); carrying two denominations makes every sum a conversion bug waiting to happen |
 | ~~Stash deferred~~ | **Landed in Phase 10.** The digest does reuse `prices` and the strict gate, as predicted; what it also needed was a way to say *unknown* per tab, which is the field the prediction was missing |

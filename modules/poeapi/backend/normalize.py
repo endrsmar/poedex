@@ -36,6 +36,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from modules.poeapi.backend.models import (
+    Gem,
     Grid,
     Location,
     Mods,
@@ -47,6 +48,7 @@ from modules.poeapi.backend.models import (
 
 __all__ = [
     "category_of",
+    "gem_of",
     "icon_art_path",
     "map_tier_of",
     "normalize_item",
@@ -146,6 +148,15 @@ _BASE_SUFFIX_CATEGORY: tuple[tuple[str, tuple[str, str | None]], ...] = (
 
 MAP_TIER_PROPERTY = "Map Tier"
 STACK_SIZE_PROPERTY = "Stack Size"
+GEM_LEVEL_PROPERTY = "Level"
+GEM_QUALITY_PROPERTY = "Quality"
+
+_LEADING_NUMBER = re.compile(r"-?\d+")
+"""``"20 (Max)"`` → ``20``; ``"+20%"`` → ``20``.
+
+Both gem properties arrive decorated. GGG appends ``(Max)`` to a gem at its level cap
+and writes quality with a sign and a percent sign; both are display text, and the
+number in front of them is what poe.ninja keys its variant on."""
 
 
 def strip_set_tokens(text: str | None) -> str:
@@ -376,6 +387,30 @@ def map_tier_of(properties: Mapping[str, list[str]]) -> int | None:
     return int(text) if text.isdigit() else None
 
 
+def _property_number(properties: Mapping[str, list[str]], name: str) -> int | None:
+    values = properties.get(name)
+    if not values:
+        return None
+    match = _LEADING_NUMBER.search(values[0])
+    return int(match.group(0)) if match else None
+
+
+def gem_of(category: str, properties: Mapping[str, list[str]]) -> Gem | None:
+    """A gem's level and quality, or ``None`` for anything that is not a gem.
+
+    Quality missing is quality zero — GGG omits the property rather than sending
+    ``+0%``, and every uncorrupted gem that drops is 0%. Level missing is *unknown*,
+    and stays unknown: it is the axis worth three orders of magnitude, so the one
+    thing that must not happen is a default.
+    """
+    if category != "gem":
+        return None
+    return Gem(
+        level=_property_number(properties, GEM_LEVEL_PROPERTY),
+        quality=_property_number(properties, GEM_QUALITY_PROPERTY) or 0,
+    )
+
+
 def _uid(raw: Mapping[str, Any], location: Location) -> str:
     """GGG's item id, or a deterministic stand-in built from where it sits.
 
@@ -427,6 +462,7 @@ def normalize_item(raw: Mapping[str, Any], location: Location) -> NormalizedItem
         stack_size=stack,
         max_stack_size=max_stack,
         map_tier=map_tier_of(props),
+        gem=gem_of(category, props),
         grid=Grid(
             x=_int(raw.get("x")),
             y=_int(raw.get("y")),

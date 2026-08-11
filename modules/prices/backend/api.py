@@ -819,6 +819,19 @@ class PricesApi(Protocol):
         """
         ...
 
+    async def ensure_gem_table(
+        self, items: Sequence[NormalizedItem], *, league: str | None = None
+    ) -> bool:
+        """Load the skill gem table if — and only if — one of ``items`` is a gem.
+
+        4.0 MB and 7 519 variant rows, which is why it is not on the refresh cycle
+        and why this is not folded into :meth:`ensure_tables`. :meth:`value_all`
+        calls it itself, so a surface needs this only to pre-warm. Returns whether
+        the table ended up available; a failed fetch comes back ``False`` and as a
+        reason on each gem, never as an exception.
+        """
+        ...
+
     async def value(
         self,
         item: NormalizedItem,

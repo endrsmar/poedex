@@ -63,6 +63,7 @@ re-capturing, which means re-scrubbing. Read this file first if you do.
 | `trade-fetch.json` | `{result: [{id, listing, item}]}`, ten listings, five online. |
 | `trade-static.json` | `{result: [{id, label, entries: [{id, text}]}]}` — item name → bulk exchange id. |
 | `trade-exchange.json` | `{id, result: {hash: {listing: {account, offers}}}, total}`. Note `result` is a **dict**, and the listings are inline — there is no fetch step. |
+| `item-skillgem.json` | The gem variant grid: `variant`, `gemLevel` and `corrupted` on the same row. |
 | `bag.json` | A backpack chosen to exercise every branch of the pricing engine. |
 
 ## Why these particular lines
@@ -75,6 +76,15 @@ The trimming is not arbitrary — each file keeps the awkward cases:
   wrong is a 750,000-fold error.
 - `item-map.json` — `Map (Tier 16)` **thirteen times**, once per map series, spanning
   1c to 898c. Tests that liquidity picks the current series.
+- `item-skillgem.json` — captured **2026-08-11** from Allflame's `SkillGem` overview,
+  100 verbatim rows across 11 gem names, trimmed from 7,519 rows / 4.0 MB. Chosen for
+  coverage of the variant grammar rather than for value: every one of the four shapes
+  (`1`, `20/20`, `21c`, `21/23c`), the low-level ladder Awakened and Enlighten gems use
+  (`2`–`5`, corrupted and not), a transfigured gem under its own name
+  (`Blade Flurry of Incision`), a Vaal gem whose only rows are corrupted
+  (`Vaal Cyclone`), and **all seven gems the live `Sext` tab held**, so the case that
+  motivated the work is in the fixture rather than in a comment. The prices are real;
+  no test asserts an absolute one.
 - `exchange-currency.json` — `Divine Orb` (the rate every other conversion needs),
   `Mirror of Kalandra` at 10⁶ chaos and `Orb of Alchemy` at 10⁻³, which is the range
   the CLI's number formatting has to survive.

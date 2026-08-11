@@ -530,7 +530,8 @@ def _print_gamelog_status(status: GameLogStatus) -> None:
             print("probed:")
             for candidate in status.searched:
                 print(f"  {candidate}")
-        print("set a path with: poedex gamelog watch --path /path/to/Client.txt")
+        print("for this run:     poedex gamelog watch --path /path/to/Client.txt")
+        print("to make it stick: poedex config set gamelog.log_path /path/to/Client.txt")
 
 
 async def cmd_gamelog_status(registry: Registry) -> int:

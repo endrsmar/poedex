@@ -252,6 +252,10 @@ NINJA_TABLES = {
     ("item", "UniqueAccessory"): "item-uniqueaccessory.json",
     ("item", "UniqueFlask"): "item-uniqueflask.json",
     ("item", "UniqueJewel"): "item-uniquejewel.json",
+    # Served but never probed. `skill_gem` is `ON_DEMAND`, so discovery does not ask
+    # for it and the request counts in `test_prices_discovery.py` are unchanged; it is
+    # here so the lazy path has something real to fetch when a bag holds a gem.
+    ("item", "SkillGem"): "item-skillgem.json",
 }
 
 EMPTY_EXCHANGE = {"core": {"primary": "chaos", "items": []}, "items": [], "lines": []}
@@ -339,9 +343,23 @@ _DOCUMENTED_TYPES = _documented_types()
 DISCOVERY_REQUESTS = _discovery_requests()
 """The cost of a first pass against a league: sitemap + every candidate type."""
 
-SERVED_TABLES = len(NINJA_TABLES)
-"""How many tables this fixture set actually has data for. Everything else answers
-200-with-no-lines, so discovery records it as absent and never asks again."""
+def _served_tables() -> int:
+    from modules.prices.backend.ninja import BY_TYPE, ON_DEMAND
+
+    return sum(
+        1
+        for _kind, type_name in NINJA_TABLES
+        if BY_TYPE[type_name.casefold()].key not in ON_DEMAND
+    )
+
+
+SERVED_TABLES = _served_tables()
+"""How many tables a *prefetch* of this fixture set ends up holding.
+
+Everything else answers 200-with-no-lines, so discovery records it as absent and
+never asks again. On-demand tables are subtracted rather than counted: `skill_gem`
+has fixture data, but discovery never probes it and a bag with no gem in it never
+asks, so a prefetch that loaded it would be the bug."""
 
 TRADE_HEADERS = {
     "x-rate-limit-policy": "trade-search-request-limit",

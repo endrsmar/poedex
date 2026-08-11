@@ -14,8 +14,10 @@ real CLI, because that is the surface a leak would happen on.
 
 from __future__ import annotations
 
+import ast
 import getpass
 import json
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,7 @@ import pytest
 from cli import main as cli
 from cli.config import cmd_config, format_value, parse_value
 from runtime.errors import SettingsError
+from runtime.registry import discover
 from runtime.settings import SettingsStore
 from runtime.storage import config_dir
 
@@ -357,23 +360,159 @@ def test_a_secret_shaped_value_in_an_ordinary_setting_is_still_redacted(capsys):
 # -- the messages that sent people here -----------------------------------------
 
 
+SETTING_KEYS = frozenset(
+    f"{module.id}.{key}"
+    for module in discover(Path(__file__).resolve().parent.parent / "modules")
+    for key in module.settings_schema()
+)
+"""Every ``module.key`` that exists, read off the modules rather than listed here.
+
+A hand-written list is how the last sweep missed two messages: it named four keys in
+two files, `prices` was held by another agent at the time, and the test stayed green
+through both misses. Adding a setting now adds it to the sweep."""
+
+IMPERATIVE = re.compile(r"\bset (?:the|a|an|it|this|your)\b", re.IGNORECASE)
+"""An instruction aimed at a person. "Set the log path manually" is the shape that
+survived the last sweep precisely because it never spelled a dotted key."""
+
+COMMAND = "poedex config set"
+
+SWEPT_ROOTS = ("cli", "modules", "runtime", "transports", "surfaces", "scripts", "tools")
+
+
+EXEMPT_KEYWORDS = frozenset({"help", "description", "epilog"})
+"""``argparse`` prose. ``--league``'s help says it "overrides the ``prices.league``
+setting for this run" — a fact about the flag, not an instruction to configure
+anything, and the command is one ``poedex config --help`` away."""
+
+
+def _spoken_strings(tree: ast.AST) -> list[tuple[int, str]]:
+    """Every string literal this module can put in front of a user.
+
+    The narrow version of this — only ``raise``/``print``/logger arguments — is what
+    let the gamelog message through: it is handed to ``_set_state`` and reaches the
+    user two files later as ``GameLogStatus.detail``. Following that by hand is how
+    the sweep misses one. So the net is every string *except* the three kinds that
+    provably are not instructions:
+
+    * **docstrings**, module, class, function and the bare-string kind this codebase
+      writes under a constant — they quote these messages while discussing them, and
+      this test's own docstring names two of them;
+    * **argparse prose** (:data:`EXEMPT_KEYWORDS`);
+    * **``settings_schema`` descriptions**, which ``poedex config list`` prints
+      beside the key it is already describing, where "set it to pin a surface" is not
+      a dead end.
+    """
+    exempt: set[int] = set()
+    for node in ast.walk(tree):
+        # A string that is a statement is documentation: no message is ever written
+        # as an expression nobody consumes.
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            exempt.add(id(node.value))
+        if isinstance(node, ast.Call):
+            for keyword in node.keywords:
+                if keyword.arg in EXEMPT_KEYWORDS:
+                    exempt.update(id(p) for p in ast.walk(keyword.value))
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+            node.name == "settings_schema"
+        ):
+            exempt.update(id(p) for p in ast.walk(node))
+    return [
+        (node.lineno, node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in exempt
+    ]
+
+
+def _dead_end(message: str) -> str | None:
+    """Why this message is an instruction the user cannot follow, or ``None``.
+
+    Two ways to be one. Telling somebody to set *something* without naming the
+    command is the original defect. Naming a real setting **and** the command, but
+    not that setting's own key, is the same dead end one step further in: the user
+    now knows a command exists and still has to guess what to type after it.
+    """
+    if IMPERATIVE.search(message) is None:
+        return None
+    named = sorted(key for key in SETTING_KEYS if key in message)
+    if COMMAND not in message:
+        return "tells the user to set something and never names " + COMMAND
+    missing = [key for key in named if f"{COMMAND} {key}" not in message]
+    if missing:
+        return f"names {', '.join(missing)} but not '{COMMAND} <that key>'"
+    return None
+
+
 def test_every_message_that_names_a_setting_names_the_command_too():
     """The pattern this fix ends: an instruction with no mechanism.
 
     ``net`` said "set it with the net.contact setting" and there was no way to set
-    it. Anything that names a ``module.key`` at a user must also name the command,
-    or it is the same dead end again.
+    it. Anything that tells a user to set something must also name the command, or
+    it is the same dead end again — and the sweep is over the whole tree, keyed on
+    the real settings schemas, because the last one was a list of four names in two
+    files, which is exactly how `prices` and `gamelog` stayed broken through it.
     """
-    from modules.net.backend import module as net_module
-    from modules.poeapi.backend import module as poeapi_module
+    root = Path(__file__).resolve().parent.parent
+    offenders: list[str] = []
+    for top in SWEPT_ROOTS:
+        for path in sorted((root / top).rglob("*.py")):
+            tree = ast.parse(path.read_text("utf-8"), str(path))
+            for line, message in _spoken_strings(tree):
+                fault = _dead_end(message)
+                if fault is not None:
+                    offenders.append(f"{path.relative_to(root)}:{line}: {fault}: {message!r}")
+    assert not offenders, "instructions the user cannot follow:\n" + "\n".join(offenders)
 
-    sources = [
-        Path(net_module.__file__).read_text("utf-8"),
-        Path(poeapi_module.__file__).read_text("utf-8"),
-    ]
-    for name in ("net.contact", "poeapi.account", "poeapi.league", "poeapi.realm"):
-        text = "".join(sources)
-        assert f"poedex config set {name}" in text, name
+
+def test_every_command_a_message_names_is_a_setting_that_exists():
+    """A message may not invent a key. ``poedex config set`` rejects one anyway, so
+    the failure would arrive as "no setting prices.leage" after the user typed what
+    the tool told them to."""
+    root = Path(__file__).resolve().parent.parent
+    spelled = re.compile(rf"{re.escape(COMMAND)} ([a-z_]+\.[a-z_]+)")
+    seen: set[str] = set()
+    for top in SWEPT_ROOTS:
+        for path in sorted((root / top).rglob("*.py")):
+            for _line, message in _spoken_strings(ast.parse(path.read_text("utf-8"), str(path))):
+                for key in spelled.findall(message):
+                    assert key in SETTING_KEYS, f"{path.relative_to(root)}: no setting {key}"
+                    seen.add(key)
+    assert seen, "the sweep found no message naming the command at all"
+
+
+def test_the_sweep_would_catch_the_ones_that_got_through():
+    """The sweep is only worth having if it fails on the messages that got through.
+
+    Three shapes, all reconstructed as they stood. The first two are the survivors
+    this fix removes — one names its key, the other only ever said "set the …" and so
+    was invisible to a sweep keyed on key names. The third is the half-fix: it names
+    the command and then the wrong thing after it.
+    """
+    named_key = '''
+raise LeagueUnknownError(
+    "cannot tell which league to price against: these items carry no league "
+    "and no override is set. Pass --league, or set the prices.league setting."
+)
+'''
+    silent = '''
+_set_state(LogState.UNAVAILABLE, None, "no Steam installation found; set the log path manually")
+'''
+    half = '''
+print("set the prices.league setting; poedex config set net.contact you@example.com")
+'''
+    for source in (named_key, silent, half):
+        spoken = _spoken_strings(ast.parse(source))
+        assert spoken, source
+        assert any(_dead_end(text) is not None for _line, text in spoken), source
+
+    # ...and green on what replaced them, or it is only measuring its own regexes.
+    for good in (
+        "no Steam installation found; run 'poedex config set gamelog.log_path <path>'",
+        "set it with: poedex config set net.contact you@example.com",
+    ):
+        assert _dead_end(good) is None, good
 
 
 def test_parse_value_and_format_value_are_inverses_for_the_awkward_ones():

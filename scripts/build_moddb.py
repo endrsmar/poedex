@@ -34,11 +34,33 @@ now T3.
     ./.venv/bin/python scripts/build_moddb.py            # fetch and write the artifact
     ./.venv/bin/python scripts/build_moddb.py --check    # is the committed one current?
     ./.venv/bin/python scripts/build_moddb.py --source-dir /tmp/repoe   # offline rebuild
+    ./.venv/bin/python scripts/build_moddb.py --sample-to tests/fixtures/moddb/source
 
 The artifact stamps ``source.game_version`` (upstream's ``version.txt``, e.g.
 ``3.29.2.1``) and ``source.generated_at``. Both are readable at runtime through
 ``ModDbApi.version()`` so a surface can say how old the answer is, and
 ``DbVersion.describe()`` is written to be shown to a player.
+
+## Reproducibility, and why it is a feature of the regeneration rather than of taste
+
+Regenerating is only useful if the diff can be *read*. Phase 9b declined to
+regenerate because a rebuild differed from the committed artifact and there was no
+way to separate an upstream change from build noise, which left the one maintenance
+task the project cannot skip blocked on a measurement nobody could make.
+
+Same four sources in, same bytes out. Two things had to be true for that:
+
+* ``generated_at`` is a clock reading. ``SOURCE_DATE_EPOCH`` pins it, which is what
+  lets ``tests/test_moddb_build.py`` assert byte equality across two processes with
+  different hash seeds rather than comparing parsed JSON with a key deleted.
+* the inputs have to be nameable. All four are recorded with their sha256, including
+  the one fetched from an endpoint that is neither versioned nor immutable — so
+  "did upstream move?" is answerable from the artifact rather than from a rebuild.
+
+The arithmetic in between was never the problem, though it was the suspect: nothing
+here depends on set iteration order, and the test pins that rather than asserting it.
+``--sample-to`` writes the committable source sample the test builds from, because a
+sampler that drifts from the builder proves nothing about the builder.
 
 ## The one non-obvious trick
 
@@ -91,6 +113,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import urllib.request
@@ -383,22 +406,29 @@ def ggg_index(payload: Any) -> tuple[dict[str, dict[str, str]], dict[str, dict[s
 _PLACEHOLDER = re.compile(r"\{(\d+)\}")
 
 
-def _entry_keys(entry: Mapping[str, Any]) -> set[str]:
-    """Every normalized sentence one translation entry can write.
+def _entry_keys(entry: Mapping[str, Any]) -> tuple[str, ...]:
+    """Every normalized sentence one translation entry can write, in document order.
 
     Not a renderer, and it must not become one: it fills ``{0}`` with ``#`` or ``+#``
     according to the entry's own ``format``, drops the slot for ``ignore``, and stops.
     That is enough to *key* an entry by its sentence, which is all the locality lookup
     needs. The ``trade_stats`` texts are taken as-is where they exist, because those
     are already GGG's spelling of the same sentence and cost nothing to trust.
+
+    Returns an ordered tuple rather than the obvious ``set`` — a dict keyed by the
+    sentence is the same de-duplication with the entry's own order kept. Nothing
+    downstream reads that order today (it decides which *list* an entry is appended
+    to, never a position within one), which is exactly why it was worth pinning:
+    the alternative is a build whose reproducibility rests on an argument rather than
+    on the code, and :func:`build` writes a committed artifact.
     """
-    keys: set[str] = set()
+    keys: dict[str, None] = {}
     for stat in entry.get("trade_stats") or ():
         text = stat.get("text") if isinstance(stat, Mapping) else None
         if isinstance(text, str):
             key, _slots = denominate(text)
             if key:
-                keys.add(key)
+                keys[key] = None
     for rendering in entry.get("English") or ():
         if not isinstance(rendering, Mapping):
             continue
@@ -412,8 +442,8 @@ def _entry_keys(entry: Mapping[str, Any]) -> set[str]:
 
         key, _slots = denominate(_PLACEHOLDER.sub(fill, string))
         if key:
-            keys.add(key)
-    return keys
+            keys[key] = None
+    return tuple(keys)
 
 
 def locality_index(
@@ -737,7 +767,7 @@ def build(documents: Mapping[str, Any], provenance: Mapping[str, Any], version: 
             "project": "repoe-fork",
             "url": SOURCE_URL,
             "game_version": version,
-            "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
+            "generated_at": generated_at(),
             "generator": "scripts/build_moddb.py",
             "files": dict(provenance),
         },
@@ -779,6 +809,29 @@ def build(documents: Mapping[str, Any], provenance: Mapping[str, Any], version: 
     return artifact
 
 
+SOURCE_DATE_EPOCH = "SOURCE_DATE_EPOCH"
+"""The reproducible-builds convention, honoured here for one field.
+
+``generated_at`` is the only value in the artifact that a rebuild cannot reproduce,
+and it is also the only reason ``--check`` has to parse both documents and compare
+them as JSON with one key deleted rather than comparing bytes. Set this to a Unix
+timestamp and the build is a pure function of its four inputs — which is what makes
+"same sources, same bytes" a thing a test can assert rather than a thing to argue
+about. Unset, the clock is read as before; a real regeneration wants the real time."""
+
+
+def generated_at() -> str:
+    stamp = os.environ.get(SOURCE_DATE_EPOCH)
+    if stamp:
+        try:
+            moment = datetime.fromtimestamp(int(stamp), UTC)
+        except ValueError as exc:  # pragma: no cover - operator typo
+            raise SystemExit(f"{SOURCE_DATE_EPOCH}={stamp!r} is not a Unix timestamp") from exc
+    else:
+        moment = datetime.now(UTC)
+    return moment.replace(microsecond=0).isoformat()
+
+
 def _number(value: float) -> float | int:
     """``85.0`` is two characters longer than ``85`` and 24 000 of them are integral."""
     return int(value) if value == int(value) else value
@@ -790,6 +843,189 @@ def _spawns(weights: Sequence[tuple[str, int]], base_tags: set[str]) -> bool:
         if tag in base_tags:
             return bool(weight)
     return False
+
+
+# ---------------------------------------------------------------------------
+# A source sample small enough to commit
+# ---------------------------------------------------------------------------
+#
+# The reproducibility test has to build twice from *the same bytes*, and the real
+# bytes are 30 MB fetched from two live endpoints. Neither belongs in a repository
+# or in a test run. So the build step can emit a reduced copy of its own inputs —
+# same four filenames, same shapes, a couple of hundred mods — chosen to exercise
+# the parts of `build` where an ordering bug could hide rather than to be typical.
+#
+# It is a mode of the build script rather than a script of its own because it has to
+# be regenerated from the same documents by the same person on the same day, every
+# league. A sampler that drifts from the builder proves nothing about the builder.
+
+SAMPLE_MODS = 200
+SAMPLE_BASES = 150
+
+
+def _mod_keys(mod: Mapping[str, Any]) -> tuple[str, ...]:
+    """The normalized sentences one mod writes — the same reduction :func:`build` does."""
+    keys: list[str] = []
+    for line in str(mod.get("text") or "").split("\n"):
+        key, slots = denominate(line)
+        if key and key.count("#") == len(slots):
+            keys.append(key)
+    return tuple(keys)
+
+
+def _mod_stats(mod: Mapping[str, Any]) -> frozenset[str]:
+    return frozenset(
+        str(stat.get("id"))
+        for stat in mod.get("stats") or ()
+        if isinstance(stat, Mapping) and stat.get("id")
+    )
+
+
+def sample(documents: Mapping[str, Any], version: str, out_dir: Path) -> dict[str, int]:
+    """Write a small, self-consistent copy of the four sources to *out_dir*.
+
+    Self-consistent is the requirement: a translation entry is kept only if one of
+    the kept mods carries its stat, a base only if a kept mod can roll on it, a GGG
+    stat entry only if a kept mod writes its sentence. A sample assembled any other
+    way builds an artifact full of holes, and a determinism test over holes is a test
+    that two empty tables are equal.
+
+    Selection is by coverage, not by frequency. Ordinary mods are the easy case; what
+    the sample must contain is the ambiguous locality question with **both** answers
+    present, the ``-#`` sentences that reach the signed-key fallback, influence pools,
+    essence-only mods, and at least one prefix and suffix in every surviving domain.
+    """
+    mods_doc: Mapping[str, Any] = documents["mods.min.json"]
+    bases_doc: Mapping[str, Any] = documents["base_items.min.json"]
+    translations: Sequence[Mapping[str, Any]] = documents["stat_translations.min.json"]
+    _plain, ggg_local = ggg_index(documents.get(TRADE_STATS_FILE))
+    locality = locality_index(translations)
+
+    affixes = [
+        (mod_id, mod)
+        for mod_id, mod in sorted(mods_doc.items())
+        if mod.get("generation_type") in AFFIX_TYPES
+        and AFFIX_DOMAINS.get(str(mod.get("domain"))) is not None
+        and _mod_keys(mod)
+    ]
+
+    chosen: dict[str, Any] = {}
+    filled: dict[str, int] = {}
+
+    def take(mod_id: str, mod: Any, bucket: str, quota: int) -> None:
+        if mod_id in chosen or filled.get(bucket, 0) >= quota:
+            return
+        chosen[mod_id] = mod
+        filled[bucket] = filled.get(bucket, 0) + 1
+
+    # Every domain, both generation types. `build` reads the domain for the base's
+    # own restriction as well as the mod's, so a sample missing `abyss_jewel` never
+    # touches that branch.
+    for mod_id, mod in affixes:
+        slot = f"domain:{AFFIX_DOMAINS[str(mod['domain'])]}:{mod['generation_type']}"
+        take(mod_id, mod, slot, 2)
+
+    # The locality question, and it is only answered if both readings are here: a
+    # sample of nothing but local mods would pass with `line_locality` hardwired.
+    for mod_id, mod in affixes:
+        ambiguous = [key for key in _mod_keys(mod) if key in ggg_local]
+        if not ambiguous:
+            continue
+        stat_ids = _mod_stats(mod)
+        local = all(line_locality(key, stat_ids, locality) for key in ambiguous)
+        take(mod_id, mod, "local" if local else "global", SAMPLE_MODS // 5)
+
+    for mod_id, mod in affixes:
+        if any("-#" in key for key in _mod_keys(mod)):
+            take(mod_id, mod, "signed", SAMPLE_MODS // 10)
+
+    for mod_id, mod in affixes:
+        if influence_mask(positive_tags(mod.get("spawn_weights") or ())):
+            take(mod_id, mod, "influence", SAMPLE_MODS // 10)
+
+    for mod_id, mod in affixes:
+        if mod.get("is_essence_only"):
+            take(mod_id, mod, "essence", SAMPLE_MODS // 20)
+
+    # ...and a stride over the rest, so the ordinary mod is represented by more than
+    # whatever happened to sort first.
+    stride = max(1, len(affixes) // max(1, SAMPLE_MODS // 4))
+    for position in range(0, len(affixes), stride):
+        mod_id, mod = affixes[position]
+        take(mod_id, mod, "spread", SAMPLE_MODS // 4)
+
+    stat_ids = frozenset().union(*(_mod_stats(mod) for mod in chosen.values()))
+    kept_translations = [
+        entry
+        for entry in translations
+        if {str(i) for i in entry.get("ids") or ()} & stat_ids
+    ]
+
+    sentences = {key for mod in chosen.values() for key in _mod_keys(mod)}
+    sentences |= {signed_key(key) for key in sentences}
+    kept_stats = _sample_trade_stats(documents.get(TRADE_STATS_FILE), sentences)
+
+    wanted_tags = [positive_tags(mod.get("spawn_weights") or ()) for mod in chosen.values()]
+    kept_bases: dict[str, Any] = {}
+    kept_names: set[str] = set()
+    for base_id, base in sorted(bases_doc.items()):
+        if str(base.get("domain")) not in BASE_DOMAINS:
+            continue
+        name = str(base.get("name") or "")
+        if not name:
+            continue
+        tags = {str(t) for t in base.get("tags") or ()}
+        # A base already kept under this name comes along regardless: the duplicate
+        # names are what the released/not-for-sale ranking exists to resolve, and a
+        # sample with one Onyx Amulet never exercises it.
+        if name not in kept_names:
+            if len(kept_bases) >= SAMPLE_BASES:
+                continue
+            if not any(_spawns(weights, tags) for weights in wanted_tags):
+                continue
+        kept_names.add(name)
+        kept_bases[base_id] = base
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(out_dir / "mods.min.json", dict(sorted(chosen.items())))
+    _write_json(out_dir / "base_items.min.json", kept_bases)
+    _write_json(out_dir / "stat_translations.min.json", kept_translations)
+    _write_json(out_dir / TRADE_STATS_FILE, kept_stats)
+    (out_dir / VERSION_FILE).write_text(version + "\n", "utf-8")
+    return {
+        "mods": len(chosen),
+        "bases": len(kept_bases),
+        "translations": len(kept_translations),
+        "trade_stats": sum(len(g["entries"]) for g in kept_stats["result"]),
+        "bytes": sum(p.stat().st_size for p in sorted(out_dir.iterdir())),
+    }
+
+
+def _sample_trade_stats(payload: Any, sentences: set[str]) -> dict[str, Any]:
+    """GGG's document, cut down to the sentences the sampled mods actually write."""
+    groups: list[dict[str, Any]] = []
+    top = payload.get("result") if isinstance(payload, Mapping) else None
+    for group in top if isinstance(top, Sequence) and not isinstance(top, (str, bytes)) else ():
+        if not isinstance(group, Mapping):
+            continue
+        entries = group.get("entries")
+        if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+            continue
+        kept = []
+        for entry in entries:
+            if not isinstance(entry, Mapping) or not isinstance(entry.get("text"), str):
+                continue
+            bare, _is_local = strip_local(entry["text"])
+            key, _slots = denominate(bare)
+            if key in sentences:
+                kept.append(dict(entry))
+        if kept:
+            groups.append({"id": group.get("id"), "label": group.get("label"), "entries": kept})
+    return {"result": groups}
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.write_text(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n", "utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -812,10 +1048,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=OUTPUT)
     parser.add_argument("--check", action="store_true",
                         help="do not write; exit 1 if the committed artifact differs in content")
+    parser.add_argument("--sample-to", type=Path, default=None, metavar="DIR",
+                        help="write a small committable copy of the four sources here "
+                             "and exit; this is what the reproducibility test builds from")
     args = parser.parse_args(argv)
 
     print("building the mod database", file=sys.stderr)
     documents, provenance, version = load_sources(args.source_dir)
+
+    if args.sample_to is not None:
+        counts = sample(documents, version, args.sample_to)
+        print(
+            f"  sampled {counts['mods']} mods, {counts['bases']} bases, "
+            f"{counts['translations']} translation entries and {counts['trade_stats']} "
+            f"GGG stat entries into {args.sample_to} — {counts['bytes'] / 1024:.0f} KiB",
+            file=sys.stderr,
+        )
+        return 0
+
     artifact = build(documents, provenance, version)
 
     counts = artifact["counts"]
