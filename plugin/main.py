@@ -52,6 +52,40 @@ if _PLUGIN_DIR not in sys.path:
     sys.path.insert(0, _PLUGIN_DIR)
 for _name in [key for key in list(sys.modules) if key.split(".")[0] == "typing_extensions"]:
     del sys.modules[_name]
+
+
+def _force_vendored(name: str) -> None:
+    """Load our copy of ``name`` by file path and pin it in ``sys.modules``.
+
+    Prepending ``py_modules`` and purging the stale module was not enough, and the
+    Deck proved it: the loader still resolved ``typing_extensions`` to
+    ``_MEIPASS/setuptools/_vendor/typing_extensions.py``. **``sys.meta_path`` finders
+    run before ``sys.path`` is consulted at all**, so setuptools' vendor importer
+    wins any argument about ordering — there is no arrangement of ``sys.path`` that
+    beats a meta-path hook.
+
+    Loading the file directly and assigning ``sys.modules[name]`` sidesteps the
+    import system's search entirely. Nothing can shadow a module that is already
+    imported.
+    """
+    import importlib.util
+
+    path = os.path.join(_PY_MODULES, f"{name}.py")
+    if not os.path.isfile(path):
+        return
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        return
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        del sys.modules[name]
+        raise
+
+
+_force_vendored("typing_extensions")
 # ------------------------------------------------------------------------------
 
 import logging  # noqa: E402
@@ -82,13 +116,37 @@ def _check_vendored() -> str | None:
         import httpx  # noqa: F401
         import pydantic  # noqa: F401
     except Exception as exc:
-        return (
-            f"PoEDex cannot start: {type(exc).__name__}: {exc}. "
-            f"py_modules/ is built for CPython "
-            f"{sys.version_info.major}.{sys.version_info.minor}; rebuild it with "
-            f"`python scripts/build_plugin.py` and reinstall."
-        )
+        return f"PoEDex cannot start: {type(exc).__name__}: {exc}. {_diagnose(exc)}"
     return None
+
+
+def _diagnose(exc: BaseException) -> str:
+    """Say which of the two failures this is, because the fixes are opposite.
+
+    The first Deck install reported a shadowed ``typing_extensions`` under the
+    message "py_modules/ is built for CPython 3.11; rebuild it" — advice that cannot
+    possibly help, because the offending file was the *loader's*, not ours. A
+    diagnostic that names the wrong cause is worse than none: it sends someone to
+    rebuild a thing that was already correct.
+
+    So: a module resolved from outside ``py_modules`` is a shadowing problem, and a
+    missing compiled extension is a vendoring problem.
+    """
+    text = str(exc)
+    shadowed = ".py" in text and _PY_MODULES not in text
+    if shadowed:
+        culprit = text.rsplit("(", 1)[-1].rstrip(")") if "(" in text else "another sys.path entry"
+        return (
+            f"a dependency resolved to {culprit} instead of this plugin's "
+            f"py_modules/. That is the loader's own bundled copy shadowing ours, not "
+            f"a build problem — rebuilding will not change it. Report it: the import "
+            f"pin in plugin/main.py is supposed to prevent exactly this."
+        )
+    return (
+        f"py_modules/ must be built for the loader's CPython "
+        f"{sys.version_info.major}.{sys.version_info.minor} — rebuild with "
+        f"`python scripts/build_plugin.py` and reinstall."
+    )
 
 
 class Plugin:
