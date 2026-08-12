@@ -27,6 +27,7 @@ import socket
 import pytest
 
 from modules.credentials.backend.api import CredentialError
+from modules.credentials.backend.module import CredentialsModule
 from modules.credentials.backend.pairing import (
     MAX_ATTEMPTS,
     MAX_BODY_BYTES,
@@ -35,9 +36,10 @@ from modules.credentials.backend.pairing import (
     is_allowed_source,
     local_addresses,
 )
-from modules.credentials.backend.store import normalize_session_id
+from modules.credentials.backend.store import SessionStore, normalize_session_id
 
 VALUE = "0123456789abcdef0123456789abcdef"
+OTHER_VALUE = "fedcba9876543210fedcba9876543210"
 
 
 def free_port() -> int:
@@ -377,3 +379,140 @@ async def test_the_status_a_panel_sees_carries_no_credential(server):
         }
     # And the code is not left lying around once the window is gone.
     assert seen[-1]["code"] is None
+
+
+# -- the account name lands with the credential ---------------------------------
+#
+# The Deck's whole problem in one place. The form has two fields, a code and a
+# credential, and `get-items` needs a third thing the form cannot ask for. So the
+# pair itself resolves it: `credentials` calls the resolver `poeapi` registered,
+# which reads `/api/profile`. What these pin down is the part that must not regress —
+# **a pair succeeds either way**, and says which way it went.
+
+
+def paired_module(tmp_path, resolver=None) -> CredentialsModule:
+    """A real `credentials` behind the pairing socket, unstarted.
+
+    Unstarted on purpose: no event bus, no settings, nothing but the store and the
+    resolver. Every guard in the module already treats a missing context as "nobody
+    to tell", so this exercises the pairing path itself rather than the registry's.
+    """
+    module = CredentialsModule(store=SessionStore(tmp_path / "config" / "session.json"))
+    module.set_account_resolver(resolver)
+    return module
+
+
+async def test_pairing_files_the_account_the_session_belongs_to(server, tmp_path):
+    """No third field, and the credential still knows whose it is."""
+    module = paired_module(tmp_path, resolver=_answers("PlaceholderExile#0000"))
+    pair = server(module._pair_store)
+    status = await pair.open()
+
+    http_status, body = await post_pair(pair.port, status.code or "", VALUE)
+    assert http_status == 200
+    assert (await module.status()).account == "PlaceholderExile#0000"
+    # The one confirmation worth giving somebody who has just pasted a cookie: not
+    # "done", but *whose* it turned out to be.
+    assert "PlaceholderExile#0000" in body
+    assert pair.status().detail == "paired as PlaceholderExile#0000"
+
+
+async def test_a_failed_lookup_still_leaves_a_usable_credential(server, tmp_path):
+    """A session that works is a session that works.
+
+    The name is a convenience the tool can retry for free on its next request;
+    refusing the pair over it would send a player back to a form they filled in
+    correctly, and back to the PC to do it again.
+    """
+    module = paired_module(tmp_path, resolver=_raises(RuntimeError("the network is a lie")))
+    pair = server(module._pair_store)
+    status = await pair.open()
+
+    http_status, body = await post_pair(pair.port, status.code or "", VALUE)
+    assert http_status == 200
+    assert pair.status().state == PairingState.PAIRED
+    stored = await module.status()
+    assert stored.usable is True
+    assert stored.account is None
+    # ...and it says so, rather than reporting an unqualified success.
+    assert "could not be read" in body
+    assert "not known yet" in (pair.status().detail or "")
+
+
+async def test_a_lookup_that_names_nobody_is_not_an_account(server, tmp_path):
+    module = paired_module(tmp_path, resolver=_answers(None))
+    pair = server(module._pair_store)
+    status = await pair.open()
+    await post_pair(pair.port, status.code or "", VALUE)
+    assert (await module.status()).account is None
+    assert (await module.status()).usable is True
+
+
+async def test_a_new_credential_overwrites_an_account_carried_over_from_the_old_one(
+    server, tmp_path
+):
+    """Re-pairing with a *different* account's cookie must not keep the old name.
+
+    ``set`` carries the previous account forward, which is right when somebody is
+    refreshing an expired cookie for the same account and is exactly wrong here. The
+    lookup is what settles it, and it is why the resolver runs on every pair rather
+    than only when the record happens to be blank.
+    """
+    module = paired_module(tmp_path, resolver=_answers("FirstExile#0001"))
+    pair = server(module._pair_store)
+    status = await pair.open()
+    await post_pair(pair.port, status.code or "", VALUE)
+    assert (await module.status()).account == "FirstExile#0001"
+
+    module.set_account_resolver(_answers("SecondExile#0002"))
+    pair = server(module._pair_store)
+    status = await pair.open()
+    await post_pair(pair.port, status.code or "", OTHER_VALUE)
+    assert (await module.status()).account == "SecondExile#0002"
+
+
+async def test_the_resolver_is_never_handed_the_credential(server, tmp_path):
+    """It takes no arguments, and that is the point.
+
+    Whatever resolves the account already holds the session through `credentials`;
+    passing the value across one more boundary would be one more place it exists.
+    """
+    seen: list[tuple] = []
+
+    async def resolver() -> str | None:
+        seen.append(())
+        return "PlaceholderExile#0000"
+
+    module = paired_module(tmp_path, resolver=resolver)
+    pair = server(module._pair_store)
+    status = await pair.open()
+    await post_pair(pair.port, status.code or "", VALUE)
+    assert seen == [()]
+
+
+async def test_a_failed_lookup_puts_nothing_of_the_credential_in_the_log(
+    server, tmp_path, caplog
+):
+    """The failure is logged as a type name. Whatever the exception said, it came
+    from a request made *with* the credential, and none of it is repeated."""
+    module = paired_module(tmp_path, resolver=_raises(RuntimeError(f"failed for {VALUE}")))
+    pair = server(module._pair_store)
+    with caplog.at_level(logging.DEBUG):
+        status = await pair.open()
+        _, body = await post_pair(pair.port, status.code or "", VALUE)
+    assert VALUE not in caplog.text
+    assert VALUE not in body
+
+
+def _answers(account: str | None):
+    async def resolver() -> str | None:
+        return account
+
+    return resolver
+
+
+def _raises(error: Exception):
+    async def resolver() -> str | None:
+        raise error
+
+    return resolver

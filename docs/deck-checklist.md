@@ -151,8 +151,9 @@ the PC.
 **Do:** on the PC, open that URL. Type the six digits, paste the POESESSID from
 `pathofexile.com`'s cookies, submit.
 
-**Pass:** the page says **"Paired."**; the panel switches off the pairing screen
-within a second; the bag screen starts working.
+**Pass:** the page says **"Paired."** *and names your account* — "it belongs to
+`Name#1234`". The panel switches off the pairing screen within a second and shows the
+same name. The bag screen starts working.
 
 ```bash
 ls -l ~/.local/share/decky/settings/PoEDex/session.json   # or $DECKY_PLUGIN_SETTINGS_DIR
@@ -163,6 +164,21 @@ grep -c 'POESESSID\|<the value>' ~/homebrew/logs/PoEDex/plugin.log    # must be 
 **Fail:** a page that does not load at all means the port is firewalled or the
 address is wrong (item 6). A page that loads and then says *"This pairing window has
 closed"* means the three-minute timeout ran out — start another one.
+
+**Paired, but with no account name.** The page says the name *"could not be read from
+the session just now"*. That is **not** a failed pair — the credential is stored and
+valid — but `/api/profile` did not answer, and the next request has to try again. If
+the bag screen then works, the retry succeeded and there is nothing to report. If it
+instead says *"the account name could not be read from the session"*, the message
+names the HTTP failure and that is worth reporting;
+`poedex config set poeapi.account <name>` is the way past it in the meantime, from
+desktop mode, since typing it needs a keyboard.
+
+This item is where the account defect showed up on real hardware: pairing succeeded
+and then every request failed with *"no account name on record"*, because the form has
+two fields and `get-items` needs a third thing that the form cannot ask for. The name
+is now read off the session, so **nothing in this flow needs a keystroke on the Deck**
+— the six digits and the cookie are both typed on the PC.
 
 ## 8 · Pairing: it refuses what it should
 

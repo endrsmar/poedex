@@ -21,7 +21,9 @@ Every one of these is a constraint from SPEC §4.1/§8, not a nicety:
   routable address is answered ``403`` and its bytes are never parsed.
 * **The value is never logged, never echoed, and never re-served.** It goes straight
   into :class:`~runtime.secrets.Secret` via ``CredentialsApi.set``. The success page
-  says "paired" and nothing else; there is no endpoint that reads a credential back.
+  reports the *account* the session turned out to belong to — a name the person at
+  the keyboard already knows, and the one useful confirmation that they pasted the
+  right cookie — and never the credential; there is no endpoint that reads one back.
 * **No CORS headers, ever.** Their absence is what stops a page the user happens to
   have open from reading a response off this port.
 
@@ -202,8 +204,11 @@ class PairingServer:
     """One pairing window at a time.
 
     ``store`` is called with the pasted value and is expected to be
-    ``CredentialsApi.set``; this class never touches the filesystem, so the ``0600``
-    write and the redaction stay in the one place that already does them right.
+    ``CredentialsModule._pair_store``; this class never touches the filesystem, so
+    the ``0600`` write and the redaction stay in the one place that already does them
+    right. Whatever it returns is read for an ``account`` attribute and nothing else
+    — the success page names the account when there is one — so a caller that hands
+    over a bare ``CredentialsApi.set`` still works, it just has less to say.
     """
 
     def __init__(
@@ -422,7 +427,7 @@ class PairingServer:
             return
 
         try:
-            await self._store(value)
+            stored = await self._store(value)
         except CredentialError as exc:
             # Built from metadata only — `normalize_session_id` never puts the value
             # in a message, which is what makes echoing this back safe.
@@ -436,11 +441,30 @@ class PairingServer:
         # Success. The listener goes away *before* the response is even flushed to
         # the client, because SPEC §4.1 says immediately and there is nothing left
         # for it to serve.
+        #
+        # `store` also files *whose* account this is, because the Deck has no way to
+        # be asked. Two outcomes, and they are different sentences rather than one
+        # hedged one: named, or stored-but-unattributed. Both are a successful pair —
+        # a credential that works is a credential that works — but the second means
+        # the next request has to find the name itself, and a player who has just
+        # walked to a PC deserves to be told which of the two happened.
+        account = getattr(stored, "account", None)
         self._state = PairingState.PAIRED
-        self._detail = None
+        self._detail = (
+            f"paired as {account}" if account else "paired; the account name is not known yet"
+        )
         await self.close(PairingState.PAIRED, drain=False)
         await _respond(writer, 200, "text/html; charset=utf-8", _result_page(
-            "Paired.", "You can close this tab. The Deck has it."
+            "Paired.",
+            (
+                f"The Deck has it, and it belongs to {account}. You can close this tab."
+                if account
+                else (
+                    "The Deck has it. Your account name could not be read from the "
+                    "session just now — nothing is lost, PoEDex will read it again on "
+                    "its next request. You can close this tab."
+                )
+            ),
         ).encode())
 
 

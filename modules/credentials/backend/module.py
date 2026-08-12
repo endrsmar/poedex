@@ -20,6 +20,7 @@ from typing import Any, ClassVar
 from modules.credentials.backend.api import (
     CREDENTIAL_CHANGED,
     PAIRING_CHANGED,
+    AccountResolver,
     CredentialsApi,
     CredentialState,
     CredentialStatus,
@@ -56,6 +57,7 @@ class CredentialsModule:
         self._store = store or SessionStore()
         self._ctx: ModuleContext | None = None
         self._pairing: PairingServer | None = None
+        self._resolve_account: AccountResolver | None = None
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -172,6 +174,9 @@ class CredentialsModule:
         self._store.save(updated)
         return await self._changed(updated, "accepted")
 
+    def set_account_resolver(self, resolve: AccountResolver | None) -> None:
+        self._resolve_account = resolve
+
     async def mark_rejected(self, note: str | None = None) -> CredentialStatus:
         record = self._store.load_quietly()
         if record is None:
@@ -246,8 +251,40 @@ class CredentialsModule:
         ``0600`` write, the redaction and the ``credential_changed`` event are the
         same ones ``poedex auth set`` gets. A second path to disk for a credential is
         a second path to get wrong.
+
+        Then — and only then — the account name. Pairing is the one moment where
+        asking costs the user nothing: the credential has just been proven to parse,
+        the window is closing anyway, and one request now is one request the first
+        ``get-items`` does not have to make. **The credential is stored before the
+        lookup and stays stored whatever the lookup does.** A session that works and
+        an account name we could not read this second are not the same problem, and
+        failing the pair over the second would send a player back to a form they
+        filled in correctly.
         """
-        return await self.set(value)
+        status = await self.set(value)
+        if self._resolve_account is None:
+            return status
+        try:
+            account = await self._resolve_account()
+        except Exception as exc:
+            # The type only. Whatever went wrong, its message came from a request
+            # made *with* the credential, and nothing built from that goes in a log.
+            self._log("could not read the account name after pairing: %s", type(exc).__name__)
+            return status
+        if not account:
+            self._log("paired, but the account name could not be read from the session")
+            return status
+        if account == status.account:
+            return status
+        # `mark_ok` and not another `set`: the lookup succeeded, so the API has just
+        # accepted this credential, and that is worth recording once. It also
+        # overwrites an account carried over from a previous credential, which is the
+        # case where the old name would otherwise be wrong rather than merely absent.
+        return await self.mark_ok(account)
+
+    def _log(self, message: str, *args: Any) -> None:
+        if self._ctx is not None:
+            self._ctx.logger.info(message, *args)
 
     async def _pairing_changed(self, status: PairingStatus) -> None:
         if self._ctx is not None:

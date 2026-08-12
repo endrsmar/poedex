@@ -37,9 +37,18 @@ and proved so by a test that builds twice and compares bytes (the artifact was r
 the diff is four sentences); skill gems are priced on an exact `level/quality/corrupted` variant
 match against a table fetched **lazily**, only when a bag or tab holds a gem; and every message
 that tells a user to set a setting names `poedex config set <module>.<key>`, checked by a sweep
-over the whole tree rather than a list of four names. **Next action is to run
-`docs/deck-checklist.md` on hardware** — ten items, ten minutes, and nothing above the line has
-been checked against a real Deck.
+over the whole tree rather than a list of four names.
+
+**The first real Deck run closed a blocker**: pairing succeeded and then every request failed
+with *"no account name on record"*. `get-items` needs an `accountName`, no other account
+endpoint returns one, and the LAN pairing form has two fields — so the Deck path was dead from
+the moment it worked. The name is now **derived** from `GET /api/profile`, which answers from
+the session cookie alone; `poeapi.get_profile()` caches it for a day, the precedence runs
+explicit → `poeapi.account` → the credential record → profile → raise, and a pair files the name
+with the credential as it lands (and still succeeds if that lookup fails, saying so). This is
+also more correct than asking: a *wrong* account name came back as the same 403 as an expired
+session. **The rest of `docs/deck-checklist.md` still needs running on hardware** — ten items,
+ten minutes, and nothing else above the line has been checked against a real Deck.
 
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
     python scripts/build_plugin.py   # dist/poedex.zip — the Decky plugin, ~3.4 MB

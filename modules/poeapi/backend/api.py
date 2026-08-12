@@ -29,6 +29,7 @@ from modules.poeapi.backend.models import (
     Meta,
     Mods,
     NormalizedItem,
+    Profile,
     Rarity,
     Sockets,
     Source,
@@ -65,6 +66,7 @@ __all__ = [
     "FOREVER",
     "ITEMS_PATH",
     "MAP_UNSUPPORTED",
+    "PROFILE_PATH",
     "QUAD_COLUMNS",
     "STANDARD_COLUMNS",
     "STASH_PATH",
@@ -85,6 +87,7 @@ __all__ = [
     "NormalizedItem",
     "PoeApi",
     "PoeApiError",
+    "Profile",
     "Rarity",
     "SessionRejectedError",
     "Sockets",
@@ -111,6 +114,16 @@ CHARACTERS_PATH = "/character-window/get-characters"
 ITEMS_PATH = "/character-window/get-items"
 STASH_PATH = "/character-window/get-stash-items"
 
+PROFILE_PATH = "/api/profile"
+"""Who the session belongs to, from the cookie alone.
+
+Not in SPEC §4.2's original table, because Phase 2 recorded that the account name
+was not inferable and asked for it instead. It is inferable: this endpoint answers
+``{"uuid": ..., "name": "Name#1234", ...}`` for whoever the POESESSID belongs to,
+with no ``accountName`` of its own to supply — which is what makes it the one
+account endpoint that can bootstrap the others.
+"""
+
 
 class PoeApiError(PoedexError):
     """A problem fetching or interpreting account data."""
@@ -125,10 +138,19 @@ class SessionRejectedError(PoeApiError):
 
 
 class AccountUnknownError(PoeApiError):
-    """``get-items`` needs an account name and none is on record.
+    """``get-items`` needs an account name and nothing could produce one.
 
-    Not inferable: the character endpoint does not return it, and guessing produces
-    a 403 that looks exactly like an expired session.
+    Rare, and narrower than it was. Four sources are tried in order — an explicit
+    argument, the ``poeapi.account`` setting, the name filed with the credential, and
+    :meth:`PoeApi.get_profile` — so this is raised only when the last of those could
+    not be reached *and* was not an auth failure (which raises
+    :class:`SessionRejectedError` instead, because "your session is dead" is the
+    truer sentence). In practice: no credential at all, the profile endpoint rate
+    limited or down with nothing cached, or a profile response with no name in it.
+
+    The message says which of those happened. It used to say "run ``poedex auth set
+    --account <name>``", which was an instruction to type an account name on a device
+    with no keyboard, for a value the tool can now read for itself.
     """
 
 
@@ -193,6 +215,20 @@ class PoeApi(Protocol):
         because this is the roster. Left unset, the parameter is omitted and GGG
         answers for its own default; every later request reads the realm out of
         the entries this returns.
+        """
+        ...
+
+    async def get_profile(self, *, refresh: bool = False) -> Profile:
+        """Which account this session belongs to. Cached for a day; never poll it.
+
+        The only account endpoint that needs no ``accountName``, which is what makes
+        it the one that can supply it to the others. Every caller that needs a name
+        gets it through :meth:`get_items` and friends resolving one — this is on the
+        Protocol so a surface can *show* the account, and so a pairing flow can file
+        the name with the credential the moment it lands.
+
+        A 401/403 here is treated exactly as it is on every other endpoint:
+        `credentials` is told first, then :class:`SessionRejectedError` is raised.
         """
         ...
 

@@ -259,10 +259,15 @@ function Idle({
 }): ReactElement {
   const ending = ENDING_TEXT[pairing.state]
   if (pairing.state === 'paired') {
+    // `detail` in preference to the canned line, because the backend's is more
+    // specific: it names the account the session turned out to belong to, or says
+    // the name is not known yet. That is the difference between "ready" and "ready,
+    // and it will work out whose account this is on its next request" — neither a
+    // failure, and one sentence cannot be both.
     return (
       <Empty
         title="Paired"
-        detail={ending}
+        detail={pairing.detail ?? ending}
         action={<Action label="Pair again" onPress={onStart} busy={busy} />}
       />
     )
