@@ -47,6 +47,8 @@ export interface ItemSet {
   items?: NormalizedItem[]
   source: Source
   character?: string | null
+  character_source?: CharacterSource | null
+  character_played_last?: string | null
   league?: string | null
   tab_index?: number | null
   tab_name?: string | null
@@ -56,6 +58,20 @@ export interface ItemSet {
 
 export interface CharacterList {
   characters?: Character[]
+  meta: Meta
+}
+
+/**
+ * Everything a picker needs: the roster, the pick, and the reason for it. One
+ * model rather than two calls, because the roster and the choice have to agree
+ * — a screen that fetched them separately could offer a list that does not
+ * contain the name it says it is reading. Costs at most one
+ * ``get-characters``, which is cached for an hour.
+ */
+export interface CharacterSelection {
+  choice: CharacterChoice
+  characters?: Character[]
+  configured?: string | null
   meta: Meta
 }
 
@@ -179,8 +195,9 @@ export interface LeagueChoicePayload {
 }
 
 /**
- * Mirrors ``appraisal.api.BagAppraisal.to_json`` plus the two keys
- * ``appraise_bag_json`` adds (``character``, ``stale``).
+ * Mirrors ``appraisal.api.BagAppraisal.to_json`` plus the four keys
+ * ``appraise_bag_json`` adds (``character``, its two provenance fields, and
+ * ``stale``).
  */
 export interface BagAppraisalPayload {
   league: string
@@ -204,6 +221,8 @@ export interface BagAppraisalPayload {
   trade_requests: number
   table: TableStatusPayload | null
   character?: string | null
+  character_source?: "argument" | "environment" | "setting" | "current" | "last_login" | "fallback" | "none" | null
+  character_played_last?: string | null
   stale?: boolean
 }
 
@@ -412,6 +431,8 @@ export interface TabAppraisalPayload {
   trade_requests: number
   table: TableStatusPayload | null
   character?: string | null
+  character_source?: "argument" | "environment" | "setting" | "current" | "last_login" | "fallback" | "none" | null
+  character_played_last?: string | null
   stale?: boolean
   tab: StashTabPayload
   unsupported?: string | null
@@ -484,7 +505,41 @@ export interface Character {
   level?: number
   experience?: number
   current?: boolean
+  last_login?: string | null
 }
+
+/**
+ * A resolved character and the reason it won. Precedence, high to low: an
+ * explicit argument, ``POEDEX_CHARACTER``, the ``poeapi.character`` setting, a
+ * character GGG marked ``current``, the highest ``lastLoginTime``, and then a
+ * visible guess. The two derived rungs answer different questions and are
+ * ordered accordingly. ``current`` says *who is playing*; ``last_login`` says
+ * *who played last*. In game they agree; out of game only the second exists.
+ * That ordering makes the panel right in the case it is actually used in —
+ * mid-session, on a Deck, with the game running — and still right from a desk
+ * with the game closed.
+ */
+export interface CharacterChoice {
+  name: string | null
+  source: CharacterSource
+  league?: string | null
+  class_name?: string | null
+  level?: number
+  last_login?: string | null
+  played_last?: string | null
+}
+
+/**
+ * Why a particular character is the one being read. Carried to every surface
+ * for the reason :class:`~modules.prices.backend.api.LeagueSource` is: a name
+ * on its own is not an answer a player can check. "PlaceholderHierophant,
+ * because you pinned it" and "PlaceholderHierophant, because it is the one you
+ * last played" are different claims, and exactly one of them is a bug when the
+ * player has just rolled a new character. Declared up here, away from the rest
+ * of its family, only because :class:`ItemSet` annotates a field with it and
+ * pydantic resolves annotations when the class is built.
+ */
+export type CharacterSource = "argument" | "environment" | "setting" | "current" | "last_login" | "fallback" | "none"
 
 /**
  * A skill gem's level and quality — two of the three axes it is priced on. The

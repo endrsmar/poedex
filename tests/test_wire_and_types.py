@@ -110,7 +110,7 @@ async def test_a_real_appraisal_validates_against_the_wire_model(appraiser, loot
     what a browser would actually receive."""
     result = await appraiser.appraise(loot)
     payload = result.to_json()
-    payload["character"] = "Gladefall"
+    payload["character"] = "PlaceholderWarden"
     payload["stale"] = False
     BagAppraisalPayload.model_validate(payload)
 

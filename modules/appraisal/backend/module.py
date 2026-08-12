@@ -571,6 +571,14 @@ class AppraisalModule:
         await self._announce(result, character=bag.character)
         payload = result.to_json()
         payload["character"] = bag.character
+        # Why that character, carried for the same reason `league_source` is: a
+        # header that prints a name with no provenance reads as a choice whether or
+        # not one was made, and the case this exists for is the one where the name
+        # looks entirely plausible and is wrong.
+        payload["character_source"] = (
+            bag.character_source.value if bag.character_source else None
+        )
+        payload["character_played_last"] = bag.character_played_last
         payload["stale"] = bag.meta.stale
         return payload
 

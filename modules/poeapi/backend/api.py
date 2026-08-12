@@ -18,9 +18,13 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from modules.poeapi.backend.models import (
+    CHARACTER_ENV,
     Budget,
     Character,
+    CharacterChoice,
     CharacterList,
+    CharacterSelection,
+    CharacterSource,
     CrawlPlan,
     CrawlProgress,
     Grid,
@@ -39,6 +43,7 @@ from modules.poeapi.backend.models import (
     TabKind,
     TabLayout,
     TabState,
+    format_last_login,
 )
 from modules.poeapi.backend.stash import (
     FOREVER,
@@ -51,17 +56,15 @@ from modules.poeapi.backend.stash import (
 )
 from runtime.errors import PoedexError
 
-CHARACTER_ENV = "POEDEX_CHARACTER"
-"""Which character to read, for the lifetime of one process.
-
-A surface may set this; :meth:`_character` consults it after an explicit argument
-and before the persisted setting. It exists for the same reason
-``POEDEX_GAMELOG_PATH`` does: ``serve --character`` must not rewrite the user's
-settings file just because they wanted to look at a different character once.
-"""
+# ``CHARACTER_ENV`` is defined in `models.py` and re-exported here, which is where
+# every dependent still imports it from. A surface may set it; the resolver consults
+# it after an explicit argument and before the persisted setting, for the same reason
+# ``POEDEX_GAMELOG_PATH`` exists: ``serve --character`` must not rewrite the user's
+# settings file just because they wanted to look at a different character once.
 
 __all__ = [
     "CHARACTERS_PATH",
+    "CHARACTER_CHANGED",
     "CHARACTER_ENV",
     "FOREVER",
     "ITEMS_PATH",
@@ -74,7 +77,11 @@ __all__ = [
     "AccountUnknownError",
     "Budget",
     "Character",
+    "CharacterChoice",
     "CharacterList",
+    "CharacterSelection",
+    "CharacterSource",
+    "CharacterUnknownError",
     "CrawlPlan",
     "CrawlProgress",
     "CrawlStep",
@@ -98,6 +105,7 @@ __all__ = [
     "TabKind",
     "TabLayout",
     "TabState",
+    "format_last_login",
     "layout_for",
     "tab_kind",
     "unsupported_reason",
@@ -106,6 +114,16 @@ __all__ = [
 SYNC_COMPLETE = "sync_complete"
 """Event topic emitted after a successful live fetch. Payload carries the source,
 the content hash and whether anything changed."""
+
+CHARACTER_CHANGED = "character_changed"
+"""Event topic emitted when ``poeapi.character`` is pinned or cleared.
+
+Payload is a :meth:`CharacterSelection.to_json`. It exists because the pick is made
+on one screen and spent on another: a player who pins a character in the panel's
+picker and presses **B** must not find the bag screen behind it still showing the
+other character's items, and a surface cannot know to re-read what a different
+screen wrote.
+"""
 
 # SPEC §4.2. Kept here rather than in the implementation because the rate limiter
 # buckets by route and a caller may legitimately want to ask `net.retry_after` about
@@ -151,6 +169,21 @@ class AccountUnknownError(PoeApiError):
     The message says which of those happened. It used to say "run ``poedex auth set
     --account <name>``", which was an instruction to type an account name on a device
     with no keyboard, for a value the tool can now read for itself.
+    """
+
+
+class CharacterUnknownError(PoeApiError):
+    """A character was named that this account's roster does not contain.
+
+    Raised only by :meth:`PoeApi.set_character`, and it is the rule that keeps a
+    picker honest: the panel may write ``poeapi.character``, and the one thing it
+    may not write is a name nobody can play. The message lists the names that do
+    exist, because on a Deck the alternative to reading them is typing.
+
+    Note that :meth:`PoeApi.get_items` deliberately does **not** raise this. A name
+    passed explicitly is sent to GGG as given — a roster fetched an hour ago is not
+    the authority on whether a character exists, and refusing a request because a
+    cache disagrees would be a worse failure than the 403 the API would answer with.
     """
 
 
@@ -218,6 +251,36 @@ class PoeApi(Protocol):
         """
         ...
 
+    async def character_choice(
+        self, character: str | None = None, *, refresh: bool = False
+    ) -> CharacterSelection:
+        """Which character would be read, why, and every character it could be.
+
+        The accessor a picker opens on and the one ``poedex characters`` prints.
+        Costs at most one ``get-characters``, which is cached for an hour, so asking
+        "who am I about to read?" is affordable enough that a surface can ask before
+        every screen instead of showing a name with no provenance.
+
+        ``choice.source`` is the reason, and :attr:`CharacterChoice.guessed` is the
+        one value a surface may not render quietly.
+        """
+        ...
+
+    async def set_character(self, name: str | None) -> CharacterSelection:
+        """Pin ``poeapi.character``, or clear it with ``None`` / ``""``.
+
+        The write behind the panel's picker, and the only way to change which
+        character is read on a Deck: the plugin reads ``DECKY_PLUGIN_SETTINGS_DIR``
+        rather than ``~/.config/poedex``, and there is no usable CLI inside the
+        plugin tree to run ``poedex config set`` with.
+
+        The name is checked against the roster and
+        :class:`CharacterUnknownError` is raised if it is not there — a picker may
+        pin, and may not invent. Returns the new selection so a caller re-renders
+        from the backend's answer rather than from what it hoped it wrote.
+        """
+        ...
+
     async def get_profile(self, *, refresh: bool = False) -> Profile:
         """Which account this session belongs to. Cached for a day; never poll it.
 
@@ -242,8 +305,9 @@ class PoeApi(Protocol):
     ) -> ItemSet:
         """Backpack and worn gear for one character, normalized.
 
-        ``character`` defaults to the most recently played one, which is what the
-        character endpoint marks as current. Items are tagged
+        ``character`` defaults to whatever :meth:`character_choice` resolves — the
+        pinned one, else the one GGG marks as being played, else the highest
+        ``lastLoginTime``. Items are tagged
         :attr:`Source.BAG` or :attr:`Source.EQUIPMENT`; the bag is what appraisal
         cares about.
 

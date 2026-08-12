@@ -24,6 +24,7 @@
     "level": 90,
     "realm": "pc",
     "pinnable": true,
-    "lastLoginTime": 1784012700
+    "lastLoginTime": 1784012700,
+    "current": true
   }
 ]

@@ -47,9 +47,23 @@ the session cookie alone; `poeapi.get_profile()` caches it for a day, the preced
 explicit → `poeapi.account` → the credential record → profile → raise, and a pair files the name
 with the credential as it lands (and still succeeds if that lookup fails, saying so). This is
 also more correct than asking: a *wrong* account name came back as the same 403 as an expired
-session. **The rest of `docs/deck-checklist.md` still needs running on hardware** — ten items,
-ten minutes, and nothing else above the line has been checked against a real Deck.
+session. **The rest of `docs/deck-checklist.md` still needs running on hardware** — eleven items,
+about twelve minutes, and nothing else above the line has been checked against a real Deck.
 
+**The second real Deck finding was the wrong character, read silently.** `get-characters`
+does **not** send `current` to a client that is out of game — it is absent from every entry of
+the live roster — so the old default fell through to `characters[0]`, which is GGG's own
+ordering and picked a parked Standard character on an account whose owner plays a league one.
+Nothing looked wrong: the header read `character: <name>` with exactly the confidence it has
+when somebody chose it. GGG *does* publish **`lastLoginTime`** per entry, which is what the PoE
+website's own top bar reads and what the tool now ranks on. Precedence is explicit →
+`POEDEX_CHARACTER` → `poeapi.character` → a character marked `current` → highest
+`lastLoginTime` → **a visible guess**. There is a `poeapi/ui` character picker, on both
+profiles, because on a Deck the panel was the only place this could be fixed and it could not:
+the plugin reads `DECKY_PLUGIN_SETTINGS_DIR`, not `~/.config/poedex`, and there is no usable
+CLI inside the plugin tree.
+
+    poedex characters # the roster with leagues, and which one is read — and why
     poedex serve      # http://127.0.0.1:7331 — the priced bag, with verdicts and provenance
     python scripts/build_plugin.py   # dist/poedex.zip — the Decky plugin, ~3.4 MB
     poedex stash      # the tab list: freshness, contents, value. Zero item requests
@@ -85,7 +99,7 @@ much weaker test than it sounds — see the phase note in the plan. **Phase 7 bu
 surface without one either**, so the geometry, the D-pad, suspend/resume and the pairing flow are
 written and unverified. Four things need a human and would close most of the open risk:
 
-- **`docs/deck-checklist.md`, on a Deck.** Ten items, ten minutes, ordered by how likely each is
+- **`docs/deck-checklist.md`, on a Deck.** Eleven items, about twelve minutes, ordered by how likely each is
   to be wrong. Every one of them fails by looking slightly off rather than by throwing, which is
   why each item says what the failure looks like.
 
@@ -357,6 +371,24 @@ such interpreter exists.
   because a player who loosens the bag panel has said nothing about whether they want 818 stash
   items flagged. Strict is generous minus the *soft* signals, and it is the same `evaluate()`.
 
+- **`current` is not "the most recently played character", and GGG does not send it.** It is
+  absent from every entry of a roster read out of game, so it is understood to mark whoever is
+  *logged in* — a hypothesis nobody here has been able to test, and nothing depends on it. What
+  is published is **`lastLoginTime`, Unix seconds** (checked: the largest live value decoded to
+  the day before it was read; milliseconds would put it in January 1970). The two answer
+  different questions — `current` is who is playing, `lastLoginTime` is who played last — so
+  `current` wins when it exists and `lastLoginTime` carries the job when it does not, which is
+  every measurement so far. **A `lastLoginTime` of 0 or absent is *unknown*, never the epoch**:
+  an unknown that sorts must not win a comparison. And the last rung is a **labelled guess**:
+  `CharacterList.default()` has no positional fallback at all, because the fallback it replaced
+  is what read the wrong character for weeks. `poedex characters` prints the whole chain.
+- **A stated choice outranks a derived one, in all four chains.** Account, league, realm and now
+  character all resolve as argument → environment/setting → derived, and `poeapi.character`
+  therefore sits **above** a character GGG marks as being played. An override a lookup can beat
+  is not an override. What makes it safe rather than a trap is that the disagreement is visible
+  (`CharacterChoice.played_last`, rendered as "you last played X") and that the panel's picker
+  clears it in one press — before that picker existed, a pin on a Deck could not be undone by
+  any surface, which is why this ordering would have been the wrong call a week ago.
 - **2D grid navigation is free** — Steam's focus system is geometric. Lay out a CSS grid of
   `Focusable` cells and it works.
 - **PoE 2 has no data path.** GGG removed inventory from its character endpoint in 3.27.0.

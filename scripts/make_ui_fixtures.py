@@ -65,8 +65,13 @@ from modules.poeapi.backend.api import (  # noqa: E402
     unsupported_reason,
 )
 from modules.poeapi.backend.models import (  # noqa: E402
+    Character,
+    CharacterChoice,
+    CharacterSelection,
+    CharacterSource,
     Grid,
     Location,
+    Meta,
     Mods,
     NormalizedItem,
     Rarity,
@@ -93,6 +98,11 @@ HIGHLIGHT_OUTPUT = FIXTURES / "item-highlight.json"
 CHECK_OUTPUT = FIXTURES / "price-check.json"
 STASH_OUTPUT = FIXTURES / "stash-digest.json"
 STASH_TAB_OUTPUT = FIXTURES / "stash-tab.json"
+
+# The picker's payload, and it belongs to `poeapi` for the same reason the bag's
+# belongs to `appraisal`: which character to read is that module's question.
+CHARACTER_FIXTURES = REPO_ROOT / "modules" / "poeapi" / "ui" / "fixtures"
+CHARACTER_OUTPUT = CHARACTER_FIXTURES / "character-selection.json"
 
 LEAGUE = "Allflame"
 DIVINE_RATE = 214.0
@@ -491,7 +501,13 @@ def build() -> dict:
         strictness=Strictness.GENEROUS,
     )
     payload = appraisal.to_json()
-    payload["character"] = "Gladefall"
+    payload["character"] = "PlaceholderWarden"
+    # Provenance, because the screen draws it and a fixture without it would let the
+    # bag header render "no character" while showing a character. `last_login` is the
+    # ordinary path: nobody has pinned anything and the account was read out of game,
+    # which is where `current` is never set.
+    payload["character_source"] = CharacterSource.LAST_LOGIN.value
+    payload["character_played_last"] = None
     payload["stale"] = False
     return payload
 
@@ -828,8 +844,63 @@ def build_stash_tab() -> dict:
     ).to_json()
 
 
+def build_characters() -> dict:
+    """The roster the picker draws, through the real models.
+
+    Shaped after the account the bug was measured on, with the names and the
+    timestamps invented: three characters in three leagues, the most recently played
+    one **not first** in GGG's ordering, and no ``current`` anywhere — because GGG
+    does not send that field to a client that is out of game, which is the whole
+    reason the old default was reading the wrong one.
+    """
+    characters = [
+        Character(
+            name="PlaceholderJuggernaut",
+            league="Solo Self-Found",
+            realm="pc",
+            class_name="Juggernaut",
+            level=86,
+            last_login=datetime(2026, 5, 2, 18, 20, tzinfo=UTC),
+        ),
+        Character(
+            name="PlaceholderWarden",
+            league="Standard",
+            realm="pc",
+            class_name="Warden",
+            level=97,
+            last_login=datetime(2026, 8, 11, 21, 40, tzinfo=UTC),
+        ),
+        Character(
+            name="PlaceholderHierophant",
+            league="Allflame",
+            realm="pc",
+            class_name="Hierophant",
+            level=90,
+            last_login=datetime(2026, 7, 14, 7, 5, tzinfo=UTC),
+        ),
+    ]
+    chosen = characters[1]
+    return CharacterSelection(
+        choice=CharacterChoice(
+            name=chosen.name,
+            source=CharacterSource.LAST_LOGIN,
+            league=chosen.league,
+            class_name=chosen.class_name,
+            level=chosen.level,
+            last_login=chosen.last_login,
+        ),
+        characters=characters,
+        configured=None,
+        meta=Meta(fetched_at=AS_OF),
+    ).to_json()
+
+
 def render() -> str:
     return json.dumps(build(), indent=2, sort_keys=False) + "\n"
+
+
+def render_characters() -> str:
+    return json.dumps(build_characters(), indent=2, sort_keys=False) + "\n"
 
 
 def render_stash() -> str:
@@ -858,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
         (CHECK_OUTPUT, render_check()),
         (STASH_OUTPUT, render_stash()),
         (STASH_TAB_OUTPUT, render_stash_tab()),
+        (CHARACTER_OUTPUT, render_characters()),
     ]
     if args.check:
         stale = [

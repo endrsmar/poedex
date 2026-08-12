@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from textwrap import indent
 from typing import Any
 
+from cli.characters import describe_character
 from modules.net.backend.api import LimitSnapshot, describe_limits
 from modules.poeapi.backend.api import ItemSet, NormalizedItem, PoeApi, Source
 
@@ -95,7 +96,10 @@ async def cmd_sync(
     result = await poeapi.get_items(character, refresh=refresh)
     sources = [Source.BAG, Source.EQUIPMENT] if equipment else [Source.BAG]
 
-    print(f"character:  {result.character}")
+    # Never the bare name. This line read `character: PlaceholderWarden` while the tool was
+    # reading a character nobody had chosen, and it was indistinguishable from the
+    # same line when the choice was deliberate. `poedex characters` is the long form.
+    print(f"character:  {describe_character(result)}")
     # Printed even though `sync` prices nothing: this is where the league enters the
     # pipeline, and an "unknown" here is the upstream cause of everything downstream
     # refusing to price.

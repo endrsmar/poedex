@@ -6,10 +6,12 @@ looks like, and — more usefully — **what the failure looks like**, because m
 these fail by looking slightly wrong rather than by throwing.
 
 Work down the list. Items 1–5 need only the plugin installed; 6–8 need a PC on the
-same network; 9–10 need the game and the lid.
+same network; 9–11 need the game and the lid.
 
-**Nothing here is optional maintenance.** These are the ten things Phase 7 shipped
+**Nothing here is optional maintenance.** These are the eleven things shipped
 untested, and until they are ticked the phase is "written" rather than "working".
+Item 11 is the newest and carries the one question nothing offline can answer: does
+GGG set `current` on the character you are logged in as?
 
 ---
 
@@ -224,6 +226,33 @@ that `ss -ltn | grep 7332` is empty afterwards — an orphaned pairing socket is
 one leak that matters.
 
 ---
+
+## 11 · The character picker, and whether `current` is ever set
+
+**Why it might be wrong:** the picker is the only way to change which character the
+tool reads on a Deck — the plugin's settings live under `DECKY_PLUGIN_SETTINGS_DIR`
+and there is no usable CLI in the plugin tree — and it has never been driven with a
+thumbstick. It is a `CheckList`, so it inherits item 4's focus behaviour, but the
+rows are wider than a mod line and the league badge is the part that must survive.
+
+**Do this, in game:**
+
+1. Open the panel and go to **Character**. Every character should be listed with its
+   **league**; the one being read is ticked and the line above says why.
+2. **This is the only chance to settle a question nothing offline can answer:** with
+   the game running and a character logged in, does the reason line say *"the
+   character you are playing"* (GGG sets `current`) or *"most recently played"* (it
+   does not)? Either answer is fine and the tool is correct either way — but only
+   one of them is true, and right now nobody knows which. Note it here.
+3. Pick a different character with the D-pad and **A**. The line should change to
+   *"you picked this one"* and name who you last played. Press **B**; the bag should
+   come back showing the *new* character's items, not the previous ones.
+4. Press the picked row again. It should go back to following the account.
+
+**What failure looks like:** the league column missing or truncated at 300 px (the
+badge is what tells a parked character from a played one); a pick that appears to
+take and is gone after a suspend; or a bag screen still showing the old character's
+items after **B**, which means `character_changed` is not reaching the store.
 
 ## Also worth doing once, while you have the hardware
 

@@ -220,6 +220,32 @@ describe('provenance', () => {
     expect(screen.getAllByText(/OVERRIDE/).length).toBeGreaterThan(0)
   })
 
+  it('says where the character came from, not just which character it is', async () => {
+    await show()
+    // The bug this pairs with: `character: <name>` used to be printed with exactly
+    // the confidence it has when somebody chose it.
+    expect(screen.getAllByText(/most recently played/).length).toBeGreaterThan(0)
+  })
+
+  it('says it guessed when nothing on the account chose the character', async () => {
+    await show(async () => ({ ...BAG, character_source: 'fallback' as const }))
+    // Twice: the header subtitle and the provenance block. A guess is the one
+    // character state that may not be drawn like an observation.
+    expect(screen.getAllByText(/GUESSED/).length).toBeGreaterThan(0)
+  })
+
+  it('says which character the account points at when a pin overrides it', async () => {
+    await show(async () => ({
+      ...BAG,
+      character_source: 'setting' as const,
+      character_played_last: 'PlaceholderHierophant',
+    }))
+    expect(screen.getAllByText(/you last played PlaceholderHierophant/).length).toBeGreaterThan(0)
+    // Reported, not warned about: reading a character other than the one you last
+    // played is an ordinary thing to want.
+    expect(screen.queryByText(/GUESSED/)).toBeNull()
+  })
+
   it('shows the table status and how the type list was discovered', async () => {
     await show()
     await reveal('how this was decided')

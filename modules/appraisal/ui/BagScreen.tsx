@@ -295,7 +295,16 @@ function Provenance({ bag }: { bag: BagAppraisalPayload }): ReactElement {
           }
           tone={bag.league_overridden ? 'warn' : 'neutral'}
         />
-        <Stat size="sm" label="character" value={bag.character ?? '—'} />
+        <Stat
+          size="sm"
+          label="character"
+          value={bag.character ?? '—'}
+          // The same discipline as the league beside it, and for a larger reason:
+          // this line read `character: PlaceholderWarden` for weeks while nobody had chosen
+          // PlaceholderWarden, and it looked exactly as it looks when somebody has.
+          note={characterNote(bag)}
+          tone={bag.character_source === 'fallback' ? 'warn' : 'neutral'}
+        />
         <Stat
           size="sm"
           label="keep at"
@@ -338,7 +347,36 @@ function describeContext(bag: BagAppraisalPayload): string {
   const league = bag.league_overridden
     ? `${bag.league} (OVERRIDE — not the character’s league)`
     : `${bag.league} (from the character)`
-  return [bag.character, league].filter(Boolean).join(' · ')
+  const note = characterNote(bag)
+  const character = bag.character ? `${bag.character} (${note})` : null
+  return [character, league].filter(Boolean).join(' · ')
+}
+
+/**
+ * Which character, and on what grounds — never the name alone.
+ *
+ * `fallback` is the state this exists for. It means no character was marked as being
+ * played and none carried a `lastLoginTime`, so the name above it is the first entry
+ * GGG returned and nothing more. Everything else here is an observation or a choice;
+ * that one is the tool saying it picked, and a header that renders it like the
+ * others is asserting a guess.
+ */
+function characterNote(bag: BagAppraisalPayload): string {
+  const base = CHARACTER_REASON[bag.character_source ?? 'none']
+  if (bag.character_played_last && bag.character_played_last !== bag.character) {
+    return `${base} · you last played ${bag.character_played_last}`
+  }
+  return base
+}
+
+const CHARACTER_REASON: Record<NonNullable<BagAppraisalPayload['character_source']>, string> = {
+  argument: 'named on the command line',
+  environment: 'set by POEDEX_CHARACTER',
+  setting: 'you picked this one',
+  current: 'the character you are playing',
+  last_login: 'most recently played',
+  fallback: 'GUESSED — nothing said which character to read; pick one on the Character screen',
+  none: 'no character',
 }
 
 function gridCells(bag: BagAppraisalPayload): GridCellModel[] {

@@ -54,8 +54,11 @@ async def test_start_order_is_credentials_then_net_then_poeapi(stack: Registry):
 
 async def test_get_characters_normalizes(api: PoeApi):
     result = await api.get_characters()
-    assert result.characters[0].name == "PlaceholderWarden"
-    assert result.current().name == "PlaceholderWarden"
+    # Second in GGG's ordering and first by recency. The fixture is arranged that
+    # way so nothing can pass by reading `characters[0]`, which is what the default
+    # used to do.
+    assert result.characters[1].name == "PlaceholderWarden"
+    assert result.default().name == "PlaceholderWarden"
     assert result.meta.from_cache is False
 
 
@@ -509,6 +512,11 @@ async def test_every_registered_method_returns_plain_json(stack: Registry, api: 
         # already knows.
         "poeapi.get_profile",
         "poeapi.get_characters",
+        # The picker's two. `set_character` is the only method in the tool that
+        # writes a setting, and it exists because on a Deck the panel is the only
+        # place the character can be changed at all.
+        "poeapi.character_choice",
+        "poeapi.set_character",
         "poeapi.get_items",
         "poeapi.get_stash_items",
         "poeapi.get_stash_tabs",

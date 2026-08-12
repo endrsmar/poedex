@@ -27,9 +27,13 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
+    "CHARACTER_ENV",
     "Budget",
     "Character",
+    "CharacterChoice",
     "CharacterList",
+    "CharacterSelection",
+    "CharacterSource",
     "CrawlPlan",
     "CrawlProgress",
     "Grid",
@@ -47,8 +51,17 @@ __all__ = [
     "TabKind",
     "TabLayout",
     "TabState",
+    "format_last_login",
     "utcnow",
 ]
+
+CHARACTER_ENV = "POEDEX_CHARACTER"
+"""Which character to read, for the lifetime of one process.
+
+Declared here rather than in ``api.py`` — which re-exports it, and is still where
+dependents import it from — because :meth:`CharacterChoice.describe` names it in the
+sentence it shows the player, and this module may not import the one above it.
+"""
 
 
 def utcnow() -> datetime:
@@ -240,12 +253,66 @@ class Meta(Base):
     """Why it is stale, in words a UI can show."""
 
 
+class CharacterSource(StrEnum):
+    """Why a particular character is the one being read.
+
+    Carried to every surface for the reason :class:`~modules.prices.backend.api.LeagueSource`
+    is: a name on its own is not an answer a player can check. "PlaceholderHierophant, because
+    you pinned it" and "PlaceholderHierophant, because it is the one you last played" are
+    different claims, and exactly one of them is a bug when the player has just
+    rolled a new character.
+
+    Declared up here, away from the rest of its family, only because
+    :class:`ItemSet` annotates a field with it and pydantic resolves annotations
+    when the class is built.
+    """
+
+    ARGUMENT = "argument"
+    """``--character``. The most explicit thing a caller can say."""
+
+    ENVIRONMENT = "environment"
+    """``POEDEX_CHARACTER`` — one process, set by a flag, never persisted."""
+
+    SETTING = "setting"
+    """``poeapi.character``. A standing choice, and the one the panel's picker
+    writes. It sits **above** both derived signals; see :meth:`CharacterChoice.describe`."""
+
+    CURRENT = "current"
+    """GGG marked this character as the one being played. The truth about *now*."""
+
+    LAST_LOGIN = "last_login"
+    """Highest ``lastLoginTime``. The truth about *who played last*, which is what
+    is knowable out of game and what the PoE website itself shows."""
+
+    FALLBACK = "fallback"
+    """**A guess.** Nothing said which character to read and no entry carried either
+    signal, so this is merely first in the order GGG happened to send. Every surface
+    is required to say so; it is the only source for which that is true."""
+
+    NONE = "none"
+    """No character at all — the roster is empty or could not be read."""
+
+
 class ItemSet(Base):
     """A bag, an equipment set, or one stash tab, normalized."""
 
     items: list[NormalizedItem] = Field(default_factory=list)
     source: Source
     character: str | None = None
+
+    character_source: CharacterSource | None = None
+    """Why *that* character — the same discipline :attr:`league` follows, one field
+    up. ``None`` on a stash tab, which has no character.
+
+    A bag used to arrive carrying a name and nothing else, so a surface could only
+    print it, and printing it was indistinguishable from having chosen it. The one
+    value this exists for is :attr:`CharacterSource.FALLBACK`: it means the tool
+    picked, and a header that does not say so is asserting a guess."""
+
+    character_played_last: str | None = None
+    """Who the account points at, when something stated overrode it. ``None`` when
+    nothing was overridden. Lets a bag header read "PlaceholderWarden — pinned; you last
+    played PlaceholderHierophant" instead of showing a pin as though it were an observation."""
 
     league: str | None = None
     """Which economy these items belong to — the character's league for a bag, the
@@ -346,19 +413,187 @@ class Character(Base):
     class_name: str | None = None
     level: int = 0
     experience: int = 0
+    """Not published by ``get-characters`` on any entry measured on 2026-08-12. Kept
+    because the parser costs nothing and a field GGG restores should not need a
+    model change; read it as *unknown*, not as zero."""
+
     current: bool = False
-    """GGG marks the most recently played character. The one to sync by default."""
+    """Whether GGG says this character is the one being played **right now**.
+
+    The field is **absent from every entry** of the live roster measured on
+    2026-08-12, taken out of game — so it is understood to be set only while a
+    character is logged in, and that understanding is a hypothesis nobody here has
+    been able to test. Nothing depends on it: :meth:`CharacterList.resolve` puts it
+    first because "who is playing" beats "who played last" *if* it is ever there,
+    and falls through to :attr:`last_login` when it is not, which is what every
+    measurement so far has looked like.
+
+    What it must never again mean is "the most recently played character". It was
+    documented that way, it is always ``False`` out of game, and the fallback behind
+    it — first in GGG's own ordering — silently read a parked Standard character on
+    an account whose owner plays a league one."""
+
+    last_login: datetime | None = None
+    """When this character was last played, from GGG's ``lastLoginTime``.
+
+    **Unix seconds**, not milliseconds: the live roster's largest value decoded to a
+    timestamp one day before the day it was read, where a millisecond reading would
+    have put it in January 1970. Measured, not assumed.
+
+    This is the field the PoE website's own top bar picks its character with, and it
+    is the answer to "which character am I playing" out of game — the question this
+    module previously had no data for and guessed at. ``None`` means the roster
+    entry carried no usable timestamp, which makes the entry ineligible to win on
+    recency rather than making it lose to an invented zero. Whether a
+    never-played character reports ``0`` or omits the key is unmeasured; both are
+    read as ``None``."""
+
+    def to_json(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
+class CharacterChoice(Base):
+    """A resolved character and the reason it won.
+
+    Precedence, high to low: an explicit argument, ``POEDEX_CHARACTER``, the
+    ``poeapi.character`` setting, a character GGG marked ``current``, the highest
+    ``lastLoginTime``, and then a visible guess.
+
+    The two derived rungs answer different questions and are ordered accordingly.
+    ``current`` says *who is playing*; ``last_login`` says *who played last*. In
+    game they agree; out of game only the second exists. That ordering makes the
+    panel right in the case it is actually used in — mid-session, on a Deck, with
+    the game running — and still right from a desk with the game closed.
+    """
+
+    name: str | None
+    source: CharacterSource
+    league: str | None = None
+    class_name: str | None = None
+    level: int = 0
+    last_login: datetime | None = None
+
+    played_last: str | None = None
+    """Who the derived signals would have picked, when something stated overrode
+    them. ``None`` when nothing was overridden or when there was nothing to override.
+
+    Present so a surface can say "reading PlaceholderWarden — pinned; you last played
+    PlaceholderHierophant" instead of showing a pin as though it were an observation. A pin is
+    a legitimate thing to want; a pin nobody can see is how one becomes a trap."""
+
+    @property
+    def guessed(self) -> bool:
+        """``True`` when nothing in the account said which character this is.
+
+        The one flag a surface may not render quietly. Everything else here is a
+        fact about the account; this is the tool admitting it picked."""
+        return self.source is CharacterSource.FALLBACK
+
+    @property
+    def stated(self) -> bool:
+        """``True`` when a human said this name, rather than it being read off the
+        account."""
+        return self.source in (
+            CharacterSource.ARGUMENT,
+            CharacterSource.ENVIRONMENT,
+            CharacterSource.SETTING,
+        )
+
+    @property
+    def overriding(self) -> bool:
+        """``True`` when a stated choice is not the character the account points at.
+
+        Not an error and not an anomaly — reading a character other than the one you
+        last played is an ordinary thing to want, which is why the picker exists.
+        It is reported because a surface that shows the name alone cannot tell it
+        from the tool having got it wrong."""
+        return self.played_last is not None and self.played_last != self.name
+
+    def describe(self) -> str:
+        """One sentence: the name, and the claim behind it."""
+        if self.name is None:
+            return "no character — this account's roster is empty or unreadable"
+        tail = {
+            CharacterSource.ARGUMENT: "you asked for it (--character)",
+            CharacterSource.ENVIRONMENT: f"{CHARACTER_ENV} is set for this run",
+            CharacterSource.SETTING: "pinned by the poeapi.character setting",
+            CharacterSource.CURRENT: "the API says this is the character you are playing",
+            CharacterSource.LAST_LOGIN: "most recently played",
+            CharacterSource.FALLBACK: (
+                "GUESSED — nothing on this account says which character to read, so "
+                "this is only the first one GGG listed"
+            ),
+        }[self.source]
+        if self.source is CharacterSource.LAST_LOGIN and self.last_login is not None:
+            tail = f"most recently played, {format_last_login(self.last_login)}"
+        if self.overriding:
+            tail += f"; you last played {self.played_last}"
+        return f"{self.name} ({tail})"
+
+    def to_json(self) -> dict[str, Any]:
+        """The fields, and only the fields.
+
+        :attr:`guessed`, :attr:`stated` and :meth:`describe` are deliberately **not**
+        serialized. They are one-line functions of ``source``, the frontend has the
+        same enum, and a payload carrying both the fact and four readings of it is a
+        payload that can contradict itself. It is also how the generated TypeScript
+        stays a projection of the model rather than of ``to_json``.
+        """
+        return self.model_dump(mode="json")
 
 
 class CharacterList(Base):
     characters: list[Character] = Field(default_factory=list)
     meta: Meta
 
-    def current(self) -> Character | None:
+    def marked_current(self) -> Character | None:
+        """The character GGG says is logged in, if it says so at all.
+
+        Returns ``None`` on every roster measured so far — see :attr:`Character.current`.
+        """
         for character in self.characters:
             if character.current:
                 return character
-        return self.characters[0] if self.characters else None
+        return None
+
+    def most_recent(self) -> Character | None:
+        """The character with the highest ``lastLoginTime``.
+
+        Entries with no timestamp are skipped rather than sorted to the bottom: they
+        are *unknown*, and an unknown must not be able to win by tying at zero. Ties
+        between equal timestamps keep GGG's order, which is arbitrary but stable.
+        """
+        best: Character | None = None
+        for character in self.characters:
+            if character.last_login is None:
+                continue
+            if best is None or character.last_login > best.last_login:  # type: ignore[operator]
+                best = character
+        return best
+
+    def default(self) -> Character | None:
+        """Who to read when nobody has said — or ``None`` when nothing can say.
+
+        **There is no positional fallback here, and that omission is the fix.** The
+        method this replaced ended in ``self.characters[0]``, so an account where
+        nothing was marked returned GGG's first entry with the same confidence as an
+        observation. Callers that can degrade (a league, a realm) get ``None`` and
+        say so; the one caller that must produce a name asks :meth:`resolve`, which
+        labels the guess.
+        """
+        return self.marked_current() or self.most_recent()
+
+    def resolve(self) -> tuple[Character | None, CharacterSource]:
+        """The default character *and why*, guess included and labelled as one."""
+        marked = self.marked_current()
+        if marked is not None:
+            return marked, CharacterSource.CURRENT
+        recent = self.most_recent()
+        if recent is not None:
+            return recent, CharacterSource.LAST_LOGIN
+        if self.characters:
+            return self.characters[0], CharacterSource.FALLBACK
+        return None, CharacterSource.NONE
 
     def named(self, name: str) -> Character | None:
         lowered = name.casefold()
@@ -369,6 +604,33 @@ class CharacterList(Base):
 
     def to_json(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
+
+
+class CharacterSelection(Base):
+    """Everything a picker needs: the roster, the pick, and the reason for it.
+
+    One model rather than two calls, because the roster and the choice have to agree
+    — a screen that fetched them separately could offer a list that does not contain
+    the name it says it is reading. Costs at most one ``get-characters``, which is
+    cached for an hour.
+    """
+
+    choice: CharacterChoice
+    characters: list[Character] = Field(default_factory=list)
+    configured: str | None = None
+    """The stored ``poeapi.character`` value, or ``None`` when nothing is pinned.
+    Distinct from ``choice.name``: a surface has to be able to draw the difference
+    between "pinned to this" and "following the account, which currently means this"."""
+
+    meta: Meta
+
+    def to_json(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
+def format_last_login(when: datetime) -> str:
+    """``last played 2026-08-11 14:17 UTC``. Minutes; a login is not a stopwatch."""
+    return f"last played {when.astimezone(UTC):%Y-%m-%d %H:%M} UTC"
 
 
 class TabKind(StrEnum):

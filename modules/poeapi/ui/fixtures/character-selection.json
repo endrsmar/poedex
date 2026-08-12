@@ -1,0 +1,51 @@
+{
+  "choice": {
+    "name": "PlaceholderWarden",
+    "source": "last_login",
+    "league": "Standard",
+    "class_name": "Warden",
+    "level": 97,
+    "last_login": "2026-08-11T21:40:00Z",
+    "played_last": null
+  },
+  "characters": [
+    {
+      "name": "PlaceholderJuggernaut",
+      "league": "Solo Self-Found",
+      "realm": "pc",
+      "class_name": "Juggernaut",
+      "level": 86,
+      "experience": 0,
+      "current": false,
+      "last_login": "2026-05-02T18:20:00Z"
+    },
+    {
+      "name": "PlaceholderWarden",
+      "league": "Standard",
+      "realm": "pc",
+      "class_name": "Warden",
+      "level": 97,
+      "experience": 0,
+      "current": false,
+      "last_login": "2026-08-11T21:40:00Z"
+    },
+    {
+      "name": "PlaceholderHierophant",
+      "league": "Allflame",
+      "realm": "pc",
+      "class_name": "Hierophant",
+      "level": 90,
+      "experience": 0,
+      "current": false,
+      "last_login": "2026-07-14T07:05:00Z"
+    }
+  ],
+  "configured": null,
+  "meta": {
+    "fetched_at": "2026-08-10T14:32:00Z",
+    "from_cache": false,
+    "stale": false,
+    "retry_after": null,
+    "note": null
+  }
+}

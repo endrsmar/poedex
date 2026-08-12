@@ -2,7 +2,7 @@
 
 ## The bug these tests exist for
 
-``poedex appraise --character Pallinadar`` printed ``league: Standard`` for a
+``poedex appraise --character PlaceholderHierophant`` printed ``league: Standard`` for a
 character in Allflame, and priced the bag against Standard's tables. Three links,
 each individually reasonable:
 
@@ -44,7 +44,7 @@ GGG = "www.pathofexile.com"
 
 ALLFLAME_CHARACTER = "PlaceholderHierophant"
 """``tests/fixtures/poeapi/get-characters.json``: in Allflame, and not the current
-character. Standing in for the report's Pallinadar."""
+character. Standing in for the report's PlaceholderHierophant."""
 
 STANDARD_CHARACTER = "PlaceholderWarden"
 """The current character, in Standard. The one whose league the old default

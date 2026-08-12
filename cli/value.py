@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import sys
 
+from cli.characters import describe_character
 from modules.poeapi.backend.api import PoeApi, Source
 from modules.prices.backend.api import BagValuation, LeagueChoice, PricesApi, Valuation
 
@@ -156,7 +157,8 @@ async def cmd_value(
     items = bag.by_source(Source.BAG)
     result = await prices.value_all(items, league=bag.league, override=league)
 
-    print(f"character:  {bag.character}")
+    # Never the bare name — see `describe_character`.
+    print(f"character:  {describe_character(bag)}")
     print(f"league:     {choice.describe()}")
     print(render_tables(result))
     print(f"items:      {len(items)} row(s), {result.lookups} price lookup(s)")

@@ -32,6 +32,7 @@ from __future__ import annotations
 import os
 import sys
 
+from cli.characters import describe_character
 from cli.value import format_chaos, prepare_league
 from modules.appraisal.backend.api import (
     AppraisalApi,
@@ -318,7 +319,13 @@ async def cmd_appraise(
 
     print(
         render_header(
-            result, character=bag.character, rows=len(items), league=choice.describe()
+            result,
+            # The description, not the bare name. This header is the CLI's best
+            # statement of what the numbers under it rest on, and "which character"
+            # was the one line on it a reader had no way to check.
+            character=describe_character(bag),
+            rows=len(items),
+            league=choice.describe(),
         )
     )
     print()

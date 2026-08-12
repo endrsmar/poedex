@@ -17,6 +17,9 @@ describe('the Rollup glob', () => {
     const found = findModuleUIs().map(([relative]) => relative)
     expect(found).toContain('modules/appraisal/ui/index.ts')
     expect(found).toContain('modules/credentials/ui/index.ts')
+    // A *core* module with a face, like `credentials`. On a Deck the picker is the
+    // only way to change which character is read at all.
+    expect(found).toContain('modules/poeapi/ui/index.ts')
     // A module with a backend and no UI is the normal case, not a problem.
     expect(found).not.toContain('modules/moddb/ui/index.ts')
     expect(found).toEqual([...found].sort())
@@ -33,11 +36,15 @@ describe('the Rollup glob', () => {
 })
 
 describe('discoverModuleUIs at compact', () => {
-  it('mounts the bag and the pairing screen', () => {
+  it('mounts the bag, the character picker and the pairing screen', () => {
     const found = discoverModuleUIs('compact')
     expect(found.problems).toEqual([])
     expect(found.screens.map((screen) => `${screen.moduleId}/${screen.screenId}`)).toEqual([
       'appraisal/bag',
+      // Second, deliberately. It is the screen you go to when the bag shows
+      // something you did not expect, which is the moment it has to be one press
+      // away rather than at the end of the list.
+      'poeapi/character',
       'credentials/pair',
     ])
   })
