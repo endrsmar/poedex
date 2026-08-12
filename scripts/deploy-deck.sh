@@ -69,6 +69,12 @@ SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/
 
 if [[ -n "$DECK_PASSWORD" ]]; then
   command -v sshpass >/dev/null || die "DECK_PASSWORD is set but sshpass is not installed (apt install sshpass)"
+  # Go straight to the password. Without this, ssh offers every key in the agent
+  # and in ~/.ssh first — six of them on this machine — and sshd disconnects after
+  # its MaxAuthTries (6 by default) before the password is ever tried. The failure
+  # reads as "Too many authentication failures", which looks like a credential
+  # problem rather than an ordering one.
+  SSH_OPTS+=(-o PreferredAuthentications=password -o PubkeyAuthentication=no)
   SSH=(sshpass -e ssh "${SSH_OPTS[@]}")
   SCP=(sshpass -e scp "${SSH_OPTS[@]}")
   export SSHPASS="$DECK_PASSWORD"   # -e, so it never appears in ps or the shell history
