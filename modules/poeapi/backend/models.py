@@ -37,6 +37,7 @@ __all__ = [
     "Location",
     "Mods",
     "NormalizedItem",
+    "Profile",
     "Rarity",
     "Sockets",
     "Source",
@@ -296,6 +297,39 @@ class ItemSet(Base):
         data = self.model_dump(mode="json")
         data["content_hash"] = self.content_hash
         return data
+
+
+class Profile(Base):
+    """Who the session belongs to. The answer to ``accountName``.
+
+    This model is what ended "no account name on record". ``get-items`` and
+    ``get-stash-items`` both require an ``accountName``, no other account endpoint
+    returns one, and the LAN pairing form collects a code and a credential and
+    nothing else — so on a Deck there was no way to supply it, and every request
+    after a successful pair failed. ``/api/profile`` answers it from the session
+    cookie alone.
+
+    Deriving it beats asking for it on more than convenience: a *wrong* account name
+    produces the same 403 as an expired session, so the tool could not tell a typo
+    from a dead cookie. Reading the name off the session removes that class of error
+    rather than reporting it better.
+    """
+
+    account: str
+    """The account name exactly as GGG spells it, discriminator included —
+    ``Name#1234`` on any account renamed since the discriminators landed. It goes
+    into ``accountName`` verbatim: this tool does not know GGG's naming rules, and
+    trimming the suffix would be inventing one."""
+
+    uuid: str | None = None
+    """The account's stable identifier. Never sent in a request — carried because it
+    is the one field that survives a rename, which is what any future "is this still
+    the same account?" check would have to read."""
+
+    meta: Meta
+
+    def to_json(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
 
 
 class Character(Base):

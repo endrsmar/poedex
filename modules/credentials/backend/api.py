@@ -14,12 +14,26 @@ wrapper protects everything up to that point.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
 from runtime.errors import PoedexError
+
+AccountResolver = Callable[[], Awaitable[str | None]]
+"""Something that can name the account a stored credential belongs to.
+
+`poeapi` registers one at start (it reads ``/api/profile``); this module calls it and
+never learns how. The direction matters: `poeapi` depends on `credentials` and not
+the other way round, so the knowledge of *how* to ask GGG anything stays on the side
+of the boundary that already talks to GGG.
+
+``None`` from a resolver means "could not tell right now" — a network refusal, a rate
+limit, a response with no name in it. It is never an error: a credential that cannot
+be attributed is still a credential, and pairing must not fail over it.
+"""
 
 CREDENTIAL_CHANGED = "credential_changed"
 """Event topic emitted whenever the stored credential or its state changes."""
@@ -139,4 +153,18 @@ class CredentialsApi(Protocol):
 
     async def mark_rejected(self, note: str | None = None) -> CredentialStatus:
         """Record that the API rejected the credential (401/403)."""
+        ...
+
+    def set_account_resolver(self, resolve: AccountResolver | None) -> None:
+        """Register (or clear) the thing that can name the account.
+
+        Called by `poeapi` at start and cleared at stop. A credential that arrives
+        over LAN pairing is then attributed the moment it lands, instead of the Deck
+        discovering at the first ``get-items`` that it has a session and no idea
+        whose it is — which, with no keyboard, was a dead end.
+
+        Deliberately synchronous and fire-once: it stores a callable, it does not
+        call one. Nothing here reaches the network until a credential actually
+        arrives.
+        """
         ...

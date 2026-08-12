@@ -113,7 +113,14 @@ def build_parser() -> argparse.ArgumentParser:
             "argument: argv is world-readable via /proc and lands in shell history."
         ),
     )
-    auth_set.add_argument("--account", help="account name this credential belongs to")
+    auth_set.add_argument(
+        "--account",
+        help=(
+            "account name this credential belongs to. Optional — it is read off "
+            "your profile on the first request that needs it. Pass it only to "
+            "override a derived name that is wrong"
+        ),
+    )
 
     auth_sub.add_parser("status", help="print credential state (never the value)")
     auth_sub.add_parser("clear", help="delete the stored credential")
@@ -497,7 +504,9 @@ async def cmd_auth_status(registry: Registry) -> int:
     credentials = registry.api(CredentialsApi)
     status = await credentials.status()
     print(f"state:      {status.state.value} — {_STATE_TEXT[status.state]}")
-    print(f"account:    {status.account or '-'}")
+    # Blank is not "broken" any more: the name is read off the profile the first
+    # time a request needs one, so an unattributed credential is merely young.
+    print(f"account:    {status.account or '- (read from your profile on first use)'}")
     print(f"added:      {status.added_at.isoformat() if status.added_at else '-'}")
     print(f"last ok:    {status.last_ok_at.isoformat() if status.last_ok_at else '-'}")
     if status.rejected_at:

@@ -30,8 +30,8 @@ from modules.poeapi.backend.cache import ResponseCache
 from modules.poeapi.backend.module import CHARACTERS_MIN_INTERVAL, PoeApiModule
 from runtime.registry import Registry
 from runtime.storage import Storage
+from tests.conftest import ACCOUNT, PROFILE_ACCOUNT, FakeClock, Server
 from tests.conftest import SESSION_VALUE as VALUE
-from tests.conftest import FakeClock, Server
 
 # -- wiring --------------------------------------------------------------------
 
@@ -111,21 +111,195 @@ async def test_the_account_name_comes_from_the_credential_record(api: PoeApi, se
     assert request.url.params["accountName"] == "ExampleAccount"
 
 
-async def test_a_missing_account_name_is_a_distinct_error(stack: Registry, api: PoeApi):
-    credentials = stack.api(CredentialsApi)
-    await credentials.clear()
-    await credentials.set(VALUE, None)
-    with pytest.raises(AccountUnknownError) as excinfo:
-        await api.get_items("PlaceholderWarden")
-    assert "poedex auth set" in str(excinfo.value)
-
-
 async def test_items_are_not_cached_by_default(api: PoeApi, server: Server):
     """The endpoint commits at zone transitions; a TTL would delay the one sync
     that matters (SPEC §4.3)."""
     await api.get_items("PlaceholderWarden")
     await api.get_items("PlaceholderWarden")
     assert server.paths().count("/character-window/get-items") == 2
+
+
+# -- the account name ----------------------------------------------------------
+#
+# Phase 2 called this un-inferable and asked for it. It is inferable, and asking was
+# the bug: the LAN pairing form has two fields — a code and a credential — so on a
+# Deck there was no way to answer, and a successful pair was followed by
+# "no account name on record" forever. `/api/profile` answers from the cookie alone.
+
+
+@pytest.fixture
+async def unattributed(stack: Registry) -> Registry:
+    """The Deck's state after pairing: a good credential, and no name with it."""
+    credentials = stack.api(CredentialsApi)
+    await credentials.clear()
+    await credentials.set(VALUE, None)
+    return stack
+
+
+async def test_get_profile_reads_the_account_off_the_session(api: PoeApi, server: Server):
+    profile = await api.get_profile()
+    assert profile.account == PROFILE_ACCOUNT
+    assert profile.uuid == "00000000-0000-4000-8000-000000000000"
+    assert profile.meta.from_cache is False
+    request = next(r for r in server.requests if r.url.path == "/api/profile")
+    # The point of the endpoint: it is the one account request that does not already
+    # need to know whose account it is.
+    assert "accountName" not in request.url.params
+
+
+async def test_get_profile_is_cached_hard(api: PoeApi, server: Server):
+    """An account name changes when somebody pays GGG to change it."""
+    for _ in range(5):
+        await api.get_profile()
+    assert server.paths().count("/api/profile") == 1
+
+
+async def test_the_account_is_derived_when_nothing_states_one(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """The bug, as a test: pair, then read a bag, with nothing typed anywhere."""
+    await api.get_items("PlaceholderWarden")
+    request = next(r for r in server.requests if r.url.path == "/character-window/get-items")
+    assert request.url.params["accountName"] == PROFILE_ACCOUNT
+    assert "/api/profile" in server.paths()
+
+
+async def test_a_derived_account_is_filed_with_the_credential(
+    unattributed: Registry, api: PoeApi
+):
+    """So `poedex auth status` can answer it, and so it survives a restart."""
+    await api.get_items("PlaceholderWarden")
+    assert (await unattributed.api(CredentialsApi).status()).account == PROFILE_ACCOUNT
+
+
+async def test_the_derived_account_is_not_looked_up_again_per_call(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """One request per session, not one per bag.
+
+    Two mechanisms have to hold for this, and both are load-bearing: the response
+    cache stops a second request, and filing the name with the credential means the
+    resolution never even reaches the profile rung again.
+    """
+    for _ in range(4):
+        await api.get_items("PlaceholderWarden")
+    assert server.paths().count("/api/profile") == 1
+
+
+async def test_an_explicit_account_beats_a_derived_one(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """`--account` is the escape hatch for a derived answer that is wrong. An
+    override a lookup can beat is not an override — and it must not even *ask*,
+    because a request spent to be ignored is a request spent."""
+    await api.get_items("PlaceholderWarden", account="SomebodyElse#1234")
+    request = next(r for r in server.requests if r.url.path == "/character-window/get-items")
+    assert request.url.params["accountName"] == "SomebodyElse#1234"
+    assert "/api/profile" not in server.paths()
+
+
+async def test_the_setting_beats_a_derived_one(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    unattributed.settings.view("poeapi").set("account", "SettingAccount#5678")
+    await api.get_items("PlaceholderWarden")
+    request = next(r for r in server.requests if r.url.path == "/character-window/get-items")
+    assert request.url.params["accountName"] == "SettingAccount#5678"
+    assert "/api/profile" not in server.paths()
+
+
+async def test_the_credential_record_beats_a_derived_one(api: PoeApi, server: Server):
+    """The default stack pairs *with* a name, and that name is used unasked."""
+    await api.get_items("PlaceholderWarden")
+    request = next(r for r in server.requests if r.url.path == "/character-window/get-items")
+    assert request.url.params["accountName"] == ACCOUNT
+    assert "/api/profile" not in server.paths()
+
+
+async def test_an_unreachable_profile_says_what_went_wrong(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """The message names the failure and the one command that ends it.
+
+    Not "run 'poedex auth set --account <name>'", which is what it used to say: that
+    is an instruction to type an account name on a device with no keyboard, for a
+    value the tool can nearly always read for itself.
+    """
+    server.profile = None  # the endpoint 404s; the credential is fine
+    with pytest.raises(AccountUnknownError) as excinfo:
+        await api.get_items("PlaceholderWarden")
+    message = str(excinfo.value)
+    assert "404" in message
+    assert "poedex config set poeapi.account" in message
+    assert "poedex auth set --account" not in message
+
+
+async def test_a_profile_with_no_name_in_it_is_not_an_account(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """A 200 that names nobody is not a licence to send an empty ``accountName``."""
+    server.profile = {"uuid": "00000000-0000-4000-8000-000000000000"}
+    with pytest.raises(AccountUnknownError):
+        await api.get_items("PlaceholderWarden")
+    assert "/character-window/get-items" not in server.paths()
+
+
+async def test_a_rejected_session_on_the_profile_endpoint_is_not_a_missing_name(
+    unattributed: Registry, api: PoeApi, server: Server
+):
+    """401/403 goes down the same path as every other endpoint's.
+
+    `credentials` is told first, and the caller gets ``SessionRejectedError`` — not
+    ``AccountUnknownError``. Reporting a dead session as a missing account name would
+    reintroduce, from the other direction, exactly the confusion that deriving the
+    name removed.
+    """
+    server.status = 403
+    with pytest.raises(SessionRejectedError):
+        await api.get_items("PlaceholderWarden")
+    assert (
+        await unattributed.api(CredentialsApi).status()
+    ).state is CredentialState.REJECTED
+
+
+async def test_the_started_stack_lets_a_pair_attribute_itself(
+    stack: Registry, server: Server
+):
+    """The wiring, end to end, over the real registry.
+
+    `poeapi` hands `credentials` a resolver at start; `credentials` calls it when a
+    credential lands over the pairing socket. Neither module imports the other's
+    implementation and the dependency still points one way — `poeapi` requires
+    `credentials`, not the reverse — which is the only reason this can be a callback
+    rather than an import.
+
+    Driven through ``_pair_store`` rather than a real socket because the alternative
+    is binding ``0.0.0.0`` in a unit test; ``tests/test_credentials_pairing.py``
+    covers the socket, on loopback, with a stub resolver. Between the two, every hop
+    is exercised.
+    """
+    credentials = stack.get("credentials")
+    await credentials.clear()
+
+    status = await credentials._pair_store(VALUE)
+
+    assert status.account == PROFILE_ACCOUNT
+    assert status.usable is True
+    assert server.paths().count("/api/profile") == 1
+    # And the bag that follows spends nothing more finding out whose it is.
+    await stack.api(PoeApi).get_items("PlaceholderWarden")
+    request = next(r for r in server.requests if r.url.path == "/character-window/get-items")
+    assert request.url.params["accountName"] == PROFILE_ACCOUNT
+    assert server.paths().count("/api/profile") == 1
+
+
+async def test_a_stopped_poeapi_leaves_no_resolver_behind(stack: Registry, registry: Registry):
+    """A closure over a stopped module would answer `ModuleNotStartedError` rather
+    than a name, which is a worse failure than not answering at all."""
+    credentials = stack.get("credentials")
+    assert credentials._resolve_account is not None
+    await stack.get("poeapi").stop()
+    assert credentials._resolve_account is None
 
 
 # -- stash ---------------------------------------------------------------------
@@ -330,6 +504,10 @@ def test_cache_files_are_owner_only(tmp_path: Path):
 async def test_every_registered_method_returns_plain_json(stack: Registry, api: PoeApi):
     methods = stack.methods
     assert set(methods.for_module("poeapi")) == {
+        # A surface may ask whose account this is. It may not ask *with* a
+        # credential — nothing here takes one — and the answer is a name the user
+        # already knows.
+        "poeapi.get_profile",
         "poeapi.get_characters",
         "poeapi.get_items",
         "poeapi.get_stash_items",

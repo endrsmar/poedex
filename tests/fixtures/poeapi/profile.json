@@ -1,0 +1,14 @@
+{
+  "uuid": "00000000-0000-4000-8000-000000000000",
+  "name": "ExampleAccount#0000",
+  "realm": "pc",
+  "locale": "en_US",
+  "guild": {
+    "id": 0,
+    "name": "Placeholder Guild",
+    "tag": "PLC"
+  },
+  "twitch": {
+    "name": "placeholder_streamer"
+  }
+}

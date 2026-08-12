@@ -38,6 +38,19 @@ SESSION_VALUE = "0123456789abcdef0123456789abcdef"
 """A syntactically valid POESESSID that has never been a real one."""
 
 ACCOUNT = "ExampleAccount"
+"""The account name the suite pairs with explicitly. A placeholder, never a real one.
+
+Deliberately **different** from :data:`PROFILE_ACCOUNT`. The precedence tests are
+only meaningful if a stated name and a derived one can be told apart, and two
+fixtures spelling the same string would let "the override won" and "the lookup won"
+pass the same assertion.
+"""
+
+PROFILE_ACCOUNT = "ExampleAccount#0000"
+"""What ``/api/profile`` says the session belongs to, per ``profile.json``.
+
+The discriminator is part of it, as it is on every live account since GGG added
+them, and it is passed to ``accountName`` verbatim."""
 
 
 @pytest.fixture(autouse=True)
@@ -435,6 +448,12 @@ class Server:
         provable by counting requests, and this is what a test counts."""
 
         self.bag_fixture = "get-items.json"
+        self.profile: Any = payload("profile.json")
+        """Who the session belongs to. An attribute so a test can take it away —
+        set it to ``None`` for a 404, or ``{}`` for a response with no name in it,
+        which are the two ways deriving the account can fail without the credential
+        being at fault."""
+
         self.characters: Any = payload("get-characters.json")
         """The roster, as an attribute so a test can empty it or move a character to
         another league. Which league a character is in is now load-bearing — it is
@@ -464,7 +483,16 @@ class Server:
                 self.status, json=self.error_body, headers=headers(self.header_file)
             )
         path = request.url.path
-        if path == "/character-window/get-characters":
+        if path == "/api/profile":
+            if self.profile is None:
+                # A 404 rather than a 403: "this endpoint did not answer" has to be
+                # separable from "your session is dead", because they take different
+                # branches and produce different sentences.
+                return httpx.Response(
+                    404, json={"error": "not found"}, headers=headers(self.header_file)
+                )
+            body = self.profile
+        elif path == "/character-window/get-characters":
             body = self.characters
         elif path == "/character-window/get-items":
             body = bag_payload(self.bag_fixture)

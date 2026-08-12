@@ -1,6 +1,6 @@
 # poeapi fixtures
 
-Recorded shapes for the three endpoints of SPEC §4.2 and the rate-limit headers of
+Recorded shapes for the account endpoints of SPEC §4.2 and the rate-limit headers of
 SPEC §4.4. Every test in this repository runs against these; **no test may hit a
 live API**.
 
@@ -29,6 +29,7 @@ re-capturing, which means re-scrubbing. If you do that, re-read this file first.
 
 | File | Purpose |
 |---|---|
+| `profile.json` | What `/api/profile` answers from the session cookie alone. The **account name** comes from here: it is the only account endpoint that takes no `accountName`, which is what lets it supply one to the two that require it. `name` carries a discriminator, as every live one now does. |
 | `get-characters.json` | The bare array `get-characters` returns. One entry has `current: true`. |
 | `get-items.json` | `{items, character}`. Deliberately covers every category branch in `normalize.py`. |
 | `get-stash-tabs.json` | `tabs=1` response: tab metadata, including a remove-only and a hidden map tab. |

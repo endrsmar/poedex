@@ -15,6 +15,16 @@ Three behaviours here exist to protect the account rather than to serve a caller
 * **A 401/403 tells `credentials` before it reaches the caller**, so the stored
   state and the error the surface sees can never disagree.
 
+One that exists so the tool works at all on a Deck: **the account name is derived
+from the session, not asked for**. ``get-items`` and ``get-stash-items`` both require
+an ``accountName``; the LAN pairing form collects a code and a credential and there
+is no third field, so a Deck used to pair successfully and then fail every request
+with "no account name on record". ``/api/profile`` answers it from the cookie alone,
+and :meth:`PoeApiModule._account` consults it after the two stated sources and files
+the answer with the credential. It is also strictly *more correct* than asking: a
+wrong account name comes back as the same 403 as an expired session, and there is
+now nothing to get wrong.
+
 And one that exists to protect the *numbers*: **every :class:`ItemSet` carries the
 league it came from**, read off the character list rather than off a setting. This
 module is the only place in the tool where "which league is this?" has a truthful
@@ -41,6 +51,7 @@ from modules.poeapi.backend.api import (
     CHARACTER_ENV,
     CHARACTERS_PATH,
     ITEMS_PATH,
+    PROFILE_PATH,
     STASH_PATH,
     SYNC_COMPLETE,
     AccountUnknownError,
@@ -54,6 +65,7 @@ from modules.poeapi.backend.api import (
     Meta,
     PoeApi,
     PoeApiError,
+    Profile,
     RateLimitedError,
     SessionRejectedError,
     Source,
@@ -90,9 +102,34 @@ _fallback_log = get_logger("module.poeapi")
 ITEM_ROUTE = "character-window:items"
 CHARACTER_ROUTE = "character-window:characters"
 
+PROFILE_ROUTE = "profile"
+"""Its own route, not shared with the character endpoint.
+
+Route names only decide the *seed* budget — one request per ten seconds — that
+applies before a response header teaches the limiter the real policy; after that,
+two paths GGG governs with one policy converge on one bucket by themselves. Sharing
+the character seed would mean a profile read could hold up a roster read for ten
+seconds on a cold start, which is precisely the first thing a freshly paired Deck
+does.
+"""
+
 # `refresh=True` cannot go below this on the character endpoint. SPEC §4.4: cache
 # hard, never poll.
 CHARACTERS_MIN_INTERVAL = 60.0
+
+PROFILE_TTL = 86400.0
+"""A day, and not a setting.
+
+An account name changes when a player pays GGG to change it. There is no tuning
+question here, so there is no knob: a setting would be one more thing on a settings
+screen that nobody can answer better than this constant does.
+
+There is deliberately **no** ``min_interval`` to go with it. The one caller that
+passes ``refresh=True`` is pairing, which happens because a human walked to another
+computer, and it is the case where the cached answer is most likely to be the
+*previous* account's. The rate limiter is what protects the endpoint; this only
+decides how long an answer stays good.
+"""
 
 DEFAULT_CHARACTERS_TTL = 3600
 DEFAULT_ITEMS_TTL = 0
@@ -176,6 +213,11 @@ class PoeApiModule:
         self._storage = ctx.storage
         if self._cache is None:
             self._cache = ResponseCache(ctx.storage)
+        # `credentials` cannot ask GGG anything — nothing on that side of the
+        # boundary knows how — so it is handed something that can. This is what lets
+        # a LAN pair file the account name with the credential the moment it lands,
+        # on a device where the alternative was typing it.
+        self._credentials.set_account_resolver(self._resolve_account)
         configured = str(self._setting("league", NO_LEAGUE)).strip()
         ctx.logger.info(
             "poeapi ready: league=%s",
@@ -183,6 +225,11 @@ class PoeApiModule:
         )
 
     async def stop(self) -> None:
+        if self._credentials is not None:
+            # Before the references go: a resolver left behind would be a closure
+            # over a stopped module, and pairing would call into `_require_net` and
+            # get `ModuleNotStartedError` instead of a name.
+            self._credentials.set_account_resolver(None)
         self._ctx = None
         self._net = None
         self._credentials = None
@@ -198,6 +245,7 @@ class PoeApiModule:
         crawl would cost, which is the thing a surface actually needs.
         """
         return {
+            "get_profile": self.get_profile_json,
             "get_characters": self.get_characters_json,
             "get_items": self.get_items_json,
             "get_stash_tabs": self.get_stash_tabs_json,
@@ -235,8 +283,9 @@ class PoeApiModule:
                 "default": "",
                 "label": "Account name",
                 "description": (
-                    "Required by get-items. Falls back to the name stored with the "
-                    "credential; set it here to override."
+                    "Whose items to read. Leave empty and it is read off your "
+                    "session, which is what a Steam Deck with no keyboard depends "
+                    "on; fill it in only to override a derived name that is wrong."
                 ),
             },
             "character": {
@@ -291,6 +340,28 @@ class PoeApiModule:
         }
 
     # -- PoeApi ----------------------------------------------------------------
+
+    async def get_profile(self, *, refresh: bool = False) -> Profile:
+        """Who this session belongs to. One request, then a day of cache.
+
+        The endpoint takes no ``accountName`` — it answers for whoever holds the
+        cookie — which is the whole reason it can bootstrap the two endpoints that
+        do. It goes through :meth:`_fetch` like everything else, so it shares the
+        cache discipline, the degrade-to-cache behaviour, and the 401/403 path that
+        tells `credentials` before the caller hears about it.
+        """
+        payload, meta = await self._fetch(
+            path=PROFILE_PATH,
+            route=PROFILE_ROUTE,
+            params={},
+            cache_key="profile",
+            ttl=PROFILE_TTL,
+            refresh=refresh,
+        )
+        name = _profile_name(payload)
+        if not name:
+            raise PoeApiError("the profile endpoint answered without an account name")
+        return Profile(account=name, uuid=_profile_uuid(payload), meta=meta)
 
     async def get_characters(
         self, *, refresh: bool = False, realm: str | None = None
@@ -704,6 +775,9 @@ class PoeApiModule:
 
     # -- JSON wrappers for the method registry ---------------------------------
 
+    async def get_profile_json(self, refresh: bool = False) -> dict[str, Any]:
+        return (await self.get_profile(refresh=refresh)).to_json()
+
     async def get_characters_json(self, refresh: bool = False) -> dict[str, Any]:
         return (await self.get_characters(refresh=refresh)).to_json()
 
@@ -872,10 +946,15 @@ class PoeApiModule:
     async def _account(self, explicit: str | None) -> str:
         """The account name ``get-items`` needs, in order of authority.
 
-        There is no way to look this up: ``get-characters`` does not return it, and
-        an account name that is merely *wrong* produces the same 403 as an expired
-        session. So it is asked for, and its absence is a distinct error with an
-        instruction attached rather than a mystery auth failure.
+        Argument, then the ``poeapi.account`` setting, then the name filed with the
+        credential, then **the session itself**. The last rung is the one that makes
+        the Deck work: the first three all need somebody to have typed a name, and
+        the LAN pairing form collects a code and a credential — so before it existed,
+        a Deck could pair successfully and then fail every request forever.
+
+        The two stated ones stay on top, because a derived answer can be the wrong
+        one — a second account, a realm this build guesses badly — and an override
+        that a lookup could beat is not an override.
         """
         if explicit and explicit.strip():
             return explicit.strip()
@@ -886,10 +965,53 @@ class PoeApiModule:
             status = await self._credentials.status()
             if status.account:
                 return status.account
+        derived, why = await self._account_from_profile()
+        if derived:
+            return derived
         raise AccountUnknownError(
-            "no account name on record. Run 'poedex auth set --account <name>', or "
+            f"the account name could not be read from the session: {why}. It is "
+            "normally taken from your profile and stored with the credential; if "
+            "that keeps failing, name it yourself with "
             "'poedex config set poeapi.account <name>'."
         )
+
+    async def _resolve_account(self) -> str | None:
+        """The :class:`~modules.credentials.backend.api.AccountResolver` `credentials`
+        is handed at start, and the only caller that passes ``refresh=True``.
+
+        Fresh on purpose: this runs when a *new* credential has just been stored, and
+        a day-old cached profile is quite likely to name the account the old cookie
+        belonged to. ``None`` for every failure — a pair must not die because a
+        lookup did.
+        """
+        try:
+            return (await self.get_profile(refresh=True)).account
+        except PoeApiError:
+            return None
+
+    async def _account_from_profile(self) -> tuple[str | None, str]:
+        """The account behind the current session, and why not when there is no name.
+
+        Files what it learns with the credential, so this costs one request per
+        session rather than one per call: the next :meth:`_account` finds it on the
+        rung above and never gets here. The response cache would already make a
+        second request unnecessary, but the record is what survives a restart and
+        what ``poedex auth status`` prints.
+
+        :class:`SessionRejectedError` is re-raised rather than folded into a "could
+        not read the account" message. A dead session and a missing name are
+        different problems with different fixes, and the whole point of deriving the
+        name was to stop those two arriving as the same 403.
+        """
+        try:
+            profile = await self.get_profile()
+        except SessionRejectedError:
+            raise
+        except PoeApiError as exc:
+            return None, str(exc)
+        if self._credentials is not None:
+            await self._credentials.mark_ok(profile.account)
+        return profile.account, ""
 
     async def _league(self, explicit: str | None) -> str:
         """Which league's stash to read: argument, then setting, then the character.
@@ -1076,6 +1198,26 @@ def _realm_param(params: dict[str, Any], realm: str | None) -> dict[str, Any]:
 # -- payload readers ------------------------------------------------------------
 #
 # Kept as free functions so a test can feed them a fixture without a module.
+
+
+def _profile_name(payload: Any) -> str | None:
+    """``/api/profile`` answers a single object; the account is its ``name``.
+
+    Verified against the live account: ``{"uuid": ..., "name": "Name#1234", ...}``,
+    where the discriminator is part of the name and is passed through untouched.
+    ``strip_set_tokens`` for the same reason every other name goes through it —
+    GGG's own markup can appear in a name field and must never reach a query string.
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    return strip_set_tokens(payload.get("name")) or None
+
+
+def _profile_uuid(payload: Any) -> str | None:
+    if not isinstance(payload, Mapping):
+        return None
+    value = payload.get("uuid")
+    return value if isinstance(value, str) and value else None
 
 
 def _characters_from(payload: Any) -> list[Character]:

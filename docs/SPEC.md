@@ -129,11 +129,23 @@ Session-cookie path, header `Cookie: POESESSID=<value>`, host `https://www.patho
 
 | Purpose | Endpoint |
 |---|---|
+| **Who this session is** | `GET /api/profile` |
 | List characters | `GET /character-window/get-characters` |
 | Equipment + inventory | `GET /character-window/get-items?accountName={a}&character={c}` |
 | Tab list + one tab | `GET /character-window/get-stash-items?accountName={a}&league={l}&tabs=1&tabIndex={n}` |
 
 A `User-Agent` with contact details is required by GGG on all calls.
+
+**`{a}` is derived, not asked for.** `/api/profile` answers
+`{"uuid": …, "name": "Name#1234", …}` for whoever holds the cookie, and is the only
+one of these that takes no `accountName` — which is what lets it supply one to the two
+that require it. Verified against a live account. Nothing else returns the name, and
+the LAN pairing form of §4.1 collects a code and a credential with no third field, so
+before this endpoint was used a Deck could pair successfully and then fail every
+request with *"no account name on record"*. Deriving it is also the more correct
+answer: a *wrong* account name comes back as the same 403 as an expired session, so
+the two were indistinguishable to a caller. `--account` and `poeapi.account` remain as
+overrides for a derived name that is wrong.
 
 **Inventory is owner-only.** Unauthenticated requests across nine public profiles returned
 equipped gear and flasks, zero `MainInventory` items. Auth is load-bearing, not a convenience.
