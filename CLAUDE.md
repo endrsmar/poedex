@@ -145,6 +145,25 @@ inside GGG's terms. Any proposal reintroducing client interaction is a regressio
 The compliance risk is **API request volume**, not the log file. GGG revokes API access for
 sustained rate-limit violations.
 
+## The interpreter gap — read before trusting a green suite
+
+**Tests run on CPython 3.12. The Decky plugin runs on 3.11.** The plugin backend is a
+fork of the frozen Decky Loader, which is PyInstaller-built against **3.11.7** — not
+SteamOS's Python, which is 3.13.
+
+That gap has already produced one fatal bug that 1369 green tests could not see:
+`runtime_checkable` Protocol `isinstance` calls `hasattr` on 3.11 and earlier, and
+`hasattr` only swallows `AttributeError`. A module exposing state through a property
+that raises before `start()` therefore detonated during *registration*. Python 3.12
+rewrote that check to use `inspect.getattr_static`, so it is silent here and fatal
+there.
+
+When a change touches descriptors, protocol conformance, import machinery or
+anything else with version-dependent semantics, exercise it under `python3.10` or
+`python3.11` in a subprocess — `tests/test_registry_protocols.py` and
+`tests/test_plugin_shadowing.py` are the pattern. Both are skipped, loudly, when no
+such interpreter exists.
+
 ## Facts that constrain every design decision
 
 - **Inventory commits at zone transitions, not live.** Measured, ~90% confidence. Real-time drop

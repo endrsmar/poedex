@@ -99,6 +99,44 @@ def discover(modules_root: Path | str, package: str = "modules") -> list[Module]
     return found
 
 
+def _implements(module: object, protocol: type) -> bool:
+    """`isinstance` against a Protocol, without *calling* anything on the module.
+
+    A ``runtime_checkable`` Protocol's ``isinstance`` asks ``hasattr`` for each
+    member on Python 3.11 and earlier, and ``hasattr`` only swallows
+    ``AttributeError``. A module that exposes state through a property which raises
+    until ``start()`` — ``net.user_agent`` raises ``ModuleNotStartedError`` — therefore
+    blows up *during registration*, before anything has had a chance to start it.
+
+    This was invisible for the whole project: Python 3.12 rewrote the check to use
+    ``inspect.getattr_static``, which does not invoke descriptors, and the test suite
+    runs on 3.12. The Decky plugin host is the frozen loader's **3.11**, so the first
+    Deck install died on `ModuleNotStartedError: net has not been started` while 1369
+    tests were green. See ``tests/test_registry_protocols.py``.
+
+    Structural conformance is a question about the *class*, not about the current
+    state of an instance, so ``getattr_static`` is the more correct check on every
+    version — 3.12's own change is the same admission.
+    """
+    import inspect
+    import typing
+
+    members = getattr(protocol, "__protocol_attrs__", None)
+    if members is None:
+        # 3.12 exposes __protocol_attrs__; 3.11 and earlier only have the private
+        # helper. Falling back to isinstance here would reinstate the exact bug this
+        # function exists to remove, because 3.11 is the version that has it.
+        members = getattr(typing, "_get_protocol_attrs", lambda _: None)(protocol)
+    if members is None:
+        return isinstance(module, protocol)
+    for name in members:
+        try:
+            inspect.getattr_static(module, name)
+        except AttributeError:
+            return False
+    return True
+
+
 class Registry:
     """Holds modules and the runtime services they are given."""
 
@@ -121,6 +159,7 @@ class Registry:
         self._order: list[str] = []
         self._started: list[str] = []
 
+
     # -- registration ----------------------------------------------------------
 
     def register(self, module: Module) -> None:
@@ -130,15 +169,14 @@ class Registry:
         provides = getattr(module, "provides", None)
         if provides is not None:
             try:
-                satisfied = isinstance(module, provides)
+                satisfied = _implements(module, provides)
             except TypeError:
                 # A Protocol without @runtime_checkable cannot be verified here; the
                 # type checker is the backstop for those.
                 satisfied = True
             if not satisfied:
                 raise InvalidModuleError(
-                    f"{module.id!r} declares provides={provides.__name__} but does not "
-                    "implement it"
+                    f"{module.id!r} declares provides={provides.__name__} but does not implement it"
                 )
             owner = self._providers.get(provides)
             if owner is not None:
@@ -249,7 +287,7 @@ class Registry:
 
         def walk(node: str) -> list[str] | None:
             if node in on_path:
-                return path[path.index(node):]
+                return path[path.index(node) :]
             if node in visited:
                 return None
             visited.add(node)
