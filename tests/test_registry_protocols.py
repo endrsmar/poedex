@@ -225,3 +225,81 @@ def test_the_helper_holds_on_an_interpreter_that_still_calls_hasattr():
         f"under {interpreter}: {result.stdout.strip()!r}. This is the Deck failure — "
         "conformance invoked a property that raises before start()."
     )
+
+
+def test_the_extended_poeapi_protocol_is_still_hasattr_safe_under_3_10():
+    """The character picker added two members to a ``runtime_checkable`` Protocol.
+
+    That is the exact surface the Deck bug lived on. ``PoeApi`` grew
+    ``character_choice`` and ``set_character``, so registration's conformance check
+    now asks about two more names — and on 3.11, which is what the frozen Decky
+    Loader runs, asking means ``hasattr``, which means *invoking* whatever is there.
+    Nothing here is a property today; the point of this test is that it fails on the
+    interpreter that matters the day one becomes one.
+
+    The member list is read out of ``api.py`` with ``ast`` rather than by importing
+    it, because ``modules/`` needs 3.11 (``datetime.UTC``) and this has to run on the
+    oldest interpreter available. That also means the list cannot drift from the
+    Protocol: a member added there is a member checked here.
+    """
+    interpreter = _legacy_python()
+    if interpreter is None:
+        pytest.skip(
+            "no <=3.11 interpreter available; this check cannot be answered here. "
+            "The plugin host is 3.11 — see docs/deck-checklist.md item 2."
+        )
+
+    script = textwrap.dedent(
+        f"""
+        import ast
+        from typing import Protocol, runtime_checkable
+
+        class Detonated(Exception): ...
+
+        api = ast.parse(open({str(REPO / "modules" / "poeapi" / "backend" / "api.py")!r}).read())
+        protocol = next(
+            node for node in ast.walk(api)
+            if isinstance(node, ast.ClassDef) and node.name == "PoeApi"
+        )
+        members = [
+            node.name
+            for node in protocol.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        assert "character_choice" in members and "set_character" in members, members
+
+        # A Protocol with every real member on it...
+        namespace = {{}}
+        exec("from typing import Protocol, runtime_checkable\\n"
+             "@runtime_checkable\\n"
+             "class PoeApiShape(Protocol):\\n"
+             + "".join(f"    def {{name}}(self): ...\\n" for name in members), namespace)
+
+        # ...and a module-shaped object where reading *any* of them detonates. This
+        # is `net`'s `user_agent` generalised: if conformance touches a member, this
+        # raises instead of answering.
+        def boom(self):
+            raise Detonated("the conformance check read a member")
+
+        Shape = type("Shape", (), {{name: property(boom) for name in members}})
+
+        source = open({str(REPO / "runtime" / "registry.py")!r}).read()
+        start = source.index("def _implements(")
+        end = source.index("class Registry:", start)
+        helper = {{}}
+        exec(compile(source[start:end], "registry.py", "exec"), helper)
+
+        try:
+            print("ok" if helper["_implements"](Shape(), namespace["PoeApiShape"]) else "refused")
+        except Detonated:
+            print("READ A MEMBER")
+        """
+    )
+    result = subprocess.run(
+        [interpreter, "-c", script], capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok", (
+        f"under {interpreter}: {result.stdout.strip()!r}. Registering `poeapi` would "
+        "invoke a member of its own Protocol on the interpreter the plugin runs on."
+    )

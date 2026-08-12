@@ -25,6 +25,16 @@ the answer with the credential. It is also strictly *more correct* than asking: 
 wrong account name comes back as the same 403 as an expired session, and there is
 now nothing to get wrong.
 
+One that exists because a Deck has no keyboard and a wrong default is expensive:
+**which character to read is resolved, ranked and reported, never picked silently**.
+GGG does not send ``current`` out of game — it is absent from every entry of the
+live roster — so the old default fell through to ``characters[0]``, which is GGG's
+own ordering and put a parked Standard character ahead of the league one its owner
+actually plays. ``lastLoginTime`` is published per entry and is what the PoE website
+reads; :meth:`PoeApiModule.character_choice` ranks it under ``current`` and above a
+guess, hands back the whole roster with it, and :meth:`PoeApiModule.set_character`
+lets a panel pin a different one without a config file.
+
 And one that exists to protect the *numbers*: **every :class:`ItemSet` carries the
 league it came from**, read off the character list rather than off a setting. This
 module is the only place in the tool where "which league is this?" has a truthful
@@ -48,6 +58,7 @@ from pydantic import ValidationError
 from modules.credentials.backend.api import CredentialsApi, CredentialState
 from modules.net.backend.api import AuthRejected, HttpStatusError, NetApi, NetError, RateLimited
 from modules.poeapi.backend.api import (
+    CHARACTER_CHANGED,
     CHARACTER_ENV,
     CHARACTERS_PATH,
     ITEMS_PATH,
@@ -57,7 +68,11 @@ from modules.poeapi.backend.api import (
     AccountUnknownError,
     Budget,
     Character,
+    CharacterChoice,
     CharacterList,
+    CharacterSelection,
+    CharacterSource,
+    CharacterUnknownError,
     CrawlProgress,
     CrawlStep,
     ItemSet,
@@ -247,6 +262,13 @@ class PoeApiModule:
         return {
             "get_profile": self.get_profile_json,
             "get_characters": self.get_characters_json,
+            # The two the panel's picker is made of. `set_character` writes a
+            # setting from a surface, which nothing else here does — and it is the
+            # only way the choice can be changed on a Deck at all: the plugin reads
+            # `DECKY_PLUGIN_SETTINGS_DIR`, not `~/.config/poedex`, and there is no
+            # usable CLI inside the plugin tree to run `poedex config set` with.
+            "character_choice": self.character_choice_json,
+            "set_character": self.set_character_json,
             "get_items": self.get_items_json,
             "get_stash_tabs": self.get_stash_tabs_json,
             "get_stash_items": self.get_stash_items_json,
@@ -390,12 +412,18 @@ class PoeApiModule:
         refresh: bool = False,
         realm: str | None = None,
     ) -> ItemSet:
-        name, roster = await self._character(character)
-        # One roster answers both questions. Resolved here rather than inside each
+        choice, roster = await self._character(character)
+        name = choice.name
+        # One roster answers all of them. Resolved here rather than inside each
         # helper so a named character costs the same single cached lookup that the
         # default-character path has already paid for.
         if roster is None:
             roster = await self._roster()
+        # The bag carries *why* this character, not just which — the same discipline
+        # `league` follows one field up, and for the same reason. A name on its own
+        # cannot be checked, and the case this exists for is the one where the name
+        # is correct-looking and wrong.
+        choice = self._decorate(choice, roster)
         league_name = await self._character_league(name, roster)
         realm_name = await self._realm(realm, character=name, roster=roster, may_fetch=False)
         account_name = await self._account(account)
@@ -415,6 +443,8 @@ class PoeApiModule:
             items=items,
             source=Source.BAG,
             character=name,
+            character_source=choice.source,
+            character_played_last=choice.played_last,
             league=league_name,
             meta=meta,
         )
@@ -781,6 +811,14 @@ class PoeApiModule:
     async def get_characters_json(self, refresh: bool = False) -> dict[str, Any]:
         return (await self.get_characters(refresh=refresh)).to_json()
 
+    async def character_choice_json(
+        self, character: str | None = None, refresh: bool = False
+    ) -> dict[str, Any]:
+        return (await self.character_choice(character, refresh=refresh)).to_json()
+
+    async def set_character_json(self, name: str | None = None) -> dict[str, Any]:
+        return (await self.set_character(name)).to_json()
+
     async def get_items_json(
         self, character: str | None = None, refresh: bool = False
     ) -> dict[str, Any]:
@@ -880,28 +918,165 @@ class PoeApiModule:
 
     # -- internals -------------------------------------------------------------
 
-    async def _character(self, explicit: str | None) -> tuple[str, CharacterList | None]:
+    async def _character(
+        self, explicit: str | None
+    ) -> tuple[CharacterChoice, CharacterList | None]:
         """Which character to read, and the roster it was read from if we fetched one.
 
         The roster is handed back rather than re-fetched by the caller so that
         resolving *both* the default character and its league costs the one
         ``get-characters`` call — the tightest endpoint on the account.
 
-        Precedence: explicit argument, then ``POEDEX_CHARACTER`` (one process,
-        set by a flag), then the persisted ``poeapi.character`` setting, then
-        whoever was played most recently. A named character short-circuits the
-        roster fetch entirely; only the fallback needs it.
+        A stated name short-circuits the roster fetch entirely; only a derived one
+        needs it. :meth:`_resolve_character` owns the ordering and the reasoning;
+        this adds the two things a caller cannot do without — a name that is
+        definitely there, and a shout when it was guessed.
         """
-        if explicit and explicit.strip():
-            return explicit.strip(), None
-        chosen = os.environ.get(CHARACTER_ENV) or str(self._setting("character", ""))
-        if chosen.strip():
-            return chosen.strip(), None
-        roster = await self.get_characters()
-        current = roster.current()
-        if current is None:
+        choice, roster = await self._resolve_character(explicit)
+        if choice.name is None:
             raise PoeApiError("the account has no characters in any league")
-        return current.name, roster
+        if choice.guessed:
+            # Loud here as well as on screen. This is the state the report was
+            # written about, and a log line is what somebody reading a Deck's plugin
+            # log after the fact will have.
+            self._log().warning(
+                "nothing on this account says which character to read — no entry is "
+                "marked current and none carries a lastLoginTime — so %r was picked "
+                "only because GGG listed it first. Choose one in the panel, or run "
+                "'poedex config set poeapi.character <name>'.",
+                choice.name,
+            )
+        return choice, roster
+
+    def _decorate(
+        self, choice: CharacterChoice, roster: CharacterList | None
+    ) -> CharacterChoice:
+        """Fill in what only the roster knows: the entry's facts, and what the
+        account would have picked if nothing had been stated.
+
+        A name the roster does not contain keeps its bare choice — inventing a league
+        for it would be the same confident guess this module exists to refuse. The
+        roster is whatever the caller already had; nothing here fetches.
+        """
+        if roster is None or choice.name is None:
+            return choice
+        entry = roster.named(choice.name)
+        if entry is not None:
+            choice = _choice_from(entry, choice.source)
+        if choice.stated:
+            played_last = roster.default()
+            if played_last is not None:
+                choice = choice.model_copy(update={"played_last": played_last.name})
+        return choice
+
+    async def _resolve_character(
+        self, explicit: str | None
+    ) -> tuple[CharacterChoice, CharacterList | None]:
+        """Which character, why, and the roster if one was fetched.
+
+        Precedence, high to low:
+
+        1. the explicit argument,
+        2. ``POEDEX_CHARACTER`` — one process, set by a flag, never persisted,
+        3. the ``poeapi.character`` setting,
+        4. a character GGG marked ``current``,
+        5. the highest ``lastLoginTime``,
+        6. a **visible** guess: first in GGG's ordering, labelled as a guess.
+
+        **Rungs 4 and 5 answer different questions**, which is why they are two
+        rungs and not one. ``current`` says who is *playing*; ``lastLoginTime`` says
+        who played *last*. In game they agree; out of game only the second exists —
+        and out of game is where every measurement of this account has been taken,
+        with ``current`` absent from the payload entirely. So rung 4 may well never
+        fire, and nothing here depends on whether it does: if GGG sets it, it wins;
+        if GGG never does, rung 5 carries the whole job and nothing looks different.
+
+        **Rung 3 stays above rung 4, deliberately.** The alternative — letting a
+        logged-in character beat a pin — was a real argument, and it loses on three
+        counts. `poeapi` already resolves the account, the league and the realm as
+        *stated, then derived*, and a fourth chain that inverted it would make the
+        word "setting" mean "unless" in one place and "always" in three others. An
+        override a lookup can beat is not an override. And the failure modes are no
+        longer symmetrical now that both are visible: a pin that disagrees with the
+        account says so on screen (:attr:`CharacterChoice.played_last`) and the
+        panel's picker clears it in one press, whereas a pin silently losing to
+        whoever is logged in is this very bug one rung up — a derived value wearing
+        a chosen value's face.
+        """
+        env = os.environ.get(CHARACTER_ENV, "").strip()
+        configured = str(self._setting("character", "")).strip()
+        stated: tuple[str, CharacterSource] | None = None
+        if explicit and explicit.strip():
+            stated = (explicit.strip(), CharacterSource.ARGUMENT)
+        elif env:
+            stated = (env, CharacterSource.ENVIRONMENT)
+        elif configured:
+            stated = (configured, CharacterSource.SETTING)
+
+        if stated is not None:
+            # No roster fetch. A stated name is sent to GGG as given: a roster
+            # cached an hour ago is not the authority on whether a character exists,
+            # and the entry is only ever used to decorate the answer.
+            name, source = stated
+            return CharacterChoice(name=name, source=source), None
+
+        roster = await self.get_characters()
+        entry, source = roster.resolve()
+        return _choice_from(entry, source), roster
+
+    async def character_choice(
+        self, character: str | None = None, *, refresh: bool = False
+    ) -> CharacterSelection:
+        """The roster, the pick, and the reason — in one cached request.
+
+        ``refresh`` reaches ``get-characters``, which has a hard minimum interval no
+        flag can shorten; a picker that spammed it would be denied by the limiter
+        rather than by this method, which is the right place for that rule to live.
+        """
+        roster = await self.get_characters(refresh=refresh)
+        choice, _ = await self._resolve_character(character)
+        return CharacterSelection(
+            choice=self._decorate(choice, roster),
+            characters=list(roster.characters),
+            configured=str(self._setting("character", "")).strip() or None,
+            meta=roster.meta,
+        )
+
+    async def set_character(self, name: str | None) -> CharacterSelection:
+        """Pin ``poeapi.character``, or clear it. The write behind the panel's picker.
+
+        Checked against the roster, because a picker may pin and may not invent — and
+        because on a Deck a wrong name is unfixable by the surface that wrote it. The
+        roster is the cached one; this spends nothing on a warm cache.
+        """
+        wanted = (name or "").strip()
+        if self._ctx is None:
+            raise PoeApiError("poeapi has not been started")
+        if not wanted:
+            self._ctx.settings.set("character", "")
+            selection = await self.character_choice()
+            await self._announce_character(selection)
+            return selection
+        roster = await self.get_characters()
+        entry = roster.named(wanted)
+        if entry is None:
+            known = ", ".join(character.name for character in roster.characters) or "none"
+            raise CharacterUnknownError(
+                f"no character called {wanted!r} on this account. Known characters: {known}."
+            )
+        self._ctx.settings.set("character", entry.name)
+        selection = await self.character_choice()
+        await self._announce_character(selection)
+        return selection
+
+    async def _announce_character(self, selection: CharacterSelection) -> None:
+        """Tell every surface at once. A pin made in the panel must not leave the bag
+        screen behind it showing another character's items."""
+        if self._ctx is None:
+            return
+        await self._ctx.events.emit(
+            CHARACTER_CHANGED, selection.to_json(), source=self.id
+        )
 
     async def _character_league(self, name: str, roster: CharacterList | None) -> str | None:
         """The league ``name`` is playing in, or ``None`` if it cannot be had.
@@ -1025,7 +1200,12 @@ class PoeApiModule:
         if configured:
             return configured
         roster = await self._roster()
-        current = roster.current() if roster is not None else None
+        # `default()`, not the old `current()`: that one ended in `characters[0]`, so
+        # a stash read could be aimed at a parked Standard character's league by
+        # nothing more than GGG's ordering — and a stash read against the wrong
+        # league is exactly the four-fold pricing error this module refuses to make.
+        # When nothing can say, saying nothing is the answer.
+        current = roster.default() if roster is not None else None
         if current is not None and current.league:
             return current.league
         raise LeagueUnknownError(
@@ -1077,7 +1257,7 @@ class PoeApiModule:
         if roster is None:
             self._warn_realm("the character list could not be reached")
             return None
-        entry = roster.named(character) if character else roster.current()
+        entry = roster.named(character) if character else roster.default()
         if entry is None:
             self._warn_realm(f"no character named {character!r} on this account")
             return None
@@ -1220,8 +1400,57 @@ def _profile_uuid(payload: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _choice_from(entry: Character | None, source: CharacterSource) -> CharacterChoice:
+    """A roster entry as a choice, carrying the facts a surface needs to disambiguate.
+
+    The league is the important one and the reason the picker shows it: three
+    characters called something similar in three leagues is the ordinary case, and
+    the league is what tells the parked one from the played one.
+    """
+    if entry is None:
+        return CharacterChoice(name=None, source=CharacterSource.NONE)
+    return CharacterChoice(
+        name=entry.name,
+        source=source,
+        league=entry.league,
+        class_name=entry.class_name,
+        level=entry.level,
+        last_login=entry.last_login,
+    )
+
+
+def _last_login(value: Any) -> datetime | None:
+    """``lastLoginTime`` as a datetime, or ``None`` when there is nothing to read.
+
+    **Seconds.** The largest value on the live roster decoded to a timestamp one day
+    before the day it was read; a millisecond reading of the same number lands in
+    January 1970, which is how this was checked rather than assumed. There is no
+    "looks like milliseconds" branch, because a unit-guessing parser is the same
+    class of confident invention as the fallback this whole change removes.
+
+    ``0`` and negatives are read as ``None`` — *unknown*, not "played at the epoch".
+    Whether a never-played character reports zero or omits the key is unmeasured, and
+    both readings have to mean the same thing for the ranking to stay honest.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(float(value), UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def _characters_from(payload: Any) -> list[Character]:
-    """``get-characters`` returns a bare array."""
+    """``get-characters`` returns a bare array.
+
+    Measured 2026-08-12, the live account's entries carry exactly ``class``,
+    ``lastLoginTime``, ``league``, ``level``, ``name``, ``pinnable`` and ``realm``.
+    ``current`` and ``experience`` are **not** among them; both are still parsed,
+    because a field that reappears should not need a code change and because
+    ``current`` is authoritative on the one occasion it does show up.
+    """
     entries = payload if isinstance(payload, list) else []
     out: list[Character] = []
     for entry in entries:
@@ -1239,6 +1468,7 @@ def _characters_from(payload: Any) -> list[Character]:
                 level=_int(entry.get("level")),
                 experience=_int(entry.get("experience")),
                 current=bool(entry.get("current", False)),
+                last_login=_last_login(entry.get("lastLoginTime")),
             )
         )
     return out

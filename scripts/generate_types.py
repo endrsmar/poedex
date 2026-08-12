@@ -47,6 +47,10 @@ ROOTS = (
     poeapi_models.NormalizedItem,
     poeapi_models.ItemSet,
     poeapi_models.CharacterList,
+    # The picker's payload. A root rather than something reached transitively:
+    # nothing on the item model references it, and the screen that renders it is
+    # written against these exact keys.
+    poeapi_models.CharacterSelection,
     *wire.WIRE_MODELS,
 )
 

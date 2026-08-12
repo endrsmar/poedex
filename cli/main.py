@@ -8,6 +8,7 @@ Commands:
     poedex config list                 every setting, its value, and where it came from
     poedex config get|set|unset KEY    read or write one <module>.<key>
     poedex modules                     list modules, their state and their reason
+    poedex characters                  the roster, and which character is read, and why
     poedex gamelog status              where Client.txt was found, or why not
     poedex gamelog watch               tail it and print classified zone events
     poedex sync                        fetch the bag and print the normalized model
@@ -40,6 +41,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
 from cli.appraise import cmd_appraise
+from cli.characters import cmd_characters
 from cli.config import cmd_config
 from cli.moddb import cmd_moddb
 from cli.price import cmd_price
@@ -152,6 +154,27 @@ def build_parser() -> argparse.ArgumentParser:
     config_set.add_argument("value", help="a list or a dict is written as JSON")
     config_unset = config_sub.add_parser("unset", help="drop the stored value, back to the default")
     config_unset.add_argument("key", metavar="MODULE.KEY")
+
+    characters = sub.add_parser(
+        "characters",
+        help="the account's characters, and which one the tool would read",
+        description=(
+            "Lists every character with its league, class, level and last-played "
+            "time, and then says which one the tool would read *and why*. The "
+            "league column is the one that matters: it is what tells a parked "
+            "character from the one you play, and reading the wrong one is a "
+            "silent four-fold error on every price. Costs one cached request."
+        ),
+    )
+    characters.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "re-fetch the character list. Rarely useful: get-characters is the "
+            "tightest endpoint on the account and has a minimum interval this "
+            "cannot shorten."
+        ),
+    )
 
     sub.add_parser("modules", help="list modules and their state")
 
@@ -692,7 +715,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     show_all=args.all,
                 )
             if args.action == "plan":
-                return await cmd_stash_plan(appraisal, league=args.league)
+                return await cmd_stash_plan(appraisal, prices, league=args.league)
             if args.action == "crawl":
                 return await cmd_stash_crawl(
                     registry.api(PoeApi),
@@ -733,6 +756,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 value=getattr(args, "value", None),
                 verbose=getattr(args, "verbose", False),
             )
+
+    elif args.command == "characters":
+
+        async def runner(registry: Registry) -> int:
+            return await cmd_characters(registry.api(PoeApi), refresh=args.force)
 
     elif args.command == "limits":
         runner = cmd_limits

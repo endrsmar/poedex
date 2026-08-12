@@ -95,6 +95,18 @@ importers:
         specifier: '>=18'
         version: 18.3.1
 
+  modules/poeapi/ui:
+    dependencies:
+      '@poedex/core':
+        specifier: workspace:*
+        version: link:../../../frontend/core
+      '@poedex/ui':
+        specifier: workspace:*
+        version: link:../../../ui-kit
+      react:
+        specifier: '>=18'
+        version: 18.3.1
+
   surfaces/decky:
     dependencies:
       '@decky/api':

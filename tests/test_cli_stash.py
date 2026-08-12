@@ -162,10 +162,15 @@ async def test_the_tab_output_says_how_to_ask_about_one_item(stash_stack, capsys
 
 
 async def test_plan_states_the_cost_and_spends_nothing(stash_stack, capsys, server: Server):
-    code = await cmd_stash_plan(stash_stack.api(AppraisalApi), league="Standard")
+    code = await cmd_stash_plan(
+        stash_stack.api(AppraisalApi), stash_stack.api(PricesApi), league="Standard"
+    )
     out = capsys.readouterr().out
     assert code == 0
     assert "nothing crawls by itself" in flat(out)
+    # And never a bare league name — `stash list` already said where its league came
+    # from and `stash plan` used to print the word on its own beside it.
+    assert "OVERRIDE" in out
     assert stash_requests(server) == [0]
 
 

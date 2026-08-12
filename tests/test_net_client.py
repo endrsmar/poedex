@@ -372,7 +372,7 @@ async def test_get_json_decodes_a_fixture():
         decoded = await client.get_json("/character-window/get-characters")
     finally:
         await client.aclose()
-    assert decoded[0]["name"] == "PlaceholderWarden"
+    assert decoded[1]["name"] == "PlaceholderWarden"
 
 
 # -- the module ----------------------------------------------------------------

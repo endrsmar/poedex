@@ -72,6 +72,13 @@ Tier3Name = Literal["none", "pending", "no_listings", "failed", "priced"]
 # `no_listings` and `failed` are finished answers that used to wear its clothes.
 StrictnessName = Literal["generous", "strict"]
 LeagueSourceName = Literal["argument", "setting", "character"]
+# Mirrors `poeapi.models.CharacterSource`. Spelled out rather than imported for the
+# same reason every other name in this file is: this is the declaration of what the
+# wire carries, and a drift between it and the enum is the thing to catch, not to
+# make impossible by aliasing.
+CharacterSourceName = Literal[
+    "argument", "environment", "setting", "current", "last_login", "fallback", "none"
+]
 
 # The six honest sync states (Phase 5's brief). Declared here rather than in the
 # frontend so that both sides — and, in Phase 7, a second transport — share one
@@ -207,8 +214,9 @@ class LeagueChoicePayload(Wire):
 
 
 class BagAppraisalPayload(Wire):
-    """Mirrors ``appraisal.api.BagAppraisal.to_json`` plus the two keys
-    ``appraise_bag_json`` adds (``character``, ``stale``)."""
+    """Mirrors ``appraisal.api.BagAppraisal.to_json`` plus the four keys
+    ``appraise_bag_json`` adds (``character``, its two provenance fields, and
+    ``stale``)."""
 
     league: str
     league_source: LeagueSourceName | None
@@ -231,6 +239,8 @@ class BagAppraisalPayload(Wire):
     trade_requests: int
     table: TableStatusPayload | None
     character: str | None = None
+    character_source: CharacterSourceName | None = None
+    character_played_last: str | None = None
     stale: bool = False
 
 

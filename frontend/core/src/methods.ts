@@ -16,6 +16,7 @@
 import type { Transport } from './transport'
 import type {
   BagAppraisalPayload,
+  CharacterSelection,
   ItemHighlightPayload,
   ItemSet,
   PriceCheckPayload,
@@ -173,6 +174,32 @@ export function createClient(transport: Transport) {
       },
       characters(): Promise<Record<string, unknown>> {
         return transport.call('poeapi.get_characters')
+      },
+      /**
+       * The roster, which character would be read, and **why**.
+       *
+       * The `why` is the point. `choice.source` is `fallback` when nothing on the
+       * account said — no entry marked current, none carrying a `lastLoginTime` —
+       * and a surface that draws that the same way it draws `last_login` is
+       * presenting a guess as an observation, which is the bug this call exists
+       * for. Costs one request, cached for an hour.
+       */
+      characterChoice(refresh = false): Promise<CharacterSelection> {
+        return transport.call<CharacterSelection>('poeapi.character_choice', {
+          character: null,
+          refresh,
+        })
+      },
+      /**
+       * Pin `poeapi.character`, or clear it with `null`.
+       *
+       * The only way to change which character is read on a Deck: the plugin's
+       * settings live under `DECKY_PLUGIN_SETTINGS_DIR`, not `~/.config/poedex`,
+       * and there is no usable CLI inside the plugin tree. The backend refuses a
+       * name that is not on the roster, so a picker can pin and cannot invent.
+       */
+      setCharacter(name: string | null): Promise<CharacterSelection> {
+        return transport.call<CharacterSelection>('poeapi.set_character', { name })
       },
       limits(): Promise<Record<string, unknown>> {
         return transport.call('poeapi.limits')

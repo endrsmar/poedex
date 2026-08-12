@@ -49,6 +49,11 @@ export interface BagStoreOptions {
    * Topics that mean "the bag may have changed". Phase 6's `gamelog` emits a zone
    * change, `poeapi` emits `sync_complete`; the store re-appraises on either
    * without a screen having to know they exist.
+   *
+   * `character_changed` is the third and it means something stronger than the
+   * other two: the bag on screen belongs to a *different character* from the one
+   * the tool now reads. A player who picks a character in the panel and presses
+   * **B** must not land back on the previous character's items.
    */
   refreshOn?: string[]
   character?: string | null
@@ -70,7 +75,8 @@ export interface BagStore extends ReadableStore<BagState> {
 
 export function createBagStore(options: BagStoreOptions): BagStore {
   const { client, now = () => new Date() } = options
-  const refreshOn = options.refreshOn ?? ['sync_complete', 'appraisal.complete']
+  const refreshOn =
+    options.refreshOn ?? ['sync_complete', 'appraisal.complete', 'character_changed']
   const store = createStore<BagState>({ bag: null, sync: INITIAL_SYNC, busy: false })
   let signature: string | null = null
   let inFlight: Promise<void> | null = null

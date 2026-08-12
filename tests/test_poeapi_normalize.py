@@ -355,13 +355,19 @@ def test_a_stack_size_above_the_maximum_is_not_clamped():
 def test_characters_parse():
     characters = _characters_from(fixture("get-characters.json"))
     assert [c.name for c in characters] == [
+        "PlaceholderJuggernaut",
         "PlaceholderWarden",
         "PlaceholderHierophant",
-        "PlaceholderJuggernaut",
     ]
-    assert characters[0].current is True
-    assert characters[0].class_name == "Warden"
-    assert characters[0].level == 97
+    warden = characters[1]
+    assert warden.class_name == "Warden"
+    assert warden.level == 97
+    # GGG does not send `current` out of game — no entry of the live roster carried
+    # it — so parsing the recorded shape produces False everywhere, and anything
+    # that still worked would have to be reading something else.
+    assert [c.current for c in characters] == [False, False, False]
+    assert warden.last_login is not None
+    assert warden.last_login.year == 2026
 
 
 def test_stash_tabs_parse():

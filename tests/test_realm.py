@@ -75,7 +75,7 @@ def test_a_roster_entry_without_a_realm_is_none_not_pc():
 
 async def test_the_character_list_carries_the_realm_to_its_callers(api: PoeApi):
     roster = await api.get_characters()
-    assert roster.current().realm == "pc"
+    assert roster.default().realm == "pc"
 
 
 # -- what goes on the wire ------------------------------------------------------

@@ -1329,6 +1329,8 @@
     "note": null,
     "discovery": "36 of 38 candidate types served by Allflame (asked, not assumed)"
   },
-  "character": "Gladefall",
+  "character": "PlaceholderWarden",
+  "character_source": "last_login",
+  "character_played_last": null,
   "stale": false
 }

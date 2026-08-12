@@ -5,8 +5,7 @@
     "class": "Juggernaut",
     "level": 86,
     "realm": "pc",
-    "pinnable": true,
-    "lastLoginTime": 1777746000
+    "pinnable": true
   },
   {
     "name": "PlaceholderWarden",
@@ -15,15 +14,6 @@
     "level": 97,
     "realm": "pc",
     "pinnable": true,
-    "lastLoginTime": 1786484400
-  },
-  {
-    "name": "PlaceholderHierophant",
-    "league": "Allflame",
-    "class": "Hierophant",
-    "level": 90,
-    "realm": "pc",
-    "pinnable": true,
-    "lastLoginTime": 1784012700
+    "lastLoginTime": 0
   }
 ]
