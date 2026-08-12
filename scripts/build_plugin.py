@@ -58,7 +58,15 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "dist"
-NAME = "poedex"
+
+NAME = json.loads((REPO / "plugin" / "plugin.json").read_text("utf-8"))["name"]
+"""The directory inside the zip, taken from the manifest rather than hardcoded.
+
+It was ``"poedex"`` while the manifest said ``"PoEDex"``, so the archive unpacked to
+a directory that did not match the plugin's declared name — and every path in
+``docs/deck-checklist.md`` says ``PoEDex``. Decky derives a plugin's settings,
+runtime and log directories from its identity, so a name that disagrees with its own
+folder is the kind of thing that half-works. One source of truth."""
 
 TARGET_PYTHON = "3.11"
 """The frozen Decky Loader's CPython. See this module's docstring — it is not the
