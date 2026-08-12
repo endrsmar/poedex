@@ -8,6 +8,7 @@ Commands:
     poedex config list                 every setting, its value, and where it came from
     poedex config get|set|unset KEY    read or write one <module>.<key>
     poedex modules                     list modules, their state and their reason
+    poedex characters                  the roster, and which character is read, and why
     poedex gamelog status              where Client.txt was found, or why not
     poedex gamelog watch               tail it and print classified zone events
     poedex sync                        fetch the bag and print the normalized model
@@ -714,7 +715,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     show_all=args.all,
                 )
             if args.action == "plan":
-                return await cmd_stash_plan(appraisal, league=args.league)
+                return await cmd_stash_plan(appraisal, prices, league=args.league)
             if args.action == "crawl":
                 return await cmd_stash_crawl(
                     registry.api(PoeApi),

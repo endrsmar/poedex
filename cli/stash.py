@@ -203,9 +203,14 @@ async def cmd_stash_list(
     return 0
 
 
-async def cmd_stash_plan(appraisal: AppraisalApi, *, league: str | None = None) -> int:
+async def cmd_stash_plan(
+    appraisal: AppraisalApi, prices: PricesApi, *, league: str | None = None
+) -> int:
     digest = await appraisal.stash_digest(league)
-    print(f"league:     {digest.league}")
+    # Never a bare league name, the same rule `cmd_stash_list` above already follows.
+    # `league_choice` rather than `prepare_league`: this command's whole promise is
+    # that it costs nothing, and loading tables to print a provenance would break it.
+    print(f"league:     {prices.league_choice(digest.league, explicit=league).describe()}")
     print(render_cost(digest.cost))
     print(
         "\n".join(
