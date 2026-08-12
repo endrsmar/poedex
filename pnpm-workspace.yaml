@@ -3,6 +3,7 @@ packages:
   - frontend/core
   - surfaces/web
   - surfaces/decky
+  - surfaces/deck-preview
   - modules/*/ui
   - tools/eslint-plugin-poedex
 allowBuilds:

@@ -24,7 +24,9 @@ from pathlib import Path
 import pytest
 
 from scripts.build_plugin import (
+    FRONTEND,
     SOURCE_EXCLUDES,
+    SOURCE_PACKAGES,
     TARGET_PYTHON,
     VENDOR,
     _assert_abi,
@@ -159,6 +161,25 @@ def test_the_vendor_list_is_the_projects_runtime_dependencies():
 def test_tests_and_module_ui_are_not_shipped():
     assert "tests" in SOURCE_EXCLUDES
     assert "ui" in SOURCE_EXCLUDES
+
+
+def test_the_deck_preview_never_reaches_the_zip():
+    """`surfaces/deck-preview/` is a dev tool and must stay one.
+
+    It exists to render the QAM panel in a browser, so it carries a stand-in for
+    `@decky/ui`, a fixture transport and a page full of chrome — everything the real
+    plugin must not have. There are exactly two doors into the package and this
+    closes both: the Python side copies four named packages and none of them is
+    under `surfaces/`, and the frontend side copies **one file**, the compact bundle
+    Rollup wrote. A third check covers the way it could get in anyway, which is the
+    plugin's own entry importing it.
+    """
+    assert not any(package.startswith("surfaces") for package in SOURCE_PACKAGES)
+    assert FRONTEND == REPO_ROOT / "surfaces" / "decky" / "dist" / "index.js"
+
+    decky_source = REPO_ROOT / "surfaces" / "decky" / "src"
+    for path in decky_source.rglob("*.ts*"):
+        assert "deck-preview" not in path.read_text(), f"{path} imports the preview"
 
 
 def test_the_target_python_is_the_loaders_not_the_decks():

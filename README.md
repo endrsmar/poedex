@@ -34,6 +34,27 @@ and is not reachable from any of them.
 `serve` binds to the loopback interface and refuses anything else — it reads your account's
 inventory, and `0.0.0.0` would put that on whatever network you are attached to.
 
+### Working on the Deck panel without a Deck
+
+```bash
+pnpm run deck        # http://127.0.0.1:5174 — arrows are the D-pad, Enter is A, Esc is B
+```
+
+The **Deck preview** renders the real QAM panel — the same `Panel.tsx` the plugin mounts, the
+same `compact` profile, the same module screens — at the Deck's real geometry: a 1280 × 800
+device-pixel frame, a 300 CSS px column, gaming mode's 1.5× scale. Focus is resolved
+**geometrically against live element rects**, the way Steam's is, rather than in DOM order —
+which matters because the bag grid is drawn in verdict order and laid out in slot order, so
+those two disagree about nearly every cell. It talks to `poedex serve` when one is running and
+falls back to the committed fixtures when it is not, saying which on screen.
+
+It is a *simulation of* `@decky/ui`, not `@decky/ui`: Steam's components are the same five-line
+stand-ins the test suite uses, and the focus system is a model of Steam's. So it **retires
+nothing** from [`docs/deck-checklist.md`](docs/deck-checklist.md) — it makes four of the eleven
+items cheap to get mostly right before a build-copy-install-restart cycle, and that document
+now says per item which half it covers. It is a dev tool and never ships: the plugin zip is
+four Python packages and one JavaScript file, and a test asserts this is neither.
+
 ## How it works
 
 Unlike desktop tools such as Awakened PoE Trade, this never interacts with the game client — no
@@ -86,6 +107,7 @@ transports/http/    FastAPI on 127.0.0.1, SSE, and the built SPA
 transports/decky/   the plugin backend: the registry, decky.emit, a shutdown on a deadline
 surfaces/web/       the browser shell; discovers module UIs and mounts them
 surfaces/decky/     the QAM panel: a screen stack, B to go back
+surfaces/deck-preview/  a dev tool: that panel, at Deck geometry, in a browser. Never shipped
 plugin/             plugin.json + the Plugin class Decky loads. Assembled by scripts/build_plugin.py
 ```
 

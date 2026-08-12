@@ -1,0 +1,300 @@
+/**
+ * The preview's chrome, and the three rules that are not chrome.
+ *
+ * Everything under `.pv__panel` is the *panel*, and the panel writes its own inline
+ * styles — the `compact` profile ships no stylesheet, because a Decky plugin cannot
+ * put global CSS into Steam's document. So this file must not style the panel's
+ * insides. The exceptions are marked "STRUCTURE" and each one reproduces something
+ * Steam's own document supplies and the `@decky/ui` double does not:
+ *
+ *   1. the QAM inset a `PanelSection` costs   (SPEC §6.1: 300 CSS px -> 268)
+ *   2. a bounded column height, so `ScrollPanel` has something to scroll inside
+ *   3. no reserved scrollbar gutter, which a desktop browser adds and Steam does not
+ *
+ * If a rule below is not one of those three, it is chrome and lives outside the frame.
+ * Each one is an *assumption reproduced*, not a measurement: where the Deck disagrees,
+ * this preview is confidently wrong in the same direction the panel is.
+ */
+
+:root {
+  color-scheme: dark;
+  --pv-bg: #0d1117;
+  --pv-surface: #151b23;
+  --pv-line: #2b3440;
+  --pv-ink: #dde5ed;
+  --pv-ink-2: #a3b0bd;
+  --pv-ink-3: #75838f;
+  --pv-accent: #6fb2e0;
+  --pv-warn: #d4ab52;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--pv-bg);
+  color: var(--pv-ink);
+  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.pv {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+}
+
+/* ------------------------------------------------------------------ bar --- */
+
+.pv__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--pv-line);
+  background: var(--pv-surface);
+}
+
+.pv__brand {
+  font-weight: 620;
+}
+
+.pv__chip {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentcolor;
+}
+
+.pv__chip--backend {
+  color: #6fc48d;
+}
+
+/* Not a warning colour by accident: fixture mode is the mode where what you are
+   looking at is not your account, and that has to be readable at a glance. */
+.pv__chip--fixtures {
+  color: var(--pv-warn);
+}
+
+.pv__note {
+  color: var(--pv-ink-3);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pv__toggle {
+  margin-left: auto;
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--pv-ink-2);
+  background: transparent;
+  border: 1px solid var(--pv-line);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------- stage --- */
+
+/* `padding` is set inline from `STAGE_PAD`, because the fit maths subtracts the same
+   number and two copies of it drift. */
+.pv__stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 1280 x 800 device px. `transform` only — nothing inside re-lays out because of it,
+   which is what keeps the panel's own pixels honest at any zoom. */
+.pv__deck {
+  position: relative;
+  flex: none;
+  transform-origin: top left;
+  background: #05070a;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 70%);
+}
+
+.pv__game {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-right: 450px;
+  color: #3a4652;
+  font-size: 15px;
+  text-align: center;
+  background: repeating-linear-gradient(
+    -45deg,
+    #0a0d11 0 24px,
+    #0c1015 24px 48px
+  );
+}
+
+.pv__game p {
+  margin: 0;
+}
+
+.pv__game-note {
+  font-size: 13px;
+  color: #2f3a45;
+}
+
+.pv__qam {
+  position: absolute;
+  inset: 0 0 0 auto;
+  overflow: hidden;
+  box-shadow: -24px 0 60px rgb(0 0 0 / 55%);
+}
+
+.pv__scale {
+  transform-origin: top left;
+}
+
+/* STRUCTURE (2): the column is 533.33 CSS px tall, which is 800 device px at the
+   1.5x gaming-mode scale. Without a bound, `ScrollPanel` grows and the preview
+   silently shows more panel than a Deck has. */
+.pv__panel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #171d25;
+}
+
+.pv__panel > [data-decky='Focusable'] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pv__panel [data-screen] {
+  flex: 1;
+  min-height: 0;
+}
+
+/* STRUCTURE (3): a desktop browser reserves a ~15 px gutter for the scrollbar and
+   Steam's gaming-mode UI does not — it is a touch and gamepad surface with overlay
+   scrollbars. Measured here before the rule existed: the bag grid came out 265 CSS px
+   wide instead of 280, and every cell was 1.2 px short. A preview that quietly ate
+   5% of the column would be lying about the one number this tool is for. */
+.pv__panel [data-decky='ScrollPanel'] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pv__panel [data-decky='ScrollPanel']::-webkit-scrollbar {
+  display: none;
+}
+
+/* STRUCTURE (1): Steam's `PanelSection` insets its contents. SPEC §6.1 measured the
+   column at 300 CSS px and 268 inside a section — 16 px a side — which is the number
+   `PANEL_INSET` in the compact profile is derived from and the number `ItemGrid`
+   escapes with a negative margin.
+   **This reproduces the assumption, it does not verify it.** If the real inset is not
+   16, this preview is wrong in exactly the same direction the panel is, and
+   `docs/deck-checklist.md` item 3 is still the only thing that can tell you. */
+.pv__panel [data-decky='PanelSection'] {
+  padding: 0 16px;
+}
+
+/* Drawn deliberately unlike the panel's own accent ring: this is the preview talking,
+   not Steam, and a focus indicator that looked native would hide a missing one. */
+.pv__ring {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed #e07ad0;
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------------ hud --- */
+
+.pv__hud {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--pv-line);
+  background: var(--pv-surface);
+}
+
+.pv__pad {
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+  gap: 4px;
+}
+
+.pv__pad button {
+  font: inherit;
+  height: 30px;
+  color: var(--pv-ink-2);
+  background: #1b222c;
+  border: 1px solid var(--pv-line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pv__pad button:hover {
+  color: var(--pv-ink);
+  border-color: var(--pv-accent);
+}
+
+.pv__readout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.pv__readout dt {
+  color: var(--pv-ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  align-self: center;
+}
+
+.pv__readout dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pv__caveat {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--pv-ink-3);
+}
+
+.pv__caveat strong {
+  color: var(--pv-ink-2);
+}
+
+.pv__caveat kbd,
+.pv__caveat code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--pv-ink-2);
+}

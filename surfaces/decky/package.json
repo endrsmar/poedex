@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./Panel": "./src/Panel.tsx"
+  },
   "description": "The `compact` surface: the Decky QAM panel. A screen stack over the module screens, B to go back.",
   "scripts": {
     "build": "rollup -c",

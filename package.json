@@ -8,12 +8,13 @@
     "dev": "pnpm --filter @poedex/web dev",
     "build": "pnpm --filter @poedex/web build",
     "build:decky": "pnpm --filter @poedex/decky build",
+    "deck": "pnpm --filter @poedex/deck-preview dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "types:check": "python3 scripts/generate_types.py --check",
-    "check": "pnpm run types:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:compact",
+    "check": "pnpm run types:check && pnpm run lint && pnpm run typecheck && pnpm --filter @poedex/deck-preview typecheck && pnpm run test && pnpm run test:compact",
     "test:compact": "vitest run --config vitest.compact.config.ts"
   },
   "devDependencies": {

@@ -1,0 +1,18 @@
+{
+  "name": "@poedex/deck-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A dev tool: the real Decky QAM panel at true Deck geometry, in a browser, with geometric D-pad navigation. Never shipped.",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@poedex/core": "workspace:*",
+    "@poedex/decky": "workspace:*",
+    "@poedex/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

@@ -9,7 +9,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./contracts": "./src/contracts/index.ts",
-    "./steam": "./src/profiles/compact/steam.tsx"
+    "./steam": "./src/profiles/compact/steam.tsx",
+    "./testing/decky-ui": "./src/testing/decky-ui-double.tsx",
+    "./testing/gamepad": "./src/testing/gamepad-focus.ts"
   },
   "imports": {
     "#profile": {

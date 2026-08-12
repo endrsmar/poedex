@@ -35,6 +35,13 @@
  *
  * * `Focusable.onActivate` fires on click and on Enter/Space. On hardware it is the
  *   **A** button, and Steam decides which element has focus geometrically.
+ * * `Focusable.onCancel` fires on an `Escape` keydown, left to bubble — so a handler
+ *   that calls `stopPropagation`, which is exactly what the Decky panel's root does
+ *   to keep **B** from closing the QAM, stops the ones above it. When one does, the
+ *   native event is marked `preventDefault`, which is how a caller outside React can
+ *   tell a **B** that was consumed from one that reached the top. On hardware it is
+ *   the **B** button and Steam does the bubbling. `ui-kit/src/testing/gamepad-focus.ts`
+ *   is the other half — it is what presses the button.
  * * `onGamepadFocus` / `onGamepadBlur` fire on DOM focus/blur. On hardware they fire
  *   when the D-pad moves onto and off the element.
  * * `noFocusRing`, `focusClassName` and `flow-children` are recorded and otherwise
@@ -80,7 +87,7 @@ export const Focusable = ({
   'flow-children': flowChildren,
   tabIndex,
   onActivate,
-  onCancel: _onCancel,
+  onCancel,
   onGamepadFocus,
   onGamepadBlur,
   ...rest
@@ -94,13 +101,22 @@ export const Focusable = ({
     data-focus-class={focusClassName}
     data-flow-children={flowChildren}
     data-on-activate={onActivate ? 'true' : undefined}
+    data-on-cancel={onCancel ? 'true' : undefined}
     onClick={onActivate ? (event) => onActivate(event) : undefined}
     onKeyDown={
-      onActivate
+      onActivate || onCancel
         ? (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
+            if (onActivate && (event.key === 'Enter' || event.key === ' ')) {
               event.preventDefault()
               onActivate(event)
+              return
+            }
+            if (onCancel && event.key === 'Escape') {
+              onCancel(event)
+              // Not "the panel refused the key" — "somebody up the tree consumed it".
+              // React stops a synthetic event at the handler that said so, so this is
+              // the only signal left for a caller holding the native event.
+              if (event.isPropagationStopped()) event.nativeEvent.preventDefault()
             }
           }
         : undefined
