@@ -89,6 +89,10 @@ fi
 # and every later sudo in the same session runs from the cache.
 remote_sudo() {
   local script="$1"
+  # The callers pass indented multi-line blocks, so `script` ends with a newline and
+  # spaces. Wrapping that as `{ $script; }` puts the `;` at the start of a line with
+  # nothing before it — `syntax error near unexpected token ;`. Trim the tail.
+  script="${script%"${script##*[![:space:]]}"}"
   if [[ -n "$DECK_PASSWORD" ]]; then
     printf '%s\n' "$DECK_PASSWORD" | "${SSH[@]}" "$REMOTE" "sudo -S -p '' -v && { $script; }"
   else
