@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "customConditions": ["poedex-compact"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "types": ["node", "vite/client"]
+  },
+  "//": [
+    "Its own tsconfig rather than an entry in the root one, for the same reason",
+    "surfaces/decky has its own: `customConditions` is how `#profile` resolves to the",
+    "compact implementation, and the root config is the `full` one. Checking this",
+    "surface under `full` would typecheck a build nobody ever runs.",
+    "`../decky/src` is included because the preview mounts the real Panel."
+  ],
+  "include": ["src", "vite.config.ts", "../decky/src", "../../ui-kit/src", "../../frontend/core/src", "../../modules/*/ui"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "../**/*.test.ts",
+    "../**/*.test.tsx",
+    "../../**/*.test.ts",
+    "../../**/*.test.tsx"
+  ]
+}

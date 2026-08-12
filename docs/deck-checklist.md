@@ -15,6 +15,35 @@ GGG set `current` on the character you are logged in as?
 
 ---
 
+## Before the Deck: `pnpm run deck`
+
+There is now a **preview** — the real panel, at the Deck's real geometry, in a
+browser, with geometric D-pad navigation:
+
+```bash
+poedex serve        # optional: real account data. Without it, the committed fixtures
+pnpm run deck       # http://127.0.0.1:5174 — arrows are the D-pad, Enter is A, Esc is B
+```
+
+It **retires nothing on this list.** What it does is make four items cheap to get
+*mostly* right before a build-copy-install-restart cycle is spent finding out, and
+each of those items says below which half it covers. The sentence that decides it
+every time: the preview renders the compact profile through
+`ui-kit/src/testing/decky-ui-double.tsx` — five-line stand-ins for Steam's components
+— under a *model* of Steam's focus system. It cannot tell you that real `@decky/ui`
+hands back the components at all, that Steam's own resolver agrees with the model, or
+anything whatever about suspend, hot reload or the plugin host.
+
+| item | in the preview |
+|---|---|
+| 1 backend · 2 `py_modules` · 6–10 pairing, suspend, unload | **nothing.** Hardware, a network, and the plugin host |
+| 3 geometry | **partly** — the column, the fit, what overflows. Not the inset it assumes |
+| 4 D-pad | **partly** — that the *layout* navigates. Not that Steam's system agrees |
+| 5 **B** | **mostly** — push, pop, and whether the press was consumed. Not that Steam maps B this way |
+| 11 picker | **partly** — the rows and the league badge at 300 px. Not `current`, not persistence |
+
+---
+
 ## Before you start
 
 ```bash
@@ -96,6 +125,21 @@ scrollbar anywhere on the panel.
 - **Anything scrolls sideways.** Report which screen; that is a layout bug, not a
   constant.
 
+**In the preview:** the column, the vertical fit and any sideways overflow, at a real
+300 CSS px scaled 1.5× inside a 1280 × 800 frame. Focus something and the HUD prints
+its box in the panel's own CSS pixels, which is how a cell gets measured without a
+ruler. **Not the inset**: the preview *reproduces* `PANEL_INSET = 16` as a CSS rule, so
+if the real `PanelSection` insets by something else, the preview is confidently wrong
+in exactly the direction the panel is. Only this item can tell you.
+
+**One thing the preview already found, and it is a question for this item.** The grid
+comes out **280 CSS px wide with 21.5 px cells**, not the 300 px and 24 px the
+`PANEL_INSET` docstring predicts — because `Screen` puts `padding: 10` on its own body,
+*inside* the 300 px column, and `ItemGrid`'s negative margin only escapes the
+`PanelSection`. Either the 268 px measurement was taken of a section that is a direct
+child of the column (in which case `Screen`'s padding is a second, uncounted inset), or
+the cells really are 21.5 px. Measure a cell against a fingertip and say which.
+
 ## 4 · D-pad navigation, against real `@decky/ui`
 
 **Do:** with the panel open, press the D-pad **left, right, up, down** across the bag
@@ -123,6 +167,25 @@ The focus ring is a thin outline that does not visually merge two adjacent cells
   is blank with *no* message, the guard itself is broken and that is a real bug worth
   reporting.
 
+**In the preview:** everything on the *layout* side of this item. `pnpm run deck`
+resolves a direction against the live rects the way Steam does — nearest along the
+axis, penalised for being off the origin's centre line — so "right goes right", "empty
+slots are skipped" and "the detail line follows focus with no press" are all checkable
+here, and the resolver has its own tests
+(`ui-kit/src/testing/gamepad-focus.test.ts`) built on layouts where document order is
+the *wrong* answer. That matters more than it sounds: the bag grid is drawn in verdict
+order and laid out in slot order, so a preview that walked the DOM would have been
+wrong about every cell.
+
+**Not the system.** It is a model of Steam's resolver, not Steam's; where they
+disagree, Steam is right. It says nothing about the focus ring, about `noFocusRing`
+being honoured, or about `@decky/ui` returning components at all — the preview's own
+focus box is a magenta dashed rectangle drawn *outside* the panel precisely so it
+cannot be mistaken for Steam's ring. **And X and Y are worth a press here:** three
+screens draw an `X` or `Y` glyph on an `Action` and nothing in this tree binds either
+button, so the preview reports the hint and the absence. Whether Steam routes those
+buttons to a focused `DialogButton` anyway is this item's question.
+
 ## 5 · **B** goes back, and does not trap you
 
 **Do:** from the bag, press the **Pair** control to push that screen. Press **B**.
@@ -134,6 +197,17 @@ it does in every other plugin.
 **Fail:** if **B** closes the QAM from the pushed screen, `onCancel` is not reaching
 the panel's root `Focusable`. If **B** never closes the QAM, the shell is swallowing
 it at the root — worse, because there is no other way out.
+
+**In the preview, and this is the item it covers best.** The mechanism is structurally
+the same thing: `onCancel` is delivered as a bubbling DOM keydown, and the panel stops
+it with `stopPropagation` exactly as it would on hardware. So the preview can say which
+of the two outcomes happened — press **Esc** and the readout is either *"the panel went
+back (it stopped the event)"* or *"nothing consumed it: the real QAM would close here"*.
+Driven through Character → **B** → **B**, that is this item's whole script.
+
+**Not proven:** that Steam's **B** is delivered as `onCancel`, that it bubbles through
+`Focusable`s the way React's events do, and that an unconsumed one closes the QAM.
+Those three are why this item stays on the list.
 
 ## 6 · Pairing: the address is right
 
@@ -253,6 +327,19 @@ rows are wider than a mod line and the league badge is the part that must surviv
 badge is what tells a parked character from a played one); a pick that appears to
 take and is gone after a suspend; or a bag screen still showing the old character's
 items after **B**, which means `character_changed` is not reaching the store.
+
+**In the preview:** steps 1, 3 and 4 as *layout and interaction* — the three rows fit,
+the league badge survives beside the name at 300 px, the D-pad reaches a row, **A**
+ticks it once, and the reason line changes to *"you picked this one · you last played
+…"*. That was worth having: it is how the fixture's first draft was caught writing the
+word `undefined` under the character's name, from a `source` value the backend never
+emits.
+
+**Not step 2, which is the whole point of the item.** Whether GGG sets `current` on a
+character you are logged in as cannot be answered by anything that is not a live
+session on a running game — and the preview's fixture, like every fixture here, has
+`current: false` on every entry because that is what a roster read out of game looks
+like. Persistence across a suspend is item 9's problem and equally out of reach.
 
 ## Also worth doing once, while you have the hardware
 
